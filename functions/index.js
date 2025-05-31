@@ -26,6 +26,8 @@ const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestor
  * 
  * Estas funciones se ejecutan en el servidor de Firebase y centralizan
  * la lógica de generación de resultados del juego.
+ * 
+ * ACTUALIZADO: Usando nueva colección player_tickets
  */
 
 // Inicializar la app de Firebase Admin
