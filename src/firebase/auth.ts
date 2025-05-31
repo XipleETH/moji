@@ -165,12 +165,28 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
 
 // Obtener usuario actual
 export const getCurrentUser = async (): Promise<User | null> => {
-  // Primero intentar obtener usuario de Farcaster
-  const farcasterUser = await getFarcasterUserData();
-  if (farcasterUser) {
-    return farcasterUser;
-  }
+  console.log('[getCurrentUser] Iniciando obtención de usuario...');
   
-  // Si no hay usuario de Farcaster, devolver null
-  return null;
+  try {
+    // Primero intentar obtener usuario de Farcaster
+    console.log('[getCurrentUser] Intentando obtener usuario de Farcaster...');
+    const farcasterUser = await getFarcasterUserData();
+    
+    if (farcasterUser) {
+      console.log('[getCurrentUser] Usuario de Farcaster obtenido exitosamente:', {
+        id: farcasterUser.id,
+        username: farcasterUser.username,
+        walletAddress: farcasterUser.walletAddress,
+        isFarcasterUser: farcasterUser.isFarcasterUser
+      });
+      return farcasterUser;
+    }
+    
+    // Si no hay usuario de Farcaster, devolver null
+    console.log('[getCurrentUser] No hay usuario de Farcaster disponible');
+    return null;
+  } catch (error) {
+    console.error('[getCurrentUser] Error obteniendo usuario:', error);
+    return null;
+  }
 }; 

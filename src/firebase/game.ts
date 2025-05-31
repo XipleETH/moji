@@ -49,19 +49,24 @@ const mapFirestoreTicket = (doc: any): Ticket => {
 // Generar un ticket
 export const generateTicket = async (numbers: string[]): Promise<Ticket | null> => {
   try {
+    console.log('[generateTicket] Iniciando generación de ticket con números:', numbers);
+    
     const user = await getCurrentUser();
+    console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Farcaster: ${user.isFarcasterUser}` : 'No hay usuario');
     
     // Verificar que el usuario esté autenticado con Farcaster
     if (!user || !user.isFarcasterUser) {
-      console.error('Error generating ticket: User is not authenticated with Farcaster');
+      console.error('[generateTicket] Error: User is not authenticated with Farcaster');
       return null;
     }
     
     // Verificar que el usuario tenga una billetera
     if (!user.walletAddress) {
-      console.error('Error generating ticket: User does not have a wallet address');
+      console.error('[generateTicket] Error: User does not have a wallet address');
       return null;
     }
+    
+    console.log('[generateTicket] Validaciones pasadas, creando ticket...');
     
     // En el futuro, aquí podríamos verificar el balance de tokens antes de generar ticket
     // if (parseFloat(user.tokenBalance || "0") < TICKET_PRICE) {
@@ -88,13 +93,22 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       ticketHash: uniqueHash
     };
     
+    console.log('[generateTicket] Datos del ticket preparados:', {
+      userId: ticketData.userId,
+      username: ticketData.username,
+      numbersCount: ticketData.numbers.length,
+      collection: TICKETS_COLLECTION
+    });
+    
+    console.log('[generateTicket] Intentando guardar en colección:', TICKETS_COLLECTION);
     const ticketRef = await addDoc(collection(db, TICKETS_COLLECTION), ticketData);
+    console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
     
     // Simular una transacción en la blockchain (en el futuro esto sería real)
-    console.log(`Ticket creado con ID: ${ticketRef.id} para el usuario de Farcaster ${user.username} (FID: ${user.fid}, Wallet: ${user.walletAddress})`);
+    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario de Farcaster ${user.username} (FID: ${user.fid}, Wallet: ${user.walletAddress})`);
     
     // Devolver el ticket creado
-    return {
+    const newTicket = {
       id: ticketRef.id,
       numbers,
       timestamp: Date.now(),
@@ -102,8 +116,19 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       walletAddress: user.walletAddress,
       fid: user.fid
     };
+    
+    console.log('[generateTicket] Ticket devuelto:', newTicket);
+    return newTicket;
   } catch (error) {
-    console.error('Error generating ticket:', error);
+    console.error('[generateTicket] Error generating ticket:', error);
+    
+    // Información adicional de debugging
+    if (error instanceof Error) {
+      console.error('[generateTicket] Error name:', error.name);
+      console.error('[generateTicket] Error message:', error.message);
+      console.error('[generateTicket] Error stack:', error.stack);
+    }
+    
     return null;
   }
 };

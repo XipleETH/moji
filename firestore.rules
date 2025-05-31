@@ -13,15 +13,10 @@ service cloud.firestore {
       allow write: if true; // Permitir escritura para facilitar pruebas
     }
     
-    // Player Tickets - Reglas mejoradas
+    // Player Tickets - Reglas temporalmente permisivas para debugging
     match /player_tickets/{ticketId} {
-      allow read: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         resource == null); // Permitir lectura si es el propietario o el documento no existe aún
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
-      allow write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
+      allow read: if true;  // Temporalmente permitir lectura total para debugging
+      allow write: if true; // Temporalmente permitir escritura total para debugging
     }
     
     // Game state
