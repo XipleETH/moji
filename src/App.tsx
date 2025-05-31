@@ -4,11 +4,13 @@ import { Ticket as TicketComponent } from './components/Ticket';
 import { TicketGenerator } from './components/TicketGenerator';
 import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
+import { WalletConnector } from './components/WalletConnector';
 import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useMiniKit, useNotification, useViewProfile } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
+import { useWalletAuth } from './hooks/useWalletAuth';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
 
@@ -17,9 +19,14 @@ function App() {
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
-  const { user, isLoading, isFarcasterAvailable, signIn } = useAuth();
+  const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
+  const { user: walletUser, isConnected: isWalletConnected } = useWalletAuth();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const hasTriedSignIn = useRef(false);
+  
+  // Usar wallet user si está disponible, sino usar auth user
+  const user = walletUser || authUser;
+  const hasWallet = !!user?.walletAddress;
   
   // Para evitar renderizado constante
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -41,7 +48,7 @@ function App() {
   // Intentar inicio de sesión automático si no hay usuario
   useEffect(() => {
     // Solo intentamos una vez y cuando no estamos cargando ya
-    if (!user && !isLoading && !hasTriedSignIn.current) {
+    if (!user && !isLoading && !hasTriedSignIn.current && !isWalletConnected) {
       console.log("Intentando inicio de sesión automático");
       hasTriedSignIn.current = true;
       signIn().catch(err => console.error("Error en inicio de sesión automático:", err));
@@ -55,7 +62,7 @@ function App() {
       
       return () => clearTimeout(timer);
     }
-  }, [user, isLoading, signIn, initialLoadComplete]);
+  }, [user, isLoading, signIn, initialLoadComplete, isWalletConnected]);
 
   // Mostrar notificación cuando hay ganadores
   const handleWin = useCallback(async () => {
@@ -89,24 +96,34 @@ function App() {
     );
   }
 
-  // Si el usuario no está autenticado con Farcaster, mostrar mensaje de error
-  if (!user?.isFarcasterUser && isFarcasterAvailable && initialLoadComplete) {
+  // Si no hay usuario con wallet, mostrar mensaje de conexión
+  if (!hasWallet && initialLoadComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex flex-col items-center justify-center p-4">
-        <div className="bg-white/20 p-8 rounded-xl max-w-md text-center">
+        <div className="bg-white/20 p-8 rounded-xl max-w-md text-center mb-6">
           <h1 className="text-4xl font-bold text-white mb-4">🎰 LottoMoji 🎲</h1>
-          <p className="text-white text-xl mb-6">Solo para usuarios de Farcaster</p>
+          <p className="text-white text-xl mb-6">Conecta tu Wallet para Jugar</p>
           <p className="text-white/80 mb-6">
-            Para jugar a LottoMoji necesitas iniciar sesión con tu cuenta de Farcaster. 
-            Esta aplicación solo está disponible para usuarios de Farcaster Warpcast.
+            Para generar tickets y participar en LottoMoji necesitas conectar una wallet compatible. 
+            Funciona con Coinbase Wallet, MetaMask y otras wallets Web3.
           </p>
-          <button
-            onClick={() => signIn()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            Iniciar sesión con Farcaster
-          </button>
         </div>
+        
+        <div className="w-full max-w-md">
+          <WalletConnector />
+        </div>
+        
+        {isFarcasterAvailable && (
+          <div className="mt-4 text-center">
+            <p className="text-white/60 text-sm mb-2">¿Eres usuario de Farcaster?</p>
+            <button
+              onClick={() => signIn()}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Iniciar con Farcaster
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -143,11 +160,9 @@ function App() {
         </div>
         
         {/* Componente de información de billetera */}
-        {user?.isFarcasterUser && (
-          <div className="mb-6">
-            <WalletInfo />
-          </div>
-        )}
+        <div className="mb-6">
+          <WalletConnector />
+        </div>
         
         <p className="text-white/90 text-xl mb-4">
           Match 4 emojis to win! 🏆
@@ -198,9 +213,66 @@ function App() {
             />
           ))}
         </div>
+
+        <div className="mt-8 space-y-6">
+          <GameHistoryButton />
+          
+          <div className="bg-white/10 rounded-lg p-6 text-white">
+            <h3 className="text-2xl font-bold mb-4 flex items-center">
+              <Trophy className="mr-2" size={24} />
+              Premio Structure
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>🥇 First Prize (4 exact matches):</span>
+                <span className="font-bold">1000 tokens</span>
+              </div>
+              <div className="flex justify-between">
+                <span>🥈 Second Prize (4 any order):</span>
+                <span className="font-bold">500 tokens</span>
+              </div>
+              <div className="flex justify-between">
+                <span>🥉 Third Prize (3 exact matches):</span>
+                <span className="font-bold">100 tokens</span>
+              </div>
+              <div className="flex justify-between">
+                <span>🎫 Free Ticket (3 any order):</span>
+                <span className="font-bold">Free ticket</span>
+              </div>
+            </div>
+          </div>
+          
+          <EmojiChat />
+          
+          {import.meta.env.DEV && (
+            <div className="bg-white/10 rounded-lg p-6 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold flex items-center">
+                  <Terminal className="mr-2" size={20} />
+                  Developer Tools
+                </h3>
+                <button
+                  onClick={() => setShowDiagnostic(!showDiagnostic)}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
+                >
+                  {showDiagnostic ? 'Hide' : 'Show'} Diagnostic
+                </button>
+              </div>
+              
+              {showDiagnostic && (
+                <div className="bg-black/20 p-4 rounded text-xs font-mono">
+                  <div>User ID: {user?.id || 'Not logged in'}</div>
+                  <div>Wallet: {user?.walletAddress || 'No wallet'}</div>
+                  <div>Is Wallet Connected: {isWalletConnected ? 'Yes' : 'No'}</div>
+                  <div>Tickets: {gameState.tickets.length}</div>
+                  <div>Winning Numbers: {gameState.winningNumbers?.join(', ') || 'None'}</div>
+                  <div>Time Remaining: {gameState.timeRemaining}s</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      <GameHistoryButton />
-      <EmojiChat />
     </div>
   );
 }

@@ -52,50 +52,37 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     console.log('[generateTicket] Iniciando generación de ticket con números:', numbers);
     
     const user = await getCurrentUser();
-    console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Farcaster: ${user.isFarcasterUser}` : 'No hay usuario');
+    console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Wallet: ${user.walletAddress}` : 'No hay usuario');
     
-    // Verificar que el usuario esté autenticado con Farcaster
-    if (!user || !user.isFarcasterUser) {
-      console.error('[generateTicket] Error: User is not authenticated with Farcaster');
-      return null;
-    }
-    
-    // Verificar que el usuario tenga una billetera
-    if (!user.walletAddress) {
-      console.error('[generateTicket] Error: User does not have a wallet address');
+    // Verificar que el usuario tenga una billetera (no requiere Farcaster específicamente)
+    if (!user || !user.walletAddress) {
+      console.error('[generateTicket] Error: Usuario no tiene wallet conectada');
       return null;
     }
     
     console.log('[generateTicket] Validaciones pasadas, creando ticket...');
     
-    // En el futuro, aquí podríamos verificar el balance de tokens antes de generar ticket
-    // if (parseFloat(user.tokenBalance || "0") < TICKET_PRICE) {
-    //   console.error('Error generating ticket: Insufficient token balance');
-    //   return null;
-    // }
-    
     // Generar un hash único para el ticket (simulado)
     const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
     
-    // Incluir información detallada de Farcaster en el ticket
+    // Incluir información del usuario en el ticket
     const ticketData = {
       numbers,
       timestamp: serverTimestamp(),
       userId: user.id,
       username: user.username,
       walletAddress: user.walletAddress,
-      fid: user.fid || 0,
-      isFarcasterUser: true,
-      verifiedWallet: user.verifiedWallet || false,
-      chainId: user.chainId || 10, // Optimism por defecto
-      // En el futuro, aquí se incluiría información de la transacción blockchain
-      // txHash: "",
+      fid: user.fid || 0, // Puede ser 0 si no es usuario de Farcaster
+      isFarcasterUser: user.isFarcasterUser || false,
+      verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
+      chainId: user.chainId || 8453, // Base por defecto
       ticketHash: uniqueHash
     };
     
     console.log('[generateTicket] Datos del ticket preparados:', {
       userId: ticketData.userId,
       username: ticketData.username,
+      walletAddress: ticketData.walletAddress,
       numbersCount: ticketData.numbers.length,
       collection: TICKETS_COLLECTION
     });
@@ -104,8 +91,8 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     const ticketRef = await addDoc(collection(db, TICKETS_COLLECTION), ticketData);
     console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
     
-    // Simular una transacción en la blockchain (en el futuro esto sería real)
-    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario de Farcaster ${user.username} (FID: ${user.fid}, Wallet: ${user.walletAddress})`);
+    // Log de éxito
+    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);
     
     // Devolver el ticket creado
     const newTicket = {

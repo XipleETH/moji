@@ -163,13 +163,87 @@ export const onAuthStateChanged = (callback: (user: User | null) => void) => {
   return () => {};
 };
 
+// Función para obtener usuario de wallet directo
+const getWalletUser = async (): Promise<User | null> => {
+  try {
+    console.log('[getWalletUser] Verificando wallet en localStorage...');
+    
+    const savedAuth = localStorage.getItem('walletAuth');
+    if (!savedAuth) {
+      console.log('[getWalletUser] No hay datos de wallet guardados');
+      return null;
+    }
+
+    const { address, chainId, timestamp } = JSON.parse(savedAuth);
+    
+    // Verificar que no sea muy antigua (24 horas)
+    if (Date.now() - timestamp > 24 * 60 * 60 * 1000) {
+      console.log('[getWalletUser] Datos de wallet expirados');
+      localStorage.removeItem('walletAuth');
+      return null;
+    }
+
+    // Verificar que tengamos ethereum
+    if (typeof window !== 'undefined' && window.ethereum) {
+      try {
+        // Verificar que la cuenta aún esté conectada
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (!accounts || !accounts.includes(address)) {
+          console.log('[getWalletUser] Cuenta ya no está conectada');
+          localStorage.removeItem('walletAuth');
+          return null;
+        }
+
+        // Crear usuario de wallet
+        const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+        
+        const walletUser: User = {
+          id: `wallet-${address.toLowerCase()}`,
+          username: `User-${shortAddress}`,
+          walletAddress: address,
+          isFarcasterUser: false,
+          verifiedWallet: true,
+          chainId: chainId || 8453
+        };
+        
+        console.log('[getWalletUser] Usuario de wallet obtenido:', walletUser);
+        return walletUser;
+        
+      } catch (error) {
+        console.error('[getWalletUser] Error verificando cuenta de wallet:', error);
+        localStorage.removeItem('walletAuth');
+        return null;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[getWalletUser] Error obteniendo usuario de wallet:', error);
+    return null;
+  }
+};
+
 // Obtener usuario actual
 export const getCurrentUser = async (): Promise<User | null> => {
   console.log('[getCurrentUser] Iniciando obtención de usuario...');
   
   try {
-    // Primero intentar obtener usuario de Farcaster
-    console.log('[getCurrentUser] Intentando obtener usuario de Farcaster...');
+    // Primero intentar obtener usuario de wallet directo
+    console.log('[getCurrentUser] Intentando obtener usuario de wallet directo...');
+    const walletUser = await getWalletUser();
+    
+    if (walletUser) {
+      console.log('[getCurrentUser] Usuario de wallet obtenido exitosamente:', {
+        id: walletUser.id,
+        username: walletUser.username,
+        walletAddress: walletUser.walletAddress,
+        isFarcasterUser: walletUser.isFarcasterUser
+      });
+      return walletUser;
+    }
+    
+    // Si no hay usuario de wallet, intentar Farcaster como fallback
+    console.log('[getCurrentUser] Intentando obtener usuario de Farcaster como fallback...');
     const farcasterUser = await getFarcasterUserData();
     
     if (farcasterUser) {
@@ -182,8 +256,8 @@ export const getCurrentUser = async (): Promise<User | null> => {
       return farcasterUser;
     }
     
-    // Si no hay usuario de Farcaster, devolver null
-    console.log('[getCurrentUser] No hay usuario de Farcaster disponible');
+    // Si no hay usuario disponible
+    console.log('[getCurrentUser] No hay usuario disponible');
     return null;
   } catch (error) {
     console.error('[getCurrentUser] Error obteniendo usuario:', error);
