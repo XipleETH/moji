@@ -4,8 +4,6 @@ import { useRealTimeTimer } from './useRealTimeTimer';
 import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
 import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
 
-const MAX_TICKETS = 10;
-
 const initialGameState: GameState = {
   winningNumbers: [],
   tickets: [],
@@ -108,9 +106,9 @@ export function useGameState() {
     requestManualGameDraw();
   }, []);
 
-  // Función para generar un nuevo ticket
+  // Función para generar un nuevo ticket (sin límites)
   const generateTicket = useCallback(async (numbers: string[]) => {
-    if (!numbers?.length || gameState.tickets.length >= MAX_TICKETS) return;
+    if (!numbers?.length) return;
     
     try {
       // Crear un ticket temporal para mostrar inmediatamente
@@ -143,7 +141,7 @@ export function useGameState() {
     } catch (error) {
       console.error('Error generating ticket:', error);
     }
-  }, [gameState.tickets.length]);
+  }, []);
 
   return {
     gameState: {

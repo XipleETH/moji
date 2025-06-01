@@ -26,7 +26,6 @@ function App() {
   
   // Usar wallet user si está disponible, sino usar auth user
   const user = walletUser || authUser;
-  const hasWallet = !!user?.walletAddress;
   
   // Para evitar renderizado constante
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -92,38 +91,6 @@ function App() {
           <div className="animate-bounce text-6xl mb-4">🎲</div>
           <div className="text-white text-2xl">Cargando LottoMoji...</div>
         </div>
-      </div>
-    );
-  }
-
-  // Si no hay usuario con wallet, mostrar mensaje de conexión
-  if (!hasWallet && initialLoadComplete) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex flex-col items-center justify-center p-4">
-        <div className="bg-white/20 p-8 rounded-xl max-w-md text-center mb-6">
-          <h1 className="text-4xl font-bold text-white mb-4">🎰 LottoMoji 🎲</h1>
-          <p className="text-white text-xl mb-6">Conecta tu Wallet para Jugar</p>
-          <p className="text-white/80 mb-6">
-            Para generar tickets y participar en LottoMoji necesitas conectar una wallet compatible. 
-            Funciona con Coinbase Wallet, MetaMask y otras wallets Web3.
-          </p>
-        </div>
-        
-        <div className="w-full max-w-md">
-          <WalletConnector />
-        </div>
-        
-        {isFarcasterAvailable && (
-          <div className="mt-4 text-center">
-            <p className="text-white/60 text-sm mb-2">¿Eres usuario de Farcaster?</p>
-            <button
-              onClick={() => signIn()}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Iniciar con Farcaster
-            </button>
-          </div>
-        )}
       </div>
     );
   }
@@ -194,9 +161,9 @@ function App() {
 
         <TicketGenerator
           onGenerateTicket={generateTicket}
-          disabled={gameState.tickets.length >= 10}
+          disabled={false}
           ticketCount={gameState.tickets.length}
-          maxTickets={10}
+          maxTickets={999}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
