@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { EmojiGrid } from './EmojiGrid';
 import { generateRandomEmojis } from '../utils/gameLogic';
 import { useWalletAuth } from '../hooks/useWalletAuth';
-import { WalletIcon } from 'lucide-react';
+import { WalletIcon, CheckCircle } from 'lucide-react';
 
 interface TicketGeneratorProps {
   onGenerateTicket: (numbers: string[]) => void;
@@ -19,6 +19,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
+  const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
   const { user, isConnected, connect, isConnecting } = useWalletAuth();
 
   // Reset selected emojis when ticket count changes to 0
@@ -29,8 +30,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   }, [ticketCount]);
 
   const handleGenerateTicket = async (numbers: string[]) => {
-    // Si no hay wallet conectada, mostrar prompt
+    // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
     if (!isConnected || !user?.walletAddress) {
+      setPendingTicket(numbers);
       setShowWalletPrompt(true);
       return;
     }
@@ -38,6 +40,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     // Si hay wallet, generar ticket
     onGenerateTicket(numbers);
     setSelectedEmojis([]); // Reset selection after generating ticket
+    setPendingTicket(null);
     setShowWalletPrompt(false);
   };
 
@@ -46,9 +49,10 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
       await connect();
       setShowWalletPrompt(false);
       
-      // Si tenemos emojis seleccionados, generar ticket después de conectar
-      if (selectedEmojis.length === 4) {
-        onGenerateTicket(selectedEmojis);
+      // Si tenemos un ticket pendiente, generarlo después de conectar
+      if (pendingTicket) {
+        onGenerateTicket(pendingTicket);
+        setPendingTicket(null);
         setSelectedEmojis([]);
       }
     } catch (error) {
@@ -62,9 +66,8 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     const newSelection = [...selectedEmojis, emoji];
     setSelectedEmojis(newSelection);
     
-    if (newSelection.length === 4) {
-      handleGenerateTicket(newSelection);
-    }
+    // Ya no generamos automáticamente cuando llegamos a 4
+    // El usuario debe hacer clic en el botón de confirmación
   };
 
   const handleEmojiDeselect = (index: number) => {
@@ -77,6 +80,17 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     handleGenerateTicket(randomEmojis);
   };
 
+  const handleConfirmSelectedTicket = () => {
+    if (selectedEmojis.length === 4) {
+      handleGenerateTicket(selectedEmojis);
+    }
+  };
+
+  const handleCancelWalletPrompt = () => {
+    setShowWalletPrompt(false);
+    setPendingTicket(null);
+  };
+
   return (
     <div className="mb-8 space-y-4">
       <div className="flex flex-col gap-4">
@@ -86,6 +100,20 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           onEmojiDeselect={handleEmojiDeselect}
           maxSelections={4}
         />
+        
+        {/* Botón de confirmación para emojis seleccionados */}
+        {selectedEmojis.length === 4 && (
+          <button
+            onClick={handleConfirmSelectedTicket}
+            disabled={disabled}
+            className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 
+                     rounded-xl shadow-lg transform transition hover:scale-105 
+                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+          >
+            <CheckCircle size={20} />
+            Confirmar Ticket con Emojis Seleccionados
+          </button>
+        )}
         
         <button
           onClick={handleRandomGenerate}
@@ -108,11 +136,16 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                   <div className="text-sm text-white/70">
                     Necesitas conectar una wallet para generar tickets
                   </div>
+                  {pendingTicket && (
+                    <div className="text-xs text-white/60 mt-1">
+                      Ticket con emojis: {pendingTicket.join(' ')}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowWalletPrompt(false)}
+                  onClick={handleCancelWalletPrompt}
                   className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
                 >
                   Cancelar
@@ -132,6 +165,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         {/* Mostrar información del ticket count sin límites */}
         <div className="text-center text-white/70 text-sm">
           Tickets generados: {ticketCount}
+        </div>
+
+        {/* Instrucciones para el usuario */}
+        <div className="text-center text-white/60 text-xs">
+          {selectedEmojis.length === 0 && "Selecciona 4 emojis para crear un ticket personalizado"}
+          {selectedEmojis.length > 0 && selectedEmojis.length < 4 && 
+            `Selecciona ${4 - selectedEmojis.length} emoji${4 - selectedEmojis.length === 1 ? '' : 's'} más`}
+          {selectedEmojis.length === 4 && "¡Listo! Haz clic en 'Confirmar Ticket' para generar tu ticket"}
         </div>
       </div>
     </div>
