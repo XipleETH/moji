@@ -27,7 +27,7 @@ const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestor
  * Estas funciones se ejecutan en el servidor de Firebase y centralizan
  * la lógica de generación de resultados del juego.
  * 
- * ACTUALIZADO: Usando nueva colección player_tickets
+ * ACTUALIZADO: Sistema de sorteo diario con tickets válidos por 24 horas
  */
 
 // Inicializar la app de Firebase Admin
@@ -40,7 +40,8 @@ const db = getFirestore();
 const GAME_STATE_DOC = 'current_game_state';
 const TICKETS_COLLECTION = 'player_tickets';
 const GAME_RESULTS_COLLECTION = 'game_results';
-const DRAW_INTERVAL_MS = 60000; // 1 minuto
+const DRAW_TIME_HOUR = 20; // Sorteo a las 8:00 PM
+const COOLDOWN_MINUTES = 30; // 30 minutos antes del sorteo sin poder comprar tickets
 
 // Función para generar emojis aleatorios
 const generateRandomEmojis = (count) => {
@@ -54,6 +55,34 @@ const generateRandomEmojis = (count) => {
     result.push(EMOJIS[randomIndex]);
   }
   return result;
+};
+
+// Función para obtener la fecha del día (YYYY-MM-DD)
+const getDateKey = (date) => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+// Función para calcular el próximo sorteo
+const getNextDrawTime = () => {
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(DRAW_TIME_HOUR, 0, 0, 0);
+  
+  // Si ya pasó la hora del sorteo de hoy, programar para mañana
+  if (now > today) {
+    today.setDate(today.getDate() + 1);
+  }
+  
+  return today;
+};
+
+// Función para verificar si estamos en período de cooldown
+const isInCooldownPeriod = () => {
+  const now = new Date();
+  const nextDraw = getNextDrawTime();
+  const cooldownStart = new Date(nextDraw.getTime() - (COOLDOWN_MINUTES * 60 * 1000));
+  
+  return now >= cooldownStart && now < nextDraw;
 };
 
 // Función para verificar si un ticket es ganador con los nuevos criterios
@@ -106,97 +135,66 @@ const checkWin = (ticketNumbers, winningNumbers) => {
   };
 };
 
-// Función compartida para procesar el sorteo
-const processGameDraw = async () => {
-  // Guardar referencia al documento de control fuera del try para usarlo en el catch
+// Función compartida para procesar el sorteo diario
+const processDailyGameDraw = async () => {
   const now = new Date();
-  const currentMinute = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-  const drawControlRef = db.collection('draw_control').doc(currentMinute);
+  const dateKey = getDateKey(now);
+  const drawControlRef = db.collection('draw_control').doc(dateKey);
   const processId = Date.now().toString();
   
   try {
-    logger.info(`[${processId}] Procesando sorteo del juego para el minuto ${currentMinute}...`);
+    logger.info(`[${processId}] Procesando sorteo diario para el día ${dateKey}...`);
     
-    // 1. Verificar primero si ya existe un resultado en game_results para este minuto
-    // (verificación adicional para evitar duplicados)
-    const minuteStart = new Date(now);
-    minuteStart.setSeconds(0);
-    minuteStart.setMilliseconds(0);
-    
-    const minuteEnd = new Date(minuteStart);
-    minuteEnd.setMinutes(minuteStart.getMinutes() + 1);
-    
-    // Primero, verificar si ya existe un resultado por minuteKey
-    const existingByKeyQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('minuteKey', '==', currentMinute)
+    // 1. Verificar si ya existe un resultado para este día
+    const existingResultQuery = db.collection(GAME_RESULTS_COLLECTION)
+      .where('dateKey', '==', dateKey)
       .limit(1);
     
-    const existingByKey = await existingByKeyQuery.get();
+    const existingResult = await existingResultQuery.get();
     
-    if (!existingByKey.empty) {
-      const existingResult = existingByKey.docs[0];
-      logger.info(`[${processId}] Ya existe un resultado para el minuto ${currentMinute} con ID (por minuteKey): ${existingResult.id}`);
-      return { success: true, alreadyProcessed: true, resultId: existingResult.id };
+    if (!existingResult.empty) {
+      const existingDoc = existingResult.docs[0];
+      logger.info(`[${processId}] Ya existe un resultado para el día ${dateKey} con ID: ${existingDoc.id}`);
+      return { success: true, alreadyProcessed: true, resultId: existingDoc.id };
     }
     
-    // Verificación adicional por timestamp
-    const existingResultsQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('timestamp', '>=', minuteStart)
-      .where('timestamp', '<', minuteEnd)
-      .limit(1);
-    
-    const existingResults = await existingResultsQuery.get();
-    
-    if (!existingResults.empty) {
-      const existingResult = existingResults.docs[0];
-      logger.info(`[${processId}] Ya existe un resultado para el periodo de tiempo ${currentMinute} con ID: ${existingResult.id}`);
-      return { success: true, alreadyProcessed: true, resultId: existingResult.id };
-    }
-    
-    // 2. Verificar si ya se procesó un sorteo para este minuto usando draw_control
-    
-    // Usar transacción para evitar condiciones de carrera
+    // 2. Usar transacción para evitar condiciones de carrera
     const result = await db.runTransaction(async (transaction) => {
       const drawControlDoc = await transaction.get(drawControlRef);
       
-      // Si ya existe un documento para este minuto, otro proceso ya está manejando este sorteo
       if (drawControlDoc.exists) {
         const data = drawControlDoc.data();
         
-        // Si ya está completado, retornar el ID del resultado
         if (data.completed) {
-          logger.info(`[${processId}] Ya se procesó un sorteo para el minuto ${currentMinute} con ID: ${data.resultId}`);
+          logger.info(`[${processId}] Ya se procesó un sorteo para el día ${dateKey} con ID: ${data.resultId}`);
           return { success: true, alreadyProcessed: true, resultId: data.resultId };
         }
         
-        // Si está en proceso pero no completado y lleva más de 30 segundos, considerarlo como fallido
-        // y permitir un nuevo intento
         if (data.inProgress) {
           const startTime = data.startedAt ? new Date(data.startedAt).getTime() : 0;
           const elapsed = Date.now() - startTime;
           
-          if (elapsed < 30000) { // menos de 30 segundos
-            logger.info(`[${processId}] Sorteo para el minuto ${currentMinute} en proceso, esperando...`);
+          if (elapsed < 120000) { // menos de 2 minutos
+            logger.info(`[${processId}] Sorteo para el día ${dateKey} en proceso, esperando...`);
             return { success: false, inProgress: true };
           } else {
-            logger.warn(`[${processId}] Sorteo para el minuto ${currentMinute} no completado después de 30s, reiniciando...`);
-            // Continuar con una nueva ejecución
+            logger.warn(`[${processId}] Sorteo para el día ${dateKey} no completado después de 2min, reiniciando...`);
           }
         }
       }
       
-      // Marcar este minuto como en proceso
+      // Marcar este día como en proceso
       transaction.set(drawControlRef, {
         timestamp: FieldValue.serverTimestamp(),
         inProgress: true,
         startedAt: now.toISOString(),
-        processId: processId
+        processId: processId,
+        dateKey: dateKey
       });
       
       return { success: true, alreadyProcessed: false };
     });
     
-    // Si ya está procesado o en progreso, retornar
     if (result.alreadyProcessed) {
       return result;
     }
@@ -210,30 +208,39 @@ const processGameDraw = async () => {
     const winningNumbers = generateRandomEmojis(4);
     logger.info(`[${processId}] Números ganadores generados:`, winningNumbers);
     
-    // 4. Calcular próximo sorteo
-    const nextMinute = new Date(now);
-    nextMinute.setMinutes(now.getMinutes() + 1);
-    nextMinute.setSeconds(0);
-    nextMinute.setMilliseconds(0);
+    // 4. Calcular próximo sorteo (mañana a la misma hora)
+    const nextDraw = getNextDrawTime();
     
     // 5. Actualizar estado del juego
     await db.collection('game_state').doc(GAME_STATE_DOC).set({
       winningNumbers,
-      nextDrawTime: Timestamp.fromDate(nextMinute),
+      nextDrawTime: Timestamp.fromDate(nextDraw),
       lastUpdated: FieldValue.serverTimestamp(),
-      lastProcessId: processId
+      lastProcessId: processId,
+      dateKey: dateKey,
+      cooldownActive: false // Resetear cooldown después del sorteo
     });
     
-    // 6. Obtener tickets activos
-    const ticketsSnapshot = await db.collection(TICKETS_COLLECTION).get();
+    // 6. Obtener tickets válidos para este día (solo los del día actual)
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    const dayEnd = new Date(now);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    const ticketsSnapshot = await db.collection(TICKETS_COLLECTION)
+      .where('timestamp', '>=', dayStart)
+      .where('timestamp', '<=', dayEnd)
+      .get();
+    
     const tickets = ticketsSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
     
-    logger.info(`[${processId}] Procesando ${tickets.length} tickets`);
+    logger.info(`[${processId}] Procesando ${tickets.length} tickets válidos para el día ${dateKey}`);
     
-    // 7. Comprobar ganadores con los nuevos criterios
+    // 7. Comprobar ganadores
     const results = {
       firstPrize: [],
       secondPrize: [],
@@ -251,88 +258,75 @@ const processGameDraw = async () => {
       else if (winStatus.freePrize) results.freePrize.push(ticket);
     });
     
-    logger.info(`[${processId}] Resultados:`, {
+    logger.info(`[${processId}] Resultados del día ${dateKey}:`, {
       firstPrize: results.firstPrize.length,
       secondPrize: results.secondPrize.length,
       thirdPrize: results.thirdPrize.length,
-      freePrize: results.freePrize.length
+      freePrize: results.freePrize.length,
+      totalTickets: tickets.length
     });
     
     // 8. Guardar resultado
-    const gameResultId = Date.now().toString();
+    const gameResultId = `daily-${dateKey}-${Date.now()}`;
     
-    // Preparar datos serializables para Firestore
     const serializableResult = {
       id: gameResultId,
       timestamp: FieldValue.serverTimestamp(),
-      dateTime: new Date().toISOString(), // Fecha legible como respaldo
+      dateTime: new Date().toISOString(),
+      dateKey: dateKey,
       winningNumbers,
       processId: processId,
-      minuteKey: currentMinute, // Guardar la clave del minuto para facilitar la verificación
+      totalTickets: tickets.length,
+      drawType: 'daily',
       firstPrize: results.firstPrize.map(ticket => ({
         id: ticket.id,
         numbers: ticket.numbers,
         timestamp: ticket.timestamp,
-        userId: ticket.userId || 'anonymous'
+        userId: ticket.userId || 'anonymous',
+        walletAddress: ticket.walletAddress || null
       })),
       secondPrize: results.secondPrize.map(ticket => ({
         id: ticket.id,
         numbers: ticket.numbers,
         timestamp: ticket.timestamp,
-        userId: ticket.userId || 'anonymous'
+        userId: ticket.userId || 'anonymous',
+        walletAddress: ticket.walletAddress || null
       })),
       thirdPrize: results.thirdPrize.map(ticket => ({
         id: ticket.id,
         numbers: ticket.numbers,
         timestamp: ticket.timestamp,
-        userId: ticket.userId || 'anonymous'
+        userId: ticket.userId || 'anonymous',
+        walletAddress: ticket.walletAddress || null
       })),
       freePrize: results.freePrize.map(ticket => ({
         id: ticket.id,
         numbers: ticket.numbers,
         timestamp: ticket.timestamp,
-        userId: ticket.userId || 'anonymous'
+        userId: ticket.userId || 'anonymous',
+        walletAddress: ticket.walletAddress || null
       }))
     };
     
-    // Guardar el resultado en Firestore
     await db.collection(GAME_RESULTS_COLLECTION).doc(gameResultId).set(serializableResult);
     
-    // 9. Generar tickets gratis para los ganadores del premio "freePrize"
-    for (const ticket of results.freePrize) {
-      if (ticket.userId && ticket.userId !== 'anonymous' && ticket.userId !== 'temp') {
-        // Generar un nuevo ticket gratis con números aleatorios
-        const freeTicketNumbers = generateRandomEmojis(4);
-        
-        await db.collection(TICKETS_COLLECTION).add({
-          numbers: freeTicketNumbers,
-          timestamp: FieldValue.serverTimestamp(),
-          userId: ticket.userId,
-          isFreeTicket: true,
-          wonFrom: ticket.id
-        });
-        
-        logger.info(`[${processId}] Ticket gratis generado para usuario ${ticket.userId}`);
-      }
-    }
-    
-    // 10. Actualizar el control de sorteos para este minuto como completado
+    // 9. Actualizar el control de sorteos como completado
     await drawControlRef.set({
       timestamp: FieldValue.serverTimestamp(),
       inProgress: false,
       completed: true,
       resultId: gameResultId,
       processId: processId,
-      completedAt: new Date().toISOString()
+      completedAt: new Date().toISOString(),
+      dateKey: dateKey
     });
     
-    logger.info(`[${processId}] Sorteo procesado con éxito con ID:`, gameResultId);
+    logger.info(`[${processId}] Sorteo diario procesado con éxito para ${dateKey} con ID: ${gameResultId}`);
     
-    return { success: true, resultId: gameResultId };
+    return { success: true, resultId: gameResultId, dateKey: dateKey };
   } catch (error) {
-    logger.error(`[${processId}] Error procesando el sorteo:`, error);
+    logger.error(`[${processId}] Error procesando el sorteo diario:`, error);
     
-    // Marcar el documento de control como fallido para que pueda ser reintentado
     try {
       await drawControlRef.set({
         timestamp: FieldValue.serverTimestamp(),
@@ -340,7 +334,8 @@ const processGameDraw = async () => {
         completed: false,
         processId: processId,
         error: error.message,
-        errorAt: new Date().toISOString()
+        errorAt: new Date().toISOString(),
+        dateKey: dateKey
       }, { merge: true });
     } catch (updateError) {
       logger.error(`[${processId}] Error actualizando documento de control tras fallo:`, updateError);
@@ -350,75 +345,31 @@ const processGameDraw = async () => {
   }
 };
 
-// Función programada que se ejecuta cada minuto para realizar el sorteo automáticamente
-exports.scheduledGameDraw = onSchedule({
-  schedule: "every 1 minutes",
-  timeZone: "America/Mexico_City", // Ajusta a tu zona horaria
+// Función programada que se ejecuta diariamente a las 8:00 PM
+exports.scheduledDailyGameDraw = onSchedule({
+  schedule: "0 20 * * *", // Todos los días a las 8:00 PM
+  timeZone: "America/Mexico_City",
   retryConfig: {
-    maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
-    minBackoffSeconds: 10
+    maxRetryAttempts: 2,
+    minBackoffSeconds: 60
   },
-  maxInstances: 1 // Asegurar que solo se ejecuta una instancia a la vez
+  maxInstances: 1
 }, async (event) => {
   const instanceId = Date.now().toString();
-  logger.info(`[${instanceId}] Ejecutando sorteo programado: ${event.jobName}`);
-  
-  // Verificar que no haya otra instancia ejecutándose
   const now = new Date();
-  const currentMinute = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-  logger.info(`[${instanceId}] Procesando sorteo para el minuto: ${currentMinute}`);
+  const dateKey = getDateKey(now);
   
-  // Comprobar rápidamente si ya existe un resultado para este minuto
-  try {
-    const existingResultQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('minuteKey', '==', currentMinute)
-      .limit(1);
-    
-    const existingResult = await existingResultQuery.get();
-    
-    if (!existingResult.empty) {
-      logger.info(`[${instanceId}] Ya existe un resultado para el minuto ${currentMinute}. Abortando ejecución.`);
-      return;
-    }
-  } catch (error) {
-    logger.error(`[${instanceId}] Error verificando existencia de resultados previos:`, error);
-    // Continuamos de todas formas, ya que processGameDraw tiene sus propias verificaciones
-  }
+  logger.info(`[${instanceId}] Ejecutando sorteo diario programado para ${dateKey}: ${event.jobName}`);
   
-  const lockRef = db.collection('scheduler_locks').doc(currentMinute);
-  const drawControlRef = db.collection('draw_control').doc(currentMinute);
+  const lockRef = db.collection('scheduler_locks').doc(`daily-${dateKey}`);
   
   try {
-    // Verificar primero si ya existe un resultado para este minuto
-    const drawControlDoc = await drawControlRef.get();
-    
-    if (drawControlDoc.exists) {
-      const data = drawControlDoc.data();
-      if (data.completed) {
-        logger.info(`[${instanceId}] Ya se procesó un sorteo para el minuto ${currentMinute} con ID: ${data.resultId}`);
-        return;
-      }
-      
-      if (data.inProgress) {
-        const startTime = data.startedAt ? new Date(data.startedAt).getTime() : 0;
-        const elapsed = Date.now() - startTime;
-        
-        if (elapsed < 30000) { // menos de 30 segundos
-          logger.info(`[${instanceId}] Sorteo para el minuto ${currentMinute} en proceso, esperando...`);
-          return;
-        } else {
-          logger.warn(`[${instanceId}] Sorteo para el minuto ${currentMinute} no completado después de 30s, reiniciando...`);
-          // Continuar con una nueva ejecución
-        }
-      }
-    }
-    
     // Intentar adquirir el bloqueo
     const lockResult = await db.runTransaction(async (transaction) => {
       const lockDoc = await transaction.get(lockRef);
       
       if (lockDoc.exists) {
-        logger.info(`[${instanceId}] Ya hay una instancia procesando el sorteo para el minuto ${currentMinute}`);
+        logger.info(`[${instanceId}] Ya hay una instancia procesando el sorteo diario para ${dateKey}`);
         return false;
       }
       
@@ -426,21 +377,22 @@ exports.scheduledGameDraw = onSchedule({
         timestamp: FieldValue.serverTimestamp(),
         jobName: event.jobName,
         instanceId: instanceId,
-        startedAt: now.toISOString()
+        startedAt: now.toISOString(),
+        dateKey: dateKey
       });
       
       return true;
     });
     
     if (!lockResult) {
-      logger.info(`[${instanceId}] Abortando ejecución duplicada del sorteo programado`);
+      logger.info(`[${instanceId}] Abortando ejecución duplicada del sorteo diario`);
       return;
     }
     
-    logger.info(`[${instanceId}] Bloqueo adquirido, procediendo con el sorteo`);
+    logger.info(`[${instanceId}] Bloqueo adquirido, procediendo con el sorteo diario`);
     
     // Ejecutar el sorteo
-    const result = await processGameDraw();
+    const result = await processDailyGameDraw();
     
     // Actualizar el bloqueo como completado
     await lockRef.update({
@@ -450,11 +402,10 @@ exports.scheduledGameDraw = onSchedule({
       success: result.success || false
     });
     
-    logger.info(`[${instanceId}] Sorteo finalizado con éxito: ${result.success}`);
+    logger.info(`[${instanceId}] Sorteo diario finalizado con éxito: ${result.success}`);
   } catch (error) {
-    logger.error(`[${instanceId}] Error en scheduledGameDraw:`, error);
+    logger.error(`[${instanceId}] Error en scheduledDailyGameDraw:`, error);
     
-    // Marcar el bloqueo como fallido
     try {
       await lockRef.update({
         error: error.message,
@@ -468,7 +419,21 @@ exports.scheduledGameDraw = onSchedule({
 });
 
 // Función Cloud que puede ser invocada manualmente (para pruebas o sorteos forzados)
-exports.triggerGameDraw = onCall({ maxInstances: 1 }, async (request) => {
-  logger.info("Solicitud manual de sorteo recibida");
-  return await processGameDraw();
+exports.triggerDailyGameDraw = onCall({ maxInstances: 1 }, async (request) => {
+  logger.info("Solicitud manual de sorteo diario recibida");
+  return await processDailyGameDraw();
+});
+
+// Función para verificar el estado del cooldown
+exports.checkCooldownStatus = onCall({}, async (request) => {
+  const now = new Date();
+  const isInCooldown = isInCooldownPeriod();
+  const nextDraw = getNextDrawTime();
+  
+  return {
+    isInCooldown,
+    nextDrawTime: nextDraw.toISOString(),
+    currentTime: now.toISOString(),
+    cooldownMinutes: COOLDOWN_MINUTES
+  };
 });

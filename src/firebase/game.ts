@@ -21,6 +21,22 @@ const TICKETS_COLLECTION = 'player_tickets';
 const GAME_STATE_DOC = 'current_game_state';
 const RESULTS_LIMIT = 50;
 
+// Tipos para el nuevo sistema diario
+export interface GameState {
+  winningNumbers: string[];
+  nextDrawTime: Timestamp;
+  lastUpdated: Timestamp;
+  lastProcessId?: string;
+  dateKey?: string;
+  cooldownActive?: boolean;
+}
+
+export interface TicketGenerationResult {
+  success: boolean;
+  ticket?: any;
+  error?: string;
+}
+
 // Convertir documento de Firestore a nuestro tipo de resultado de juego
 const mapFirestoreGameResult = (doc: any): GameResult => {
   const data = doc.data();
@@ -46,23 +62,43 @@ const mapFirestoreTicket = (doc: any): Ticket => {
   };
 };
 
-// Generar un ticket
-export const generateTicket = async (numbers: string[]): Promise<Ticket | null> => {
+// Convertir documento de Firestore a ticket con Timestamp (para sistema diario)
+const mapFirestoreTicketWithTimestamp = (doc: any) => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    numbers: data.numbers || [],
+    timestamp: data.timestamp,
+    userId: data.userId,
+    walletAddress: data.walletAddress,
+    username: data.username
+  };
+};
+
+// Generar un ticket con resultado más detallado
+export const generateTicket = async (numbers: string[], userId?: string): Promise<TicketGenerationResult> => {
   try {
     console.log('[generateTicket] Iniciando generación de ticket con números:', numbers);
     
-    const user = await getCurrentUser();
-    console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Wallet: ${user.walletAddress}` : 'No hay usuario');
+    let user;
+    if (userId) {
+      // Si se proporciona userId, crear un objeto usuario básico
+      user = { id: userId, walletAddress: userId };
+    } else {
+      user = await getCurrentUser();
+    }
     
-    // Verificar que el usuario tenga una billetera (no requiere Farcaster específicamente)
-    if (!user || !user.walletAddress) {
-      console.error('[generateTicket] Error: Usuario no tiene wallet conectada');
-      return null;
+    console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Wallet: ${user.walletAddress || 'N/A'}` : 'No hay usuario');
+    
+    // Para el sistema diario, solo necesitamos que el usuario tenga ID
+    if (!user || !user.id) {
+      console.error('[generateTicket] Error: Usuario no válido');
+      return { success: false, error: 'Usuario no válido' };
     }
     
     console.log('[generateTicket] Validaciones pasadas, creando ticket...');
     
-    // Generar un hash único para el ticket (simulado)
+    // Generar un hash único para el ticket
     const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
     
     // Incluir información del usuario en el ticket
@@ -70,12 +106,12 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       numbers,
       timestamp: serverTimestamp(),
       userId: user.id,
-      username: user.username,
-      walletAddress: user.walletAddress,
-      fid: user.fid || 0, // Puede ser 0 si no es usuario de Farcaster
+      username: user.username || 'Usuario',
+      walletAddress: user.walletAddress || user.id,
+      fid: user.fid || 0,
       isFarcasterUser: user.isFarcasterUser || false,
-      verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
-      chainId: user.chainId || 8453, // Base por defecto
+      verifiedWallet: user.verifiedWallet || true,
+      chainId: user.chainId || 8453,
       ticketHash: uniqueHash
     };
     
@@ -92,7 +128,7 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
     
     // Log de éxito
-    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);
+    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${ticketData.username} (ID: ${user.id})`);
     
     // Devolver el ticket creado
     const newTicket = {
@@ -100,12 +136,12 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       numbers,
       timestamp: Date.now(),
       userId: user.id,
-      walletAddress: user.walletAddress,
+      walletAddress: ticketData.walletAddress,
       fid: user.fid
     };
     
     console.log('[generateTicket] Ticket devuelto:', newTicket);
-    return newTicket;
+    return { success: true, ticket: newTicket };
   } catch (error) {
     console.error('[generateTicket] Error generating ticket:', error);
     
@@ -116,8 +152,109 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       console.error('[generateTicket] Error stack:', error.stack);
     }
     
+    return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' };
+  }
+};
+
+// Obtener tickets de un usuario con filtros de fecha
+export const getUserTickets = async (
+  userId: string, 
+  startDate?: Date, 
+  endDate?: Date
+): Promise<Array<{
+  id: string;
+  numbers: string[];
+  timestamp: Timestamp;
+  userId: string;
+  walletAddress?: string;
+  username?: string;
+}>> => {
+  try {
+    let ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    
+    // Si se proporcionan fechas, filtrar por rango
+    if (startDate) {
+      ticketsQuery = query(
+        collection(db, TICKETS_COLLECTION),
+        where('userId', '==', userId),
+        where('timestamp', '>=', Timestamp.fromDate(startDate)),
+        ...(endDate ? [where('timestamp', '<=', Timestamp.fromDate(endDate))] : []),
+        orderBy('timestamp', 'desc')
+      );
+    }
+    
+    const snapshot = await getDocs(ticketsQuery);
+    
+    return snapshot.docs.map(doc => mapFirestoreTicketWithTimestamp(doc));
+  } catch (error) {
+    console.error('Error fetching user tickets:', error);
+    return [];
+  }
+};
+
+// Obtener el estado actual del juego
+export const getGameState = async (): Promise<GameState | null> => {
+  try {
+    const stateDocRef = doc(db, 'game_state', GAME_STATE_DOC);
+    const snapshot = await getDoc(stateDocRef);
+    
+    if (!snapshot.exists()) {
+      return null;
+    }
+    
+    const data = snapshot.data();
+    
+    return {
+      winningNumbers: data.winningNumbers || [],
+      nextDrawTime: data.nextDrawTime,
+      lastUpdated: data.lastUpdated,
+      lastProcessId: data.lastProcessId,
+      dateKey: data.dateKey,
+      cooldownActive: data.cooldownActive || false
+    };
+  } catch (error) {
+    console.error('Error fetching game state:', error);
     return null;
   }
+};
+
+// Suscribirse al estado del juego
+export const subscribeToGameState = (
+  callback: (state: GameState | null) => void
+) => {
+  const stateDocRef = doc(db, 'game_state', GAME_STATE_DOC);
+  
+  return onSnapshot(stateDocRef, (snapshot) => {
+    try {
+      if (!snapshot.exists()) {
+        callback(null);
+        return;
+      }
+      
+      const data = snapshot.data();
+      
+      const gameState: GameState = {
+        winningNumbers: data.winningNumbers || [],
+        nextDrawTime: data.nextDrawTime,
+        lastUpdated: data.lastUpdated,
+        lastProcessId: data.lastProcessId,
+        dateKey: data.dateKey,
+        cooldownActive: data.cooldownActive || false
+      };
+      
+      callback(gameState);
+    } catch (error) {
+      console.error('Error processing game state snapshot:', error);
+      callback(null);
+    }
+  }, (error) => {
+    console.error('Error in game state subscription:', error);
+    callback(null);
+  });
 };
 
 // Suscribirse a los resultados de juegos
@@ -259,7 +396,7 @@ export const subscribeToUserTickets = (
   }
 };
 
-// Suscribirse al estado actual del juego
+// Suscribirse al estado actual del juego (versión legacy)
 export const subscribeToCurrentGameState = (
   callback: (winningNumbers: string[], timeRemaining: number) => void
 ) => {

@@ -1,154 +1,232 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { GameState, Ticket, GameResult } from '../types';
-import { useRealTimeTimer } from './useRealTimeTimer';
-import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
-import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
+import { useState, useEffect, useCallback } from 'react';
+import { Timestamp } from 'firebase/firestore';
+import { getGameState, subscribeToGameState, generateTicket, getUserTickets } from '../firebase/game';
+import { GameState } from '../firebase/game';
 
-const initialGameState: GameState = {
-  winningNumbers: [],
-  tickets: [],
-  lastResults: null,
-  gameStarted: true
-};
+export interface GameResult {
+  id: string;
+  timestamp: Timestamp;
+  dateTime: string;
+  dateKey: string;
+  winningNumbers: string[];
+  processId: string;
+  totalTickets: number;
+  drawType: string;
+  firstPrize: Array<{
+    id: string;
+    numbers: string[];
+    timestamp: Timestamp;
+    userId: string;
+    walletAddress?: string;
+  }>;
+  secondPrize: Array<{
+    id: string;
+    numbers: string[];
+    timestamp: Timestamp;
+    userId: string;
+    walletAddress?: string;
+  }>;
+  thirdPrize: Array<{
+    id: string;
+    numbers: string[];
+    timestamp: Timestamp;
+    userId: string;
+    walletAddress?: string;
+  }>;
+  freePrize: Array<{
+    id: string;
+    numbers: string[];
+    timestamp: Timestamp;
+    userId: string;
+    walletAddress?: string;
+  }>;
+}
 
-export function useGameState() {
-  const [gameState, setGameState] = useState<GameState>(initialGameState);
-  const processedResultsRef = useRef<Set<string>>(new Set());
-  const lastProcessedMinuteRef = useRef<string>('');
+interface CooldownStatus {
+  isInCooldown: boolean;
+  nextDrawTime: string;
+  currentTime: string;
+  cooldownMinutes: number;
+}
 
-  // Suscribirse a los tickets del usuario y al estado del juego
-  useEffect(() => {
-    console.log('[useGameState] Inicializando suscripciones...');
-    
-    // Suscribirse a los tickets del usuario
-    const unsubscribeTickets = subscribeToUserTickets((tickets) => {
-      setGameState(prev => ({
-        ...prev,
-        tickets
-      }));
-    });
+export const useGameState = () => {
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<Array<{
+    id: string;
+    numbers: string[];
+    timestamp: Timestamp;
+  }>>([]);
+  const [cooldownStatus, setCooldownStatus] = useState<CooldownStatus | null>(null);
 
-    // Suscribirse al estado del juego para obtener los números ganadores actuales
-    const unsubscribeState = subscribeToGameState((nextDrawTime, winningNumbers) => {
-      setGameState(prev => ({
-        ...prev,
-        winningNumbers
-      }));
-    });
-
-    return () => {
-      console.log('[useGameState] Limpiando suscripciones de tickets y estado del juego');
-      unsubscribeTickets();
-      unsubscribeState();
-    };
-  }, []);
-
-  // Función para obtener la clave de minuto de un timestamp
-  const getMinuteKey = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+  // Función para obtener el estado de cooldown
+  const fetchCooldownStatus = async () => {
+    try {
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../firebase/config');
+      
+      const checkCooldown = httpsCallable(functions, 'checkCooldownStatus');
+      const result = await checkCooldown();
+      
+      setCooldownStatus(result.data as CooldownStatus);
+    } catch (error) {
+      console.error('Error checking cooldown status:', error);
+    }
   };
 
-  // Suscribirse a los resultados del juego en Firebase
-  useEffect(() => {
-    console.log('[useGameState] Inicializando suscripción a resultados del juego');
-    const unsubscribe = subscribeToGameResults((results) => {
-      if (results.length > 0) {
-        const latestResult = results[0]; // El primer resultado es el más reciente
-        
-        // Solo procesar si es un resultado nuevo que no hemos visto antes
-        const resultMinute = getMinuteKey(latestResult.timestamp);
-        const resultId = latestResult.id || 'unknown';
-        
-        if (!processedResultsRef.current.has(resultId) && resultMinute !== lastProcessedMinuteRef.current) {
-          console.log(`[useGameState] Nuevo resultado recibido para el minuto ${resultMinute} con ID: ${resultId}`, latestResult);
-          processedResultsRef.current.add(resultId);
-          lastProcessedMinuteRef.current = resultMinute;
-          
-          setGameState(prev => ({
-            ...prev,
-            winningNumbers: latestResult.winningNumbers,
-            lastResults: {
-              firstPrize: latestResult.firstPrize,
-              secondPrize: latestResult.secondPrize,
-              thirdPrize: latestResult.thirdPrize,
-              freePrize: latestResult.freePrize || [] // Compatibilidad con resultados antiguos
-            }
-          }));
-        } else {
-          console.log(`[useGameState] Ignorando resultado ya procesado para el minuto ${resultMinute} con ID: ${resultId}`);
-        }
-      }
-    });
+  // Función para calcular tiempo restante hasta el próximo sorteo
+  const getTimeRemaining = useCallback(() => {
+    if (!gameState?.nextDrawTime) return null;
     
-    return () => {
-      console.log('[useGameState] Limpiando suscripción a resultados del juego');
-      unsubscribe();
-    };
-  }, []);
-
-  // Esta función se llama cuando termina el temporizador
-  const onGameProcessed = useCallback(() => {
-    // No es necesario solicitar manualmente un nuevo sorteo
-    // El sorteo lo ejecuta automáticamente la Cloud Function cada minuto
-    console.log('[useGameState] Temporizador terminado, esperando próximo sorteo automático...');
+    const now = Date.now();
+    const nextDraw = gameState.nextDrawTime.toDate().getTime();
+    const remaining = nextDraw - now;
     
-    // IMPORTANTE: NO hacer nada aquí que pueda desencadenar un sorteo
-    // Solo registrar que el temporizador ha terminado
-  }, []);
-
-  // Obtener el tiempo restante del temporizador
-  const timeRemaining = useRealTimeTimer(onGameProcessed);
-
-  // Función para forzar un sorteo manualmente
-  const forceGameDraw = useCallback(() => {
-    console.log('[useGameState] Forzando sorteo manual...');
-    requestManualGameDraw();
-  }, []);
-
-  // Función para generar un nuevo ticket (sin límites)
-  const generateTicket = useCallback(async (numbers: string[]) => {
-    if (!numbers?.length) return;
+    if (remaining <= 0) return null;
     
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+    
+    return { hours, minutes, seconds, total: remaining };
+  }, [gameState?.nextDrawTime]);
+
+  // Función para generar ticket con validación de cooldown
+  const handleGenerateTicket = async (numbers: string[], userId?: string) => {
     try {
-      // Crear un ticket temporal para mostrar inmediatamente
-      const tempTicket: Ticket = {
-        id: 'temp-' + crypto.randomUUID(),
-        numbers,
-        timestamp: Date.now(),
-        userId: 'temp'
-      };
+      // Verificar cooldown antes de generar ticket
+      await fetchCooldownStatus();
       
-      // Actualizar el estado inmediatamente con el ticket temporal
-      setGameState(prev => ({
-        ...prev,
-        tickets: [...prev.tickets, tempTicket]
-      }));
-      
-      // Generar el ticket en Firebase
-      const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
-        return generateFirebaseTicket(numbers);
-      });
-      
-      if (!ticket) {
-        // Si hay un error, eliminar el ticket temporal
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
-        }));
+      if (cooldownStatus?.isInCooldown) {
+        throw new Error(`No se pueden comprar tickets durante los ${cooldownStatus.cooldownMinutes} minutos antes del sorteo`);
       }
       
+      const result = await generateTicket(numbers, userId);
+      
+      // Actualizar lista de tickets si es exitoso
+      if (result.success && userId) {
+        await loadUserTickets(userId);
+      }
+      
+      return result;
     } catch (error) {
       console.error('Error generating ticket:', error);
+      throw error;
     }
+  };
+
+  // Función para obtener tickets del usuario del día actual
+  const loadUserTickets = async (userId?: string) => {
+    if (!userId) return;
+    
+    try {
+      // Obtener solo tickets del día actual
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const userTickets = await getUserTickets(userId, today, tomorrow);
+      setTickets(userTickets);
+    } catch (error) {
+      console.error('Error loading user tickets:', error);
+    }
+  };
+
+  // Verificar si un ticket es válido para el sorteo actual
+  const isTicketValidForToday = (ticket: { timestamp: Timestamp }) => {
+    const ticketDate = ticket.timestamp.toDate();
+    const today = new Date();
+    
+    // Comparar si el ticket es del mismo día
+    return (
+      ticketDate.getFullYear() === today.getFullYear() &&
+      ticketDate.getMonth() === today.getMonth() &&
+      ticketDate.getDate() === today.getDate()
+    );
+  };
+
+  // Función para obtener el estado inicial
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const state = await getGameState();
+      setGameState(state);
+      
+      await fetchCooldownStatus();
+    } catch (err) {
+      console.error('Error loading game state:', err);
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Suscribirse a cambios del estado del juego
+  useEffect(() => {
+    loadInitialData();
+    
+    const unsubscribe = subscribeToGameState((state) => {
+      setGameState(state);
+    });
+
+    // Actualizar cooldown cada minuto
+    const cooldownInterval = setInterval(fetchCooldownStatus, 60000);
+    
+    return () => {
+      unsubscribe();
+      clearInterval(cooldownInterval);
+    };
   }, []);
 
-  return {
-    gameState: {
-      ...gameState,
-      timeRemaining
-    },
-    generateTicket,
-    forceGameDraw
+  // Función para verificar si estamos cerca del sorteo
+  const isNearDraw = () => {
+    if (!cooldownStatus) return false;
+    
+    const timeRemaining = getTimeRemaining();
+    if (!timeRemaining) return false;
+    
+    // Considerar "cerca" si queda menos de 1 hora
+    return timeRemaining.total < 60 * 60 * 1000;
   };
-}
+
+  // Función para forzar un sorteo manual (solo para pruebas)
+  const forceGameDraw = async () => {
+    try {
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../firebase/config');
+      
+      const triggerDraw = httpsCallable(functions, 'triggerDailyGameDraw');
+      const result = await triggerDraw();
+      
+      console.log('Manual draw result:', result.data);
+      
+      // Recargar el estado después del sorteo
+      await loadInitialData();
+      
+      return result.data;
+    } catch (error) {
+      console.error('Error triggering manual draw:', error);
+      throw error;
+    }
+  };
+
+  return {
+    gameState,
+    loading,
+    error,
+    tickets,
+    cooldownStatus,
+    getTimeRemaining,
+    handleGenerateTicket,
+    loadUserTickets,
+    isTicketValidForToday,
+    isNearDraw,
+    forceGameDraw,
+    refresh: loadInitialData
+  };
+};
