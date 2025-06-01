@@ -39,6 +39,25 @@ function App() {
   
   // Para evitar renderizado constante
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Estado para el timer que se actualiza cada segundo
+  const [timerSeconds, setTimerSeconds] = useState(0);
+
+  // Actualizar el timer cada segundo
+  useEffect(() => {
+    const updateTimer = () => {
+      const timeRemaining = getTimeRemaining();
+      setTimerSeconds(timeRemaining ? Math.floor(timeRemaining.total / 1000) : 0);
+    };
+
+    // Actualizar inmediatamente
+    updateTimer();
+    
+    // Actualizar cada segundo
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [getTimeRemaining]);
 
   // Inicializar Firebase y SDK una sola vez
   useEffect(() => {
@@ -100,10 +119,6 @@ function App() {
       alert('Error generando ticket: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
-
-  // Calcular tiempo restante para el timer
-  const timeRemaining = getTimeRemaining();
-  const timerSeconds = timeRemaining ? Math.floor(timeRemaining.total / 1000) : 0;
 
   // Pantalla de carga con animación
   if ((isLoading && !initialLoadComplete) || loading) {
@@ -292,7 +307,7 @@ function App() {
                   <div>Winning Numbers: {gameState?.winningNumbers?.join(', ') || 'None'}</div>
                   <div>Next Draw: {gameState?.nextDrawTime?.toDate().toLocaleString() || 'Unknown'}</div>
                   <div>In Cooldown: {cooldownStatus?.isInCooldown ? 'Yes' : 'No'}</div>
-                  <div>Time Remaining: {timeRemaining ? `${timeRemaining.hours}h ${timeRemaining.minutes}m ${timeRemaining.seconds}s` : 'N/A'}</div>
+                  <div>Time Remaining: {getTimeRemaining() ? `${getTimeRemaining().hours}h ${getTimeRemaining().minutes}m ${getTimeRemaining().seconds}s` : 'N/A'}</div>
                 </div>
               )}
             </div>
