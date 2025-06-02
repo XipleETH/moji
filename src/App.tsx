@@ -4,20 +4,19 @@ import { Ticket as TicketComponent } from './components/Ticket';
 import { TicketGenerator } from './components/TicketGenerator';
 import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
-import { WalletConnector } from './components/WalletConnector';
-import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
+import { WalletButton } from './components/WalletButton';
+import { Trophy, Zap, Terminal } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
 import { useWalletAuth } from './hooks/useWalletAuth';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
-import { WalletInfo } from './components/WalletInfo';
 
 function App() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
-  const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
+  const { user: authUser, isLoading, signIn } = useAuth();
   const { user: walletUser, isConnected: isWalletConnected } = useWalletAuth();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const hasTriedSignIn = useRef(false);
@@ -98,50 +97,19 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500">
+      {/* Wallet Button - Fixed position */}
+      <WalletButton />
+      
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl md:text-6xl font-bold text-white">
+        {/* Clean Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
             🎰 LottoMoji 🎲
           </h1>
-          <div className="flex items-center gap-2">
-            {user && (
-              <div className="bg-white/20 px-4 py-2 rounded-lg text-white flex items-center">
-                <UserCircle className="mr-2" size={18} />
-                <span>{user.username}</span>
-                {user.walletAddress && (
-                  <div className="ml-2 flex items-center text-sm text-white/70">
-                    <WalletIcon size={12} className="mr-1" />
-                    <span>{user.walletAddress.substring(0, 6)}...{user.walletAddress.substring(user.walletAddress.length - 4)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-            {context?.client?.added && (
-              <button
-                onClick={() => {
-                  // Since useViewProfile is not available, use a basic implementation
-                  if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'fc_frame', method: 'profile' }, '*');
-                  }
-                }}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                View Profile
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {/* Wallet information component */}
-        <div className="mb-6">
-          <WalletConnector />
-        </div>
-        
-        <p className="text-white/90 text-xl mb-4">
-          Match 4 emojis to win! 🏆
-        </p>
-        <p className="text-white/80">Next draw in:</p>
-        <div className="flex justify-center mt-4">
+          <p className="text-white/90 text-xl mb-2">
+            Match 4 emojis to win! 🏆
+          </p>
+          <p className="text-white/80 mb-4">Next draw in:</p>
           <Timer seconds={gameState.timeRemaining} />
         </div>
 
@@ -191,7 +159,7 @@ function App() {
           <GameHistoryButton />
           
           <div className="bg-white/10 rounded-lg p-6 text-white">
-            <h3 className="text-2xl font-bold mb-4 flex items-center">
+            <h3 className="text-2xl font-bold mb-4 flex items-center justify-center">
               <Trophy className="mr-2" size={24} />
               Prize Structure
             </h3>
