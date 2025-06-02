@@ -30,18 +30,26 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
 // Enviar un mensaje al chat
 export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
   try {
-    const user = getCurrentUser();
+    console.log('[sendChatMessage] Enviando mensaje con emojis:', emojis);
     
-    await addDoc(collection(db, CHAT_COLLECTION), {
+    const user = await getCurrentUser();
+    console.log('[sendChatMessage] Usuario obtenido:', user ? `${user.username} (${user.id})` : 'No hay usuario');
+    
+    const messageData = {
       emojis,
       timestamp: serverTimestamp(),
       userId: user?.id || 'anonymous',
       username: user?.username || 'Anonymous'
-    });
+    };
+    
+    console.log('[sendChatMessage] Datos del mensaje a enviar:', messageData);
+    
+    const docRef = await addDoc(collection(db, CHAT_COLLECTION), messageData);
+    console.log('[sendChatMessage] Mensaje enviado exitosamente con ID:', docRef.id);
     
     return true;
   } catch (error) {
-    console.error('Error sending chat message:', error);
+    console.error('[sendChatMessage] Error sending chat message:', error);
     return false;
   }
 };
@@ -50,6 +58,8 @@ export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
 export const subscribeToChatMessages = (
   callback: (messages: ChatMessage[]) => void
 ) => {
+  console.log('[subscribeToChatMessages] Configurando suscripción a mensajes del chat');
+  
   const messagesQuery = query(
     collection(db, CHAT_COLLECTION),
     orderBy('timestamp', 'desc'),
@@ -57,7 +67,28 @@ export const subscribeToChatMessages = (
   );
   
   return onSnapshot(messagesQuery, (snapshot) => {
-    const messages = snapshot.docs.map(mapFirestoreMessage);
-    callback(messages);
+    try {
+      console.log(`[subscribeToChatMessages] Snapshot recibido con ${snapshot.docs.length} documentos`);
+      
+      if (snapshot.docChanges().length > 0) {
+        console.log(`[subscribeToChatMessages] ${snapshot.docChanges().length} cambios detectados`);
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            console.log(`[subscribeToChatMessages] Mensaje añadido: ${change.doc.id}`);
+          }
+        });
+      }
+      
+      const messages = snapshot.docs.map(mapFirestoreMessage);
+      console.log(`[subscribeToChatMessages] Enviando ${messages.length} mensajes al callback`);
+      
+      callback(messages);
+    } catch (error) {
+      console.error('[subscribeToChatMessages] Error procesando snapshot:', error);
+      callback([]);
+    }
+  }, (error) => {
+    console.error('[subscribeToChatMessages] Error en suscripción:', error);
+    callback([]);
   });
 }; 
