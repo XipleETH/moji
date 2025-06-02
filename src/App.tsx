@@ -15,17 +15,7 @@ import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
 
 function App() {
-  const { 
-    gameState, 
-    loading, 
-    error, 
-    tickets, 
-    cooldownStatus, 
-    getTimeRemaining, 
-    handleGenerateTicket, 
-    loadUserTickets, 
-    forceGameDraw 
-  } = useGameState();
+  const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
@@ -39,25 +29,6 @@ function App() {
   
   // Para evitar renderizado constante
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  
-  // Estado para el timer que se actualiza cada segundo
-  const [timerSeconds, setTimerSeconds] = useState(0);
-
-  // Actualizar el timer cada segundo
-  useEffect(() => {
-    const updateTimer = () => {
-      const timeRemaining = getTimeRemaining();
-      setTimerSeconds(timeRemaining ? Math.floor(timeRemaining.total / 1000) : 0);
-    };
-
-    // Actualizar inmediatamente
-    updateTimer();
-    
-    // Actualizar cada segundo
-    const interval = setInterval(updateTimer, 1000);
-
-    return () => clearInterval(interval);
-  }, [getTimeRemaining]);
 
   // Inicializar Firebase y SDK una sola vez
   useEffect(() => {
@@ -72,13 +43,6 @@ function App() {
     
     initSDK();
   }, []);
-
-  // Cargar tickets del usuario cuando cambie
-  useEffect(() => {
-    if (user?.id) {
-      loadUserTickets(user.id);
-    }
-  }, [user?.id, loadUserTickets]);
 
   // Intentar inicio de sesión automático si no hay usuario
   useEffect(() => {
@@ -99,46 +63,33 @@ function App() {
     }
   }, [user, isLoading, signIn, initialLoadComplete, isWalletConnected]);
 
-  // Función para generar ticket con el nuevo sistema
-  const onGenerateTicket = async (numbers: string[]) => {
-    if (!user?.id) {
-      console.error('No user ID available for ticket generation');
-      return;
-    }
-    
-    try {
-      const result = await handleGenerateTicket(numbers, user.id);
-      if (result.success) {
-        console.log('Ticket generado exitosamente:', result.ticket);
-      } else {
-        console.error('Error generando ticket:', result.error);
-        alert('Error generando ticket: ' + result.error);
+  // Mostrar notificación cuando hay ganadores
+  const handleWin = useCallback(async () => {
+    // Usar verificación de seguridad para evitar errores undefined
+    const firstPrizeLength = gameState.lastResults?.firstPrize?.length || 0;
+    if (firstPrizeLength > 0) {
+      try {
+        await sendNotification({
+          title: '🎉 You Won!',
+          body: 'Congratulations! You matched all emojis and won the first prize!'
+        });
+      } catch (error) {
+        console.error('Failed to send notification:', error);
       }
-    } catch (error) {
-      console.error('Error generating ticket:', error);
-      alert('Error generando ticket: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
-  };
+  }, [gameState.lastResults, sendNotification]);
+
+  useEffect(() => {
+    handleWin();
+  }, [gameState.lastResults, handleWin]);
 
   // Pantalla de carga con animación
-  if ((isLoading && !initialLoadComplete) || loading) {
+  if (isLoading && !initialLoadComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-bounce text-6xl mb-4">🎲</div>
           <div className="text-white text-2xl">Cargando LottoMoji...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <div className="text-white text-2xl">Error cargando el juego</div>
-          <div className="text-white/70 text-sm mt-2">{error}</div>
         </div>
       </div>
     );
@@ -181,31 +132,19 @@ function App() {
         </div>
         
         <p className="text-white/90 text-xl mb-4">
-          ¡Haz match con 4 emojis para ganar! 🏆
+          Match 4 emojis to win! 🏆
         </p>
-        <p className="text-white/80">Próximo sorteo diario en:</p>
+        <p className="text-white/80">Next draw in:</p>
         <div className="flex justify-center mt-4">
-          <Timer seconds={timerSeconds} />
+          <Timer seconds={gameState.timeRemaining} />
         </div>
 
-        {/* Información del cooldown si está activo */}
-        {cooldownStatus?.isInCooldown && (
-          <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 mb-6 text-center">
-            <div className="text-yellow-200 font-medium">
-              ⚠️ Período de Cooldown Activo
-            </div>
-            <div className="text-yellow-300 text-sm">
-              No se pueden comprar tickets durante los últimos {cooldownStatus.cooldownMinutes} minutos antes del sorteo
-            </div>
-          </div>
-        )}
-
         <WinnerAnnouncement 
-          winningNumbers={gameState?.winningNumbers || []}
-          firstPrize={[]}
-          secondPrize={[]}
-          thirdPrize={[]}
-          freePrize={[]}
+          winningNumbers={gameState.winningNumbers || []}
+          firstPrize={gameState.lastResults?.firstPrize || []}
+          secondPrize={gameState.lastResults?.secondPrize || []}
+          thirdPrize={gameState.lastResults?.thirdPrize || []}
+          freePrize={gameState.lastResults?.freePrize || []}
           currentUserId={user?.id}
         />
 
@@ -215,29 +154,29 @@ function App() {
               onClick={forceGameDraw}
               className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
-              <Zap size={16} /> Forzar Sorteo Diario
+              <Zap size={16} /> Forzar Sorteo
             </button>
           </div>
         )}
 
         <TicketGenerator
-          onGenerateTicket={onGenerateTicket}
+          onGenerateTicket={generateTicket}
           disabled={false}
-          ticketCount={tickets.length}
+          ticketCount={gameState.tickets.length}
           maxTickets={999}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tickets.map(ticket => (
+          {gameState.tickets.map(ticket => (
             <TicketComponent
               key={ticket.id}
-              ticket={{
-                id: ticket.id,
-                numbers: ticket.numbers,
-                timestamp: ticket.timestamp.toMillis(),
-                userId: ticket.userId
-              }}
-              isWinner={null} // Por ahora sin verificación de ganador
+              ticket={ticket}
+              isWinner={
+                gameState.lastResults?.firstPrize?.some(t => t.id === ticket.id) ? 'first' :
+                gameState.lastResults?.secondPrize?.some(t => t.id === ticket.id) ? 'second' :
+                gameState.lastResults?.thirdPrize?.some(t => t.id === ticket.id) ? 'third' : 
+                gameState.lastResults?.freePrize?.some(t => t.id === ticket.id) ? 'free' : null
+              }
             />
           ))}
         </div>
@@ -248,35 +187,24 @@ function App() {
           <div className="bg-white/10 rounded-lg p-6 text-white">
             <h3 className="text-2xl font-bold mb-4 flex items-center">
               <Trophy className="mr-2" size={24} />
-              Estructura de Premios (Sistema Diario)
+              Premio Structure
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span>🥇 Primer Premio (4 coincidencias exactas):</span>
+                <span>🥇 First Prize (4 exact matches):</span>
                 <span className="font-bold">1000 tokens</span>
               </div>
               <div className="flex justify-between">
-                <span>🥈 Segundo Premio (4 en cualquier orden):</span>
+                <span>🥈 Second Prize (4 any order):</span>
                 <span className="font-bold">500 tokens</span>
               </div>
               <div className="flex justify-between">
-                <span>🥉 Tercer Premio (3 coincidencias exactas):</span>
+                <span>🥉 Third Prize (3 exact matches):</span>
                 <span className="font-bold">100 tokens</span>
               </div>
               <div className="flex justify-between">
-                <span>🎫 Ticket Gratis (3 en cualquier orden):</span>
-                <span className="font-bold">Ticket gratis</span>
-              </div>
-            </div>
-            <div className="mt-4 p-3 bg-blue-500/20 rounded border border-blue-500/50">
-              <div className="text-sm text-blue-200">
-                📅 <strong>Sistema Diario:</strong> Los tickets son válidos solo para el sorteo del día en que se compraron
-              </div>
-              <div className="text-sm text-blue-200 mt-1">
-                ⏰ <strong>Sorteo:</strong> Todos los días a las 8:00 PM (México)
-              </div>
-              <div className="text-sm text-blue-200 mt-1">
-                🚫 <strong>Cooldown:</strong> No se pueden comprar tickets {cooldownStatus?.cooldownMinutes || 30} minutos antes del sorteo
+                <span>🎫 Free Ticket (3 any order):</span>
+                <span className="font-bold">Free ticket</span>
               </div>
             </div>
           </div>
@@ -303,11 +231,9 @@ function App() {
                   <div>User ID: {user?.id || 'Not logged in'}</div>
                   <div>Wallet: {user?.walletAddress || 'No wallet'}</div>
                   <div>Is Wallet Connected: {isWalletConnected ? 'Yes' : 'No'}</div>
-                  <div>Tickets Today: {tickets.length}</div>
-                  <div>Winning Numbers: {gameState?.winningNumbers?.join(', ') || 'None'}</div>
-                  <div>Next Draw: {gameState?.nextDrawTime?.toDate().toLocaleString() || 'Unknown'}</div>
-                  <div>In Cooldown: {cooldownStatus?.isInCooldown ? 'Yes' : 'No'}</div>
-                  <div>Time Remaining: {getTimeRemaining() ? `${getTimeRemaining().hours}h ${getTimeRemaining().minutes}m ${getTimeRemaining().seconds}s` : 'N/A'}</div>
+                  <div>Tickets: {gameState.tickets.length}</div>
+                  <div>Winning Numbers: {gameState.winningNumbers?.join(', ') || 'None'}</div>
+                  <div>Time Remaining: {gameState.timeRemaining}s</div>
                 </div>
               )}
             </div>
