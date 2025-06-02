@@ -14,8 +14,9 @@ export const useWalletAuth = (): WalletAuthHook => {
   const [user, setUser] = useState<User | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   
+  const isConnected = !!user?.walletAddress;
+
   // Función para detectar si tenemos Coinbase Wallet o MetaMask
   const detectWallet = () => {
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -47,74 +48,67 @@ export const useWalletAuth = (): WalletAuthHook => {
       setIsConnecting(true);
       setError(null);
       
-      console.log('[WalletAuth] Starting wallet connection...');
+      console.log('[WalletAuth] Iniciando conexión de wallet...');
       
       const ethereum = detectWallet();
       if (!ethereum) {
-        throw new Error('No wallet detected (Coinbase Wallet or MetaMask)');
+        throw new Error('No se detectó wallet (Coinbase Wallet o MetaMask)');
       }
 
-      console.log('[WalletAuth] Wallet detected, requesting accounts...');
+      console.log('[WalletAuth] Wallet detectada, solicitando cuentas...');
       
-      // Request account access
-      const accounts = await ethereum.request({
-        method: 'eth_requestAccounts'
+      // Solicitar conexión
+      const accounts = await ethereum.request({ 
+        method: 'eth_requestAccounts' 
       });
       
       if (!accounts || accounts.length === 0) {
-        throw new Error('Could not get any account');
+        throw new Error('No se pudo obtener ninguna cuenta');
       }
 
       const address = accounts[0];
-      console.log('[WalletAuth] Account obtained:', address);
+      console.log('[WalletAuth] Cuenta obtenida:', address);
 
-      let chainId = 8453; // Base default
-
-      // Try to get current chainId
+      // Obtener información de la red actual
+      let chainId = 8453; // Base por defecto
       try {
-        const currentChainId = await ethereum.request({
-          method: 'eth_chainId'
-        });
-        chainId = parseInt(currentChainId, 16);
-        console.log('[WalletAuth] ChainId detected:', chainId);
+        const chainIdHex = await ethereum.request({ method: 'eth_chainId' });
+        chainId = parseInt(chainIdHex, 16);
+        console.log('[WalletAuth] ChainId detectado:', chainId);
       } catch (chainError) {
-        console.warn('[WalletAuth] Could not get chainId:', chainError);
+        console.warn('[WalletAuth] No se pudo obtener chainId:', chainError);
       }
 
-      // Save to localStorage
-      const authData = {
-        address,
-        chainId,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('walletAuth', JSON.stringify(authData));
-
-      // Create user object
+      // Crear usuario
       const walletUser = await getUserFromWallet(address);
       walletUser.chainId = chainId;
       
-      console.log('[WalletAuth] User created:', walletUser);
+      console.log('[WalletAuth] Usuario creado:', walletUser);
       
       setUser(walletUser);
-      setIsConnected(true);
-      setIsConnecting(false);
-      setError(null);
+      
+      // Guardar en localStorage para persistencia
+      localStorage.setItem('walletAuth', JSON.stringify({
+        address,
+        chainId,
+        timestamp: Date.now()
+      }));
       
     } catch (err) {
-      console.error('[WalletAuth] Error connecting wallet:', err);
-      setError(err instanceof Error ? err.message : 'Error connecting wallet');
+      console.error('[WalletAuth] Error conectando wallet:', err);
+      setError(err instanceof Error ? err.message : 'Error conectando wallet');
+    } finally {
       setIsConnecting(false);
     }
   };
 
   // Función para desconectar
-  const disconnect = useCallback(() => {
-    console.log('[WalletAuth] Disconnecting...');
-    localStorage.removeItem('walletAuth');
+  const disconnect = () => {
+    console.log('[WalletAuth] Desconectando...');
     setUser(null);
-    setIsConnected(false);
     setError(null);
-  }, []);
+    localStorage.removeItem('walletAuth');
+  };
 
   // Función para verificar conexión existente
   const checkExistingConnection = useCallback(async () => {
@@ -144,11 +138,11 @@ export const useWalletAuth = (): WalletAuthHook => {
       const walletUser = await getUserFromWallet(address);
       walletUser.chainId = chainId;
       
-      console.log('[WalletAuth] Connection restored:', walletUser);
+      console.log('[WalletAuth] Conexión restaurada:', walletUser);
       setUser(walletUser);
       
     } catch (error) {
-      console.error('[WalletAuth] Error verifying existing connection:', error);
+      console.error('[WalletAuth] Error verificando conexión existente:', error);
       localStorage.removeItem('walletAuth');
     }
   }, [getUserFromWallet]);
@@ -159,7 +153,7 @@ export const useWalletAuth = (): WalletAuthHook => {
     if (!ethereum) return;
 
     const handleAccountsChanged = async (accounts: string[]) => {
-      console.log('[WalletAuth] Accounts changed:', accounts);
+      console.log('[WalletAuth] Cuentas cambiadas:', accounts);
       
       if (accounts.length === 0) {
         disconnect();
@@ -172,7 +166,7 @@ export const useWalletAuth = (): WalletAuthHook => {
 
     const handleChainChanged = (chainIdHex: string) => {
       const newChainId = parseInt(chainIdHex, 16);
-      console.log('[WalletAuth] Chain changed:', newChainId);
+      console.log('[WalletAuth] Red cambiada:', newChainId);
       
       if (user) {
         setUser(prev => prev ? { ...prev, chainId: newChainId } : null);

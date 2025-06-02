@@ -7,12 +7,12 @@ export const WalletConnector: React.FC = () => {
 
   if (isConnected && user) {
     return (
-      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-white">
+      <div className="bg-white/10 rounded-lg p-4 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <WalletIcon className="mr-2" size={18} />
             <div>
-              <div className="font-medium">Connected Wallet</div>
+              <div className="font-medium">{user.username}</div>
               <div className="text-sm text-white/70">
                 {user.walletAddress?.substring(0, 6)}...{user.walletAddress?.substring(user.walletAddress.length - 4)}
               </div>
@@ -20,14 +20,14 @@ export const WalletConnector: React.FC = () => {
           </div>
           <button
             onClick={disconnect}
-            className="bg-red-500/20 hover:bg-red-500/30 text-red-200 px-3 py-1 rounded text-sm transition-colors"
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors"
           >
-            Disconnect
+            Desconectar
           </button>
         </div>
         {user.chainId && (
           <div className="mt-2 text-xs text-white/60">
-            Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
+            Red: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
           </div>
         )}
       </div>
@@ -35,34 +35,34 @@ export const WalletConnector: React.FC = () => {
   }
 
   return (
-    <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-white">
-      {error && (
-        <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded text-red-200 text-sm">
-          {error}
-        </div>
-      )}
-      
+    <div className="bg-white/10 rounded-lg p-4 text-white">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <WalletIcon className="mr-2" size={18} />
           <div>
-            <div className="font-medium">Connect Wallet</div>
+            <div className="font-medium">Conectar Wallet</div>
             <div className="text-sm text-white/70">
-              Coinbase Wallet or MetaMask
+              Coinbase Wallet o MetaMask
             </div>
           </div>
         </div>
         <button
           onClick={connect}
           disabled={isConnecting}
-          className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-4 py-2 rounded transition-colors disabled:opacity-50"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
         >
-          {isConnecting ? 'Connecting...' : 'Connect'}
+          {isConnecting ? 'Conectando...' : 'Conectar'}
         </button>
       </div>
       
-      <div className="mt-3 text-xs text-white/60">
-        You need a wallet to generate tickets and participate in the lottery
+      {error && (
+        <div className="mt-2 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+      
+      <div className="mt-2 text-xs text-white/60">
+        Necesitas una wallet para generar tickets y participar en la lotería
       </div>
     </div>
   );

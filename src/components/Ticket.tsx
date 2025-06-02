@@ -31,15 +31,14 @@ export const Ticket: React.FC<TicketProps> = ({ ticket, isWinner }) => {
         <span key={idx} className="text-2xl">{emoji}</span>
       ))}
       <div className="w-full text-center mt-2 text-xs opacity-60">
-        {isTemporary ? 'Processing...' : `Ticket #${ticket.id?.slice(-4) || 'N/A'}`}
+        {isTemporary ? 'Procesando...' : `Ticket #${ticket.id?.slice(-4) || 'N/A'}`}
         {isWinner && (
-          <div className="absolute inset-0 bg-gradient-to-r from-yellow-300/80 to-yellow-400/80 rounded-lg 
-                         flex items-center justify-center font-bold text-yellow-900 text-sm z-10">
-            {isWinner === 'first' && '🏆 FIRST PRIZE!'}
-            {isWinner === 'second' && '🥈 SECOND PRIZE!'}
-            {isWinner === 'third' && '🥉 THIRD PRIZE!'}
-            {isWinner === 'free' && '🎟️ FREE TICKET!'}
-          </div>
+          <span className="ml-1 font-bold">
+            {isWinner === 'first' && '🏆 ¡PRIMER PREMIO!'}
+            {isWinner === 'second' && '🥈 ¡SEGUNDO PREMIO!'}
+            {isWinner === 'third' && '🥉 ¡TERCER PREMIO!'}
+            {isWinner === 'free' && '🎟️ ¡TICKET GRATIS!'}
+          </span>
         )}
       </div>
     </div>

@@ -16,7 +16,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
     const fetchGameHistory = async () => {
       try {
         setLoading(true);
-        console.log('Getting game history from Firestore...');
+        console.log('Obteniendo historial de juegos desde Firestore...');
         
         const historyQuery = query(
           collection(db, 'game_results'),
@@ -25,28 +25,28 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
         );
         
         const snapshot = await getDocs(historyQuery);
-        console.log(`Found ${snapshot.docs.length} results in Firestore`);
+        console.log(`Se encontraron ${snapshot.docs.length} resultados en Firestore`);
         
         const results: GameResult[] = snapshot.docs.map(doc => {
           try {
             const data = doc.data();
-            console.log(`Processing document ${doc.id}:`, data);
+            console.log(`Procesando documento ${doc.id}:`, data);
             
-            // Function to extract timestamp in milliseconds
+            // Función para extraer el timestamp en milisegundos
             const getTimestamp = (firestoreTimestamp: any): number => {
               if (firestoreTimestamp?.toMillis) {
                 return firestoreTimestamp.toMillis();
               } else if (typeof firestoreTimestamp === 'string') {
                 return new Date(firestoreTimestamp).getTime();
               } else if (firestoreTimestamp?.seconds) {
-                // Handle Firestore timestamp format {seconds, nanoseconds}
+                // Manejar formato timestamp de Firestore {seconds, nanoseconds}
                 return firestoreTimestamp.seconds * 1000 + (firestoreTimestamp.nanoseconds / 1000000);
               } else {
                 return Date.now();
               }
             };
             
-            // Validate that data has expected structure
+            // Validar que los datos tengan la estructura esperada
             return {
               id: doc.id,
               timestamp: getTimestamp(data.timestamp),
@@ -62,7 +62,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
           }
         }).filter(result => result !== null) as GameResult[];
         
-        console.log('History processed correctly:', results.length, 'results');
+        console.log('Historial procesado correctamente:', results.length, 'resultados');
         setHistory(results);
       } catch (error) {
         console.error('Error fetching game history:', error);
@@ -84,12 +84,12 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
     if (!winners || winners.length === 0) return null;
 
     const prizeName = prizeType === 'firstPrize' 
-      ? 'First Prize 🥇' 
+      ? 'Primer Premio 🥇' 
       : prizeType === 'secondPrize' 
-        ? 'Second Prize 🥈' 
+        ? 'Segundo Premio 🥈' 
         : prizeType === 'thirdPrize'
-          ? 'Third Prize 🥉'
-          : 'Free Ticket 🎟️';
+          ? 'Tercer Premio 🥉'
+          : 'Ticket Gratis 🎟️';
 
     return (
       <div className="mt-3">
@@ -113,7 +113,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white/90 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
         <div className="p-4 bg-purple-600 text-white flex justify-between items-center">
-          <h2 className="text-xl font-bold">Game History</h2>
+          <h2 className="text-xl font-bold">Historial de Juegos</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-purple-700 rounded-lg transition-colors"
@@ -126,10 +126,10 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
           {loading ? (
             <div className="text-center py-4">
               <div className="inline-block w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-2 text-gray-600">Loading history...</p>
+              <p className="mt-2 text-gray-600">Cargando historial...</p>
             </div>
           ) : history.length === 0 ? (
-            <p className="text-center text-gray-500">No games recorded yet</p>
+            <p className="text-center text-gray-500">Aún no hay juegos registrados</p>
           ) : (
             <div className="space-y-6">
               {history.map(result => (
@@ -141,7 +141,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
                         {formatDate(result.timestamp)}
                       </p>
                       <div className="mt-2">
-                        <span className="font-semibold">Winning Emojis:</span>
+                        <span className="font-semibold">Emojis Ganadores:</span>
                         <div className="flex gap-2 mt-1 text-2xl">
                           {result.winningNumbers?.map((emoji, i) => (
                             <span key={i}>{emoji}</span>

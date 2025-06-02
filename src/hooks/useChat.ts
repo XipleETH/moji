@@ -31,18 +31,18 @@ export function useChat() {
   }, []);
 
   const sendMessage = useCallback(async (emojis: string[]) => {
-    console.log('[useChat] Attempting to send message with emojis:', emojis);
+    console.log('[useChat] Intentando enviar mensaje con emojis:', emojis);
     
-    // Validate input
+    // Validar entrada
     if (!emojis || emojis.length === 0) {
-      console.warn('[useChat] Attempt to send empty message');
-      setError('Cannot send an empty message');
+      console.warn('[useChat] Intento de enviar mensaje vacío');
+      setError('No se puede enviar un mensaje vacío');
       return false;
     }
     
-    // Prevent duplicate sends if already loading
+    // Evitar envíos duplicados si ya está cargando
     if (isLoading) {
-      console.warn('[useChat] Attempt to send while already in progress');
+      console.warn('[useChat] Intento de envío mientras ya está en progreso');
       return false;
     }
     
@@ -53,24 +53,24 @@ export function useChat() {
       const success = await sendChatMessage(emojis);
       
       if (!isMountedRef.current) {
-        console.log('[useChat] Component unmounted during send');
+        console.log('[useChat] Componente desmontado durante envío');
         return false;
       }
       
       if (success) {
-        console.log('[useChat] Message sent successfully');
+        console.log('[useChat] Mensaje enviado exitosamente');
         setError(null);
         return true;
       } else {
-        console.error('[useChat] Error sending message');
-        setError('Error sending message. Please try again.');
+        console.error('[useChat] Error enviando mensaje');
+        setError('Error enviando el mensaje. Inténtalo de nuevo.');
         return false;
       }
     } catch (error) {
-      console.error('[useChat] Error in sendMessage:', error);
+      console.error('[useChat] Error en sendMessage:', error);
       
       if (isMountedRef.current) {
-        setError('Error sending message. Check your connection.');
+        setError('Error enviando el mensaje. Verifica tu conexión.');
       }
       
       return false;

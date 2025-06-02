@@ -30,14 +30,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   }, [ticketCount]);
 
   const handleGenerateTicket = async (numbers: string[]) => {
-    // If no wallet connected, show prompt and save pending ticket
+    // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
     if (!isConnected || !user?.walletAddress) {
       setPendingTicket(numbers);
       setShowWalletPrompt(true);
       return;
     }
     
-    // If wallet exists, generate ticket
+    // Si hay wallet, generar ticket
     onGenerateTicket(numbers);
     setSelectedEmojis([]); // Reset selection after generating ticket
     setPendingTicket(null);
@@ -49,14 +49,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
       await connect();
       setShowWalletPrompt(false);
       
-      // If we have a pending ticket, generate it after connecting
+      // Si tenemos un ticket pendiente, generarlo después de conectar
       if (pendingTicket) {
         onGenerateTicket(pendingTicket);
         setPendingTicket(null);
         setSelectedEmojis([]);
       }
     } catch (error) {
-      console.error('Error connecting wallet:', error);
+      console.error('Error conectando wallet:', error);
     }
   };
 
@@ -66,8 +66,8 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     const newSelection = [...selectedEmojis, emoji];
     setSelectedEmojis(newSelection);
     
-    // No longer auto-generate when reaching 4
-    // User must click confirmation button
+    // Ya no generamos automáticamente cuando llegamos a 4
+    // El usuario debe hacer clic en el botón de confirmación
   };
 
   const handleEmojiDeselect = (index: number) => {
@@ -101,7 +101,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           maxSelections={4}
         />
         
-        {/* Confirmation button for selected emojis */}
+        {/* Botón de confirmación para emojis seleccionados */}
         {selectedEmojis.length === 4 && (
           <button
             onClick={handleConfirmSelectedTicket}
@@ -111,7 +111,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                      disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >
             <CheckCircle size={20} />
-            Confirm Ticket with Selected Emojis
+            Confirmar Ticket con Emojis Seleccionados
           </button>
         )}
         
@@ -125,20 +125,20 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           Generate Random Ticket
         </button>
 
-        {/* Wallet connection prompt */}
+        {/* Prompt de conexión de wallet */}
         {showWalletPrompt && (
           <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <WalletIcon className="mr-2" size={20} />
                 <div>
-                  <div className="font-medium text-white">Wallet Connection Required</div>
+                  <div className="font-medium text-white">Conectar Wallet Requerida</div>
                   <div className="text-sm text-white/70">
-                    You need to connect a wallet to generate tickets
+                    Necesitas conectar una wallet para generar tickets
                   </div>
                   {pendingTicket && (
                     <div className="text-xs text-white/60 mt-1">
-                      Ticket with emojis: {pendingTicket.join(' ')}
+                      Ticket con emojis: {pendingTicket.join(' ')}
                     </div>
                   )}
                 </div>
@@ -148,31 +148,31 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                   onClick={handleCancelWalletPrompt}
                   className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
                 >
-                  Cancel
+                  Cancelar
                 </button>
                 <button
                   onClick={handleWalletConnect}
                   disabled={isConnecting}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
                 >
-                  {isConnecting ? 'Connecting...' : 'Connect'}
+                  {isConnecting ? 'Conectando...' : 'Conectar'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Show ticket count information without limits */}
+        {/* Mostrar información del ticket count sin límites */}
         <div className="text-center text-white/70 text-sm">
-          Tickets generated: {ticketCount}
+          Tickets generados: {ticketCount}
         </div>
 
-        {/* User instructions */}
+        {/* Instrucciones para el usuario */}
         <div className="text-center text-white/60 text-xs">
-          {selectedEmojis.length === 0 && "Select 4 emojis to create a custom ticket"}
+          {selectedEmojis.length === 0 && "Selecciona 4 emojis para crear un ticket personalizado"}
           {selectedEmojis.length > 0 && selectedEmojis.length < 4 && 
-            `Select ${4 - selectedEmojis.length} more emoji${4 - selectedEmojis.length === 1 ? '' : 's'}`}
-          {selectedEmojis.length === 4 && "Ready! Click 'Confirm Ticket' to generate your ticket"}
+            `Selecciona ${4 - selectedEmojis.length} emoji${4 - selectedEmojis.length === 1 ? '' : 's'} más`}
+          {selectedEmojis.length === 4 && "¡Listo! Haz clic en 'Confirmar Ticket' para generar tu ticket"}
         </div>
       </div>
     </div>

@@ -13,6 +13,33 @@ const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 
+// ===================================
+// 🎯 CONFIGURACIÓN DE HORA DE SORTEO
+// ===================================
+// CAMBIA AQUÍ LA HORA DEL SORTEO FÁCILMENTE:
+
+// Opción 1: Hora específica diaria (recomendado)
+const LOTTERY_SCHEDULE = "0 20 * * *"; // Todos los días a las 8:00 PM (20:00)
+// Formatos de ejemplo:
+// "0 12 * * *"  = Todos los días a las 12:00 PM (mediodía)
+// "0 18 * * *"  = Todos los días a las 6:00 PM
+// "0 0 * * *"   = Todos los días a las 12:00 AM (medianoche)
+// "0 21 * * *"  = Todos los días a las 9:00 PM
+
+// Opción 2: Intervalo (usar solo UNA de las opciones)
+// const LOTTERY_SCHEDULE = "every 24 hours"; // Cada 24 horas desde el deploy
+
+// Hora del sorteo para el frontend (debe coincidir con el schedule de arriba)
+const LOTTERY_HOUR = 20; // 8:00 PM (formato 24 horas: 0-23)
+const LOTTERY_MINUTE = 0; // Minutos (0-59)
+
+// Zona horaria
+const TIMEZONE = "America/Mexico_City";
+
+// ===================================
+// FIN DE CONFIGURACIÓN
+// ===================================
+
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
 
@@ -215,8 +242,8 @@ const processGameDraw = async () => {
     // 4. Calcular próximo sorteo
     const nextDay = new Date(now);
     nextDay.setDate(now.getDate() + 1);
-    nextDay.setHours(0);
-    nextDay.setMinutes(0);
+    nextDay.setHours(LOTTERY_HOUR);
+    nextDay.setMinutes(LOTTERY_MINUTE);
     nextDay.setSeconds(0);
     nextDay.setMilliseconds(0);
     
@@ -356,8 +383,8 @@ const processGameDraw = async () => {
 
 // Función programada que se ejecuta cada día para realizar el sorteo automáticamente
 exports.scheduledGameDraw = onSchedule({
-  schedule: "every 24 hours",
-  timeZone: "America/Mexico_City", // Ajusta a tu zona horaria
+  schedule: LOTTERY_SCHEDULE,
+  timeZone: TIMEZONE,
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
     minBackoffSeconds: 10
