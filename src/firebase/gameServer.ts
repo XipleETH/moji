@@ -16,7 +16,6 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './config';
 import { Ticket, GameResult } from '../types';
-import { getNextLotteryTime } from '../config/lottery';
 
 // Constantes
 const GAME_STATE_DOC = 'current_game_state';
@@ -58,8 +57,13 @@ export const subscribeToGameState = (callback: (nextDrawTime: number, winningNum
     
     // Si no hay un tiempo válido o ya pasó, calcular el próximo minuto
     if (nextDrawTime <= now) {
-      const nextLottery = getNextLotteryTime(new Date(now));
-      nextDrawTime = nextLottery.getTime();
+      const nextDay = new Date();
+      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setHours(0);
+      nextDay.setMinutes(0);
+      nextDay.setSeconds(0);
+      nextDay.setMilliseconds(0);
+      nextDrawTime = nextDay.getTime();
     }
     
     // Obtener los números ganadores actuales, SOLO si la actualización viene del servidor

@@ -18,7 +18,7 @@ export function useChat() {
       
       // Solo actualizar si el componente aún está montado
       if (isMountedRef.current) {
-        setMessages(newMessages);
+      setMessages(newMessages);
         setError(null); // Limpiar errores si recibimos mensajes exitosamente
       }
     });

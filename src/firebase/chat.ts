@@ -18,7 +18,7 @@ const MESSAGE_LIMIT = 100;
 // Convertir documento de Firestore a nuestro tipo de mensaje
 const mapFirestoreMessage = (doc: any): ChatMessage => {
   try {
-    const data = doc.data();
+  const data = doc.data();
     
     // Validar que tengamos los datos básicos
     if (!data) {
@@ -73,13 +73,13 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
     console.error(`[mapFirestoreMessage] Error mapeando documento ${doc.id}:`, error);
     
     // Devolver mensaje de error como fallback
-    return {
-      id: doc.id,
+  return {
+    id: doc.id,
       emojis: ['❓'], // Emoji de pregunta para indicar error
       timestamp: Date.now(),
       userId: 'system',
       username: 'Sistema'
-    };
+  };
   }
 };
 
@@ -175,19 +175,19 @@ export const subscribeToChatMessages = (
   try {
     console.log('[subscribeToChatMessages] Iniciando suscripción a mensajes del chat');
     
-    const messagesQuery = query(
-      collection(db, CHAT_COLLECTION),
-      orderBy('timestamp', 'desc'),
-      limit(MESSAGE_LIMIT)
-    );
+  const messagesQuery = query(
+    collection(db, CHAT_COLLECTION),
+    orderBy('timestamp', 'desc'),
+    limit(MESSAGE_LIMIT)
+  );
     
     console.log('[subscribeToChatMessages] Query configurada:', {
       collection: CHAT_COLLECTION,
       orderBy: 'timestamp desc',
       limit: MESSAGE_LIMIT
     });
-    
-    return onSnapshot(messagesQuery, (snapshot) => {
+  
+  return onSnapshot(messagesQuery, (snapshot) => {
       try {
         console.log('[subscribeToChatMessages] Snapshot recibido:', {
           size: snapshot.size,
@@ -214,7 +214,7 @@ export const subscribeToChatMessages = (
         }).filter(message => message !== null) as ChatMessage[];
         
         console.log('[subscribeToChatMessages] Mensajes procesados exitosamente:', messages.length);
-        callback(messages);
+    callback(messages);
         
       } catch (error) {
         console.error('[subscribeToChatMessages] Error procesando snapshot:', error);

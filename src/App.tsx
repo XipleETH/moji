@@ -127,9 +127,9 @@ function App() {
         </div>
         
         {/* Componente de información de billetera */}
-        <div className="mb-6">
+          <div className="mb-6">
           <WalletConnector />
-        </div>
+          </div>
         
         <p className="text-white/90 text-xl mb-4">
           Match 4 emojis to win! 🏆
