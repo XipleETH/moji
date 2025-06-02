@@ -5,7 +5,7 @@ import { useChat } from '../../hooks/useChat';
 import { MinusSquare, Maximize2 } from 'lucide-react';
 
 export const EmojiChat: React.FC = () => {
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, isLoading, error, clearError } = useChat();
   const [isMinimized, setIsMinimized] = useState(true);
 
   return (
@@ -15,6 +15,9 @@ export const EmojiChat: React.FC = () => {
       <div className="p-3 bg-purple-600 text-white rounded-t-lg flex justify-between items-center cursor-pointer"
            onClick={() => setIsMinimized(!isMinimized)}>
         <h3 className="font-bold">Emoji Chat</h3>
+        {error && !isMinimized && (
+          <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse mr-2" title="Hay un error en el chat"></div>
+        )}
         <button 
           className="hover:bg-purple-700 rounded p-1"
           aria-label={isMinimized ? 'Maximize chat' : 'Minimize chat'}
@@ -26,7 +29,12 @@ export const EmojiChat: React.FC = () => {
       {!isMinimized && (
         <div className="flex flex-col h-[calc(100%-3rem)]">
           <ChatMessages messages={messages} />
-          <EmojiPicker onSend={sendMessage} />
+          <EmojiPicker 
+            onSend={sendMessage} 
+            isLoading={isLoading}
+            error={error}
+            clearError={clearError}
+          />
         </div>
       )}
     </div>
