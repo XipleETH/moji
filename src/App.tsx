@@ -7,7 +7,7 @@ import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
 import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
-import { useMiniKit, useNotification, useViewProfile } from '@coinbase/onchainkit/minikit';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
 import { useWalletAuth } from './hooks/useWalletAuth';
@@ -17,20 +17,18 @@ import { WalletInfo } from './components/WalletInfo';
 function App() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
-  const sendNotification = useNotification();
-  const viewProfile = useViewProfile();
   const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
   const { user: walletUser, isConnected: isWalletConnected } = useWalletAuth();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const hasTriedSignIn = useRef(false);
   
-  // Usar wallet user si está disponible, sino usar auth user
+  // Use wallet user if available, otherwise use auth user
   const user = walletUser || authUser;
   
-  // Para evitar renderizado constante
+  // To avoid constant re-rendering
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // Inicializar Firebase y SDK una sola vez
+  // Initialize Firebase and SDK once
   useEffect(() => {
     const initSDK = async () => {
       try {
@@ -44,46 +42,49 @@ function App() {
     initSDK();
   }, []);
 
-  // Intentar inicio de sesión automático si no hay usuario
+  // Attempt automatic login if no user
   useEffect(() => {
-    // Solo intentamos una vez y cuando no estamos cargando ya
+    // Only try once and when not already loading
     if (!user && !isLoading && !hasTriedSignIn.current && !isWalletConnected) {
-      console.log("Intenting automatic login");
+      console.log("Attempting automatic login");
       hasTriedSignIn.current = true;
       signIn().catch(err => console.error("Error in automatic login:", err));
     }
     
-    // Marcar como carga inicial completada después de un tiempo
+    // Mark initial load as complete after some time
     if (!initialLoadComplete) {
       const timer = setTimeout(() => {
         setInitialLoadComplete(true);
-      }, 2500); // Dar 2.5 segundos para la carga inicial
+      }, 2500); // Give 2.5 seconds for initial load
       
       return () => clearTimeout(timer);
     }
   }, [user, isLoading, signIn, initialLoadComplete, isWalletConnected]);
 
-  // Mostrar notificación cuando hay ganadores
+  // Show notification when there are winners
   const handleWin = useCallback(async () => {
-    // Usar verificación de seguridad para evitar errores undefined
+    // Use security check to avoid undefined errors
     const firstPrizeLength = gameState.lastResults?.firstPrize?.length || 0;
     if (firstPrizeLength > 0) {
       try {
-        await sendNotification({
-          title: '🎉 You Won!',
-          body: 'Congratulations! You matched all emojis and won the first prize!'
-        });
+        // Manual notification since useNotification is not available
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('🎉 You Won!', {
+            body: 'Congratulations! You matched all emojis and won the first prize!',
+            icon: '/favicon.ico'
+          });
+        }
       } catch (error) {
         console.error('Failed to send notification:', error);
       }
     }
-  }, [gameState.lastResults, sendNotification]);
+  }, [gameState.lastResults]);
 
   useEffect(() => {
     handleWin();
   }, [gameState.lastResults, handleWin]);
 
-  // Pantalla de carga con animación
+  // Loading screen with animation
   if (isLoading && !initialLoadComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
@@ -117,7 +118,12 @@ function App() {
             )}
             {context?.client?.added && (
               <button
-                onClick={() => viewProfile()}
+                onClick={() => {
+                  // Since useViewProfile is not available, use a basic implementation
+                  if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'fc_frame', method: 'profile' }, '*');
+                  }
+                }}
                 className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 View Profile
@@ -126,7 +132,7 @@ function App() {
           </div>
         </div>
         
-        {/* Componente de información de billetera */}
+        {/* Wallet information component */}
         <div className="mb-6">
           <WalletConnector />
         </div>

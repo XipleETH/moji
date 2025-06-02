@@ -27,7 +27,7 @@ export const WalletConnector: React.FC = () => {
         </div>
         {user.chainId && (
           <div className="mt-2 text-xs text-white/60">
-            Red: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
+            Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
           </div>
         )}
       </div>
