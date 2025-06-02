@@ -35,9 +35,9 @@ function App() {
     const initSDK = async () => {
       try {
         await sdk.actions.ready();
-        console.log("SDK inicializado correctamente");
+        console.log("SDK initialized correctly");
       } catch (error) {
-        console.error("Error inicializando SDK:", error);
+        console.error("Error initializing SDK:", error);
       }
     };
     
@@ -48,9 +48,9 @@ function App() {
   useEffect(() => {
     // Solo intentamos una vez y cuando no estamos cargando ya
     if (!user && !isLoading && !hasTriedSignIn.current && !isWalletConnected) {
-      console.log("Intentando inicio de sesión automático");
+      console.log("Intenting automatic login");
       hasTriedSignIn.current = true;
-      signIn().catch(err => console.error("Error en inicio de sesión automático:", err));
+      signIn().catch(err => console.error("Error in automatic login:", err));
     }
     
     // Marcar como carga inicial completada después de un tiempo
@@ -89,7 +89,7 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-bounce text-6xl mb-4">🎲</div>
-          <div className="text-white text-2xl">Cargando LottoMoji...</div>
+          <div className="text-white text-2xl">Loading LottoMoji...</div>
         </div>
       </div>
     );
@@ -120,7 +120,7 @@ function App() {
                 onClick={() => viewProfile()}
                 className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                Ver Perfil
+                View Profile
               </button>
             )}
           </div>
@@ -154,7 +154,7 @@ function App() {
               onClick={forceGameDraw}
               className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
-              <Zap size={16} /> Forzar Sorteo
+              <Zap size={16} /> Force Draw
             </button>
           </div>
         )}
@@ -187,7 +187,7 @@ function App() {
           <div className="bg-white/10 rounded-lg p-6 text-white">
             <h3 className="text-2xl font-bold mb-4 flex items-center">
               <Trophy className="mr-2" size={24} />
-              Premio Structure
+              Prize Structure
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between">

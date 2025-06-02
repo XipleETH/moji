@@ -123,7 +123,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
             <button 
               onClick={clearError}
               className="ml-auto text-red-500 hover:text-red-700"
-              aria-label="Cerrar error"
+              aria-label="Close error"
             >
               ×
             </button>
@@ -135,18 +135,18 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
       <div className="min-h-8 p-2 mb-2 bg-gray-50 rounded flex flex-wrap gap-1">
         {selectedEmojis.map((emoji, index) => (
           <span
-            key={`${index}-${emoji}`} // Usar índice y emoji para clave única
+            key={`${index}-${emoji}`} // Use index and emoji for unique key
             className={`cursor-pointer hover:bg-gray-200 p-1 rounded ${
               isOperationInProgress ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             onClick={() => !isOperationInProgress && handleRemoveEmoji(index)}
-            title="Click para remover"
+            title="Click to remove"
           >
             {emoji}
           </span>
         ))}
         {selectedEmojis.length === 0 && (
-          <span className="text-gray-400 text-sm">Selecciona emojis para tu mensaje...</span>
+          <span className="text-gray-400 text-sm">Select emojis for your message...</span>
         )}
       </div>
 
@@ -195,12 +195,12 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
         {isOperationInProgress ? (
           <>
             <Loader2 size={18} className="animate-spin" />
-            Enviando...
+            Sending...
           </>
         ) : (
           <>
             <Send size={18} />
-            Enviar ({selectedEmojis.length})
+            Send ({selectedEmojis.length})
           </>
         )}
       </button>

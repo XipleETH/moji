@@ -20,21 +20,21 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
   try {
     const data = doc.data();
     
-    // Validar que tengamos los datos básicos
+    // Validate we have basic data
     if (!data) {
-      throw new Error('Documento sin datos');
+      throw new Error('Document without data');
     }
     
-    // Validar emojis
+    // Validate emojis
     let emojis: string[] = [];
     if (Array.isArray(data.emojis)) {
       emojis = data.emojis.filter((emoji: any) => typeof emoji === 'string' && emoji.trim() !== '');
     } else if (typeof data.emojis === 'string' && data.emojis.trim() !== '') {
-      // Manejar caso donde emojis pueda ser un string
+      // Handle case where emojis could be a string
       emojis = [data.emojis.trim()];
     }
     
-    // Validar timestamp
+    // Validate timestamp
     let timestamp = Date.now();
     if (data.timestamp) {
       if (typeof data.timestamp.toMillis === 'function') {
@@ -49,7 +49,7 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
       }
     }
     
-    // Validar userId y username
+    // Validate userId and username
     const userId = typeof data.userId === 'string' ? data.userId : 'anonymous';
     const username = typeof data.username === 'string' && data.username.trim() !== '' 
       ? data.username.trim() 
@@ -63,22 +63,22 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
       username
     };
     
-    // Log para debugging si hay inconsistencias
+    // Log for debugging if there are inconsistencies
     if (emojis.length === 0) {
-      console.warn(`[mapFirestoreMessage] Mensaje ${doc.id} sin emojis válidos:`, data.emojis);
+      console.warn(`[mapFirestoreMessage] Message ${doc.id} without valid emojis:`, data.emojis);
     }
     
     return message;
   } catch (error) {
-    console.error(`[mapFirestoreMessage] Error mapeando documento ${doc.id}:`, error);
+    console.error(`[mapFirestoreMessage] Error mapping document ${doc.id}:`, error);
     
-    // Devolver mensaje de error como fallback
+    // Return error message as fallback
     return {
       id: doc.id,
-      emojis: ['❓'], // Emoji de pregunta para indicar error
+      emojis: ['❓'], // Question mark emoji to indicate error
       timestamp: Date.now(),
       userId: 'system',
-      username: 'Sistema'
+      username: 'System'
     };
   }
 };
