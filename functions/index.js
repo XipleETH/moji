@@ -40,7 +40,7 @@ const db = getFirestore();
 const GAME_STATE_DOC = 'current_game_state';
 const TICKETS_COLLECTION = 'player_tickets';
 const GAME_RESULTS_COLLECTION = 'game_results';
-const DRAW_INTERVAL_MS = 60000; // 1 minuto
+const DRAW_INTERVAL_MS = 86400000; // 24 horas
 
 // Función para generar emojis aleatorios
 const generateRandomEmojis = (count) => {
@@ -110,62 +110,64 @@ const checkWin = (ticketNumbers, winningNumbers) => {
 const processGameDraw = async () => {
   // Guardar referencia al documento de control fuera del try para usarlo en el catch
   const now = new Date();
-  const currentMinute = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-  const drawControlRef = db.collection('draw_control').doc(currentMinute);
+  const currentDay = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+  const drawControlRef = db.collection('draw_control').doc(currentDay);
   const processId = Date.now().toString();
   
   try {
-    logger.info(`[${processId}] Procesando sorteo del juego para el minuto ${currentMinute}...`);
+    logger.info(`[${processId}] Procesando sorteo del juego para el día ${currentDay}...`);
     
-    // 1. Verificar primero si ya existe un resultado en game_results para este minuto
+    // 1. Verificar primero si ya existe un resultado en game_results para este día
     // (verificación adicional para evitar duplicados)
-    const minuteStart = new Date(now);
-    minuteStart.setSeconds(0);
-    minuteStart.setMilliseconds(0);
+    const dayStart = new Date(now);
+    dayStart.setHours(0);
+    dayStart.setMinutes(0);
+    dayStart.setSeconds(0);
+    dayStart.setMilliseconds(0);
     
-    const minuteEnd = new Date(minuteStart);
-    minuteEnd.setMinutes(minuteStart.getMinutes() + 1);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayStart.getDate() + 1);
     
-    // Primero, verificar si ya existe un resultado por minuteKey
+    // Primero, verificar si ya existe un resultado por dayKey
     const existingByKeyQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('minuteKey', '==', currentMinute)
+      .where('dayKey', '==', currentDay)
       .limit(1);
     
     const existingByKey = await existingByKeyQuery.get();
     
     if (!existingByKey.empty) {
       const existingResult = existingByKey.docs[0];
-      logger.info(`[${processId}] Ya existe un resultado para el minuto ${currentMinute} con ID (por minuteKey): ${existingResult.id}`);
+      logger.info(`[${processId}] Ya existe un resultado para el día ${currentDay} con ID (por dayKey): ${existingResult.id}`);
       return { success: true, alreadyProcessed: true, resultId: existingResult.id };
     }
     
     // Verificación adicional por timestamp
     const existingResultsQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('timestamp', '>=', minuteStart)
-      .where('timestamp', '<', minuteEnd)
+      .where('timestamp', '>=', dayStart)
+      .where('timestamp', '<', dayEnd)
       .limit(1);
     
     const existingResults = await existingResultsQuery.get();
     
     if (!existingResults.empty) {
       const existingResult = existingResults.docs[0];
-      logger.info(`[${processId}] Ya existe un resultado para el periodo de tiempo ${currentMinute} con ID: ${existingResult.id}`);
+      logger.info(`[${processId}] Ya existe un resultado para el periodo de tiempo ${currentDay} con ID: ${existingResult.id}`);
       return { success: true, alreadyProcessed: true, resultId: existingResult.id };
     }
     
-    // 2. Verificar si ya se procesó un sorteo para este minuto usando draw_control
+    // 2. Verificar si ya se procesó un sorteo para este día usando draw_control
     
     // Usar transacción para evitar condiciones de carrera
     const result = await db.runTransaction(async (transaction) => {
       const drawControlDoc = await transaction.get(drawControlRef);
       
-      // Si ya existe un documento para este minuto, otro proceso ya está manejando este sorteo
+      // Si ya existe un documento para este día, otro proceso ya está manejando este sorteo
       if (drawControlDoc.exists) {
         const data = drawControlDoc.data();
         
         // Si ya está completado, retornar el ID del resultado
         if (data.completed) {
-          logger.info(`[${processId}] Ya se procesó un sorteo para el minuto ${currentMinute} con ID: ${data.resultId}`);
+          logger.info(`[${processId}] Ya se procesó un sorteo para el día ${currentDay} con ID: ${data.resultId}`);
           return { success: true, alreadyProcessed: true, resultId: data.resultId };
         }
         
@@ -176,16 +178,16 @@ const processGameDraw = async () => {
           const elapsed = Date.now() - startTime;
           
           if (elapsed < 30000) { // menos de 30 segundos
-            logger.info(`[${processId}] Sorteo para el minuto ${currentMinute} en proceso, esperando...`);
+            logger.info(`[${processId}] Sorteo para el día ${currentDay} en proceso, esperando...`);
             return { success: false, inProgress: true };
           } else {
-            logger.warn(`[${processId}] Sorteo para el minuto ${currentMinute} no completado después de 30s, reiniciando...`);
+            logger.warn(`[${processId}] Sorteo para el día ${currentDay} no completado después de 30s, reiniciando...`);
             // Continuar con una nueva ejecución
           }
         }
       }
       
-      // Marcar este minuto como en proceso
+      // Marcar este día como en proceso
       transaction.set(drawControlRef, {
         timestamp: FieldValue.serverTimestamp(),
         inProgress: true,
@@ -211,15 +213,17 @@ const processGameDraw = async () => {
     logger.info(`[${processId}] Números ganadores generados:`, winningNumbers);
     
     // 4. Calcular próximo sorteo
-    const nextMinute = new Date(now);
-    nextMinute.setMinutes(now.getMinutes() + 1);
-    nextMinute.setSeconds(0);
-    nextMinute.setMilliseconds(0);
+    const nextDay = new Date(now);
+    nextDay.setDate(now.getDate() + 1);
+    nextDay.setHours(0);
+    nextDay.setMinutes(0);
+    nextDay.setSeconds(0);
+    nextDay.setMilliseconds(0);
     
     // 5. Actualizar estado del juego
     await db.collection('game_state').doc(GAME_STATE_DOC).set({
       winningNumbers,
-      nextDrawTime: Timestamp.fromDate(nextMinute),
+      nextDrawTime: Timestamp.fromDate(nextDay),
       lastUpdated: FieldValue.serverTimestamp(),
       lastProcessId: processId
     });
@@ -268,7 +272,7 @@ const processGameDraw = async () => {
       dateTime: new Date().toISOString(), // Fecha legible como respaldo
       winningNumbers,
       processId: processId,
-      minuteKey: currentMinute, // Guardar la clave del minuto para facilitar la verificación
+      dayKey: currentDay, // Guardar la clave del día para facilitar la verificación
       firstPrize: results.firstPrize.map(ticket => ({
         id: ticket.id,
         numbers: ticket.numbers,
@@ -316,7 +320,7 @@ const processGameDraw = async () => {
       }
     }
     
-    // 10. Actualizar el control de sorteos para este minuto como completado
+    // 10. Actualizar el control de sorteos para este día como completado
     await drawControlRef.set({
       timestamp: FieldValue.serverTimestamp(),
       inProgress: false,
@@ -350,9 +354,9 @@ const processGameDraw = async () => {
   }
 };
 
-// Función programada que se ejecuta cada minuto para realizar el sorteo automáticamente
+// Función programada que se ejecuta cada día para realizar el sorteo automáticamente
 exports.scheduledGameDraw = onSchedule({
-  schedule: "every 1 minutes",
+  schedule: "every 24 hours",
   timeZone: "America/Mexico_City", // Ajusta a tu zona horaria
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
@@ -365,19 +369,19 @@ exports.scheduledGameDraw = onSchedule({
   
   // Verificar que no haya otra instancia ejecutándose
   const now = new Date();
-  const currentMinute = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-  logger.info(`[${instanceId}] Procesando sorteo para el minuto: ${currentMinute}`);
+  const currentDay = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+  logger.info(`[${instanceId}] Procesando sorteo para el día: ${currentDay}`);
   
-  // Comprobar rápidamente si ya existe un resultado para este minuto
+  // Comprobar rápidamente si ya existe un resultado para este día
   try {
     const existingResultQuery = db.collection(GAME_RESULTS_COLLECTION)
-      .where('minuteKey', '==', currentMinute)
+      .where('dayKey', '==', currentDay)
       .limit(1);
     
     const existingResult = await existingResultQuery.get();
     
     if (!existingResult.empty) {
-      logger.info(`[${instanceId}] Ya existe un resultado para el minuto ${currentMinute}. Abortando ejecución.`);
+      logger.info(`[${instanceId}] Ya existe un resultado para el día ${currentDay}. Abortando ejecución.`);
       return;
     }
   } catch (error) {
@@ -385,17 +389,17 @@ exports.scheduledGameDraw = onSchedule({
     // Continuamos de todas formas, ya que processGameDraw tiene sus propias verificaciones
   }
   
-  const lockRef = db.collection('scheduler_locks').doc(currentMinute);
-  const drawControlRef = db.collection('draw_control').doc(currentMinute);
+  const lockRef = db.collection('scheduler_locks').doc(currentDay);
+  const drawControlRef = db.collection('draw_control').doc(currentDay);
   
   try {
-    // Verificar primero si ya existe un resultado para este minuto
+    // Verificar primero si ya existe un resultado para este día
     const drawControlDoc = await drawControlRef.get();
     
     if (drawControlDoc.exists) {
       const data = drawControlDoc.data();
       if (data.completed) {
-        logger.info(`[${instanceId}] Ya se procesó un sorteo para el minuto ${currentMinute} con ID: ${data.resultId}`);
+        logger.info(`[${instanceId}] Ya se procesó un sorteo para el día ${currentDay} con ID: ${data.resultId}`);
         return;
       }
       
@@ -404,10 +408,10 @@ exports.scheduledGameDraw = onSchedule({
         const elapsed = Date.now() - startTime;
         
         if (elapsed < 30000) { // menos de 30 segundos
-          logger.info(`[${instanceId}] Sorteo para el minuto ${currentMinute} en proceso, esperando...`);
+          logger.info(`[${instanceId}] Sorteo para el día ${currentDay} en proceso, esperando...`);
           return;
         } else {
-          logger.warn(`[${instanceId}] Sorteo para el minuto ${currentMinute} no completado después de 30s, reiniciando...`);
+          logger.warn(`[${instanceId}] Sorteo para el día ${currentDay} no completado después de 30s, reiniciando...`);
           // Continuar con una nueva ejecución
         }
       }
@@ -418,7 +422,7 @@ exports.scheduledGameDraw = onSchedule({
       const lockDoc = await transaction.get(lockRef);
       
       if (lockDoc.exists) {
-        logger.info(`[${instanceId}] Ya hay una instancia procesando el sorteo para el minuto ${currentMinute}`);
+        logger.info(`[${instanceId}] Ya hay una instancia procesando el sorteo para el día ${currentDay}`);
         return false;
       }
       

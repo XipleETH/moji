@@ -43,10 +43,10 @@ export function useGameState() {
     };
   }, []);
 
-  // Función para obtener la clave de minuto de un timestamp
-  const getMinuteKey = (timestamp: number): string => {
+  // Función para obtener la clave de día de un timestamp
+  const getDayKey = (timestamp: number): string => {
     const date = new Date(timestamp);
-    return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+    return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
   };
 
   // Suscribirse a los resultados del juego en Firebase
@@ -57,13 +57,13 @@ export function useGameState() {
         const latestResult = results[0]; // El primer resultado es el más reciente
         
         // Solo procesar si es un resultado nuevo que no hemos visto antes
-        const resultMinute = getMinuteKey(latestResult.timestamp);
+        const resultDay = getDayKey(latestResult.timestamp);
         const resultId = latestResult.id || 'unknown';
         
-        if (!processedResultsRef.current.has(resultId) && resultMinute !== lastProcessedMinuteRef.current) {
-          console.log(`[useGameState] Nuevo resultado recibido para el minuto ${resultMinute} con ID: ${resultId}`, latestResult);
+        if (!processedResultsRef.current.has(resultId) && resultDay !== lastProcessedMinuteRef.current) {
+          console.log(`[useGameState] Nuevo resultado recibido para el día ${resultDay} con ID: ${resultId}`, latestResult);
           processedResultsRef.current.add(resultId);
-          lastProcessedMinuteRef.current = resultMinute;
+          lastProcessedMinuteRef.current = resultDay;
           
           setGameState(prev => ({
             ...prev,
@@ -76,7 +76,7 @@ export function useGameState() {
             }
           }));
         } else {
-          console.log(`[useGameState] Ignorando resultado ya procesado para el minuto ${resultMinute} con ID: ${resultId}`);
+          console.log(`[useGameState] Ignorando resultado ya procesado para el día ${resultDay} con ID: ${resultId}`);
         }
       }
     });

@@ -127,8 +127,8 @@ export const subscribeToGameResults = (
   try {
     console.log('[subscribeToGameResults] Configurando suscripción a resultados del juego');
     
-    // Usar un mapa para evitar resultados duplicados en el mismo minuto
-    const resultsByMinute = new Map<string, GameResult>();
+    // Usar un mapa para evitar resultados duplicados en el mismo día
+    const resultsByDay = new Map<string, GameResult>();
     
     const resultsQuery = query(
       collection(db, GAME_RESULTS_COLLECTION),
@@ -162,31 +162,31 @@ export const subscribeToGameResults = (
           }
         });
         
-        // Después agrupar por minuto para eliminar duplicados por tiempo
+        // Después agrupar por día para eliminar duplicados por tiempo
         const results: GameResult[] = [];
         
         resultsById.forEach(result => {
-          // Obtener clave de minuto para agrupar resultados
+          // Obtener clave de día para agrupar resultados
           const date = new Date(result.timestamp);
-          const minuteKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+          const dayKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
           
-          // Para duplicados por minuto, quedarnos con el resultado más reciente
-          const existingResult = resultsByMinute.get(minuteKey);
+          // Para duplicados por día, quedarnos con el resultado más reciente
+          const existingResult = resultsByDay.get(dayKey);
           
           if (!existingResult || existingResult.id < result.id) {
-            resultsByMinute.set(minuteKey, result);
+            resultsByDay.set(dayKey, result);
           }
         });
         
         // Convertir el mapa a un array
-        results.push(...resultsByMinute.values());
+        results.push(...resultsByDay.values());
         
         // Ordenar por timestamp (más reciente primero)
         results.sort((a, b) => b.timestamp - a.timestamp);
         
         // Mostrar un log de diagnóstico
         if (results.length > 0) {
-          console.log(`[subscribeToGameResults] Procesados ${results.length} resultados únicos (por minuto) de ${resultsById.size} documentos totales`);
+          console.log(`[subscribeToGameResults] Procesados ${results.length} resultados únicos (por día) de ${resultsById.size} documentos totales`);
         }
         
         callback(results);
