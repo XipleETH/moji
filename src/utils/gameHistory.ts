@@ -27,7 +27,7 @@ export const addGameResult = (result: GameResult) => {
     gameHistory.push(result);
     
     const dayKey = getDayKey(result.timestamp);
-    
+  
     // Verificar si ya existe un resultado para este día en la lista
     if (!gameHistoryMap.has(dayKey)) {
       console.log(`Añadiendo nuevo resultado para el día: ${dayKey}`);
@@ -38,8 +38,8 @@ export const addGameResult = (result: GameResult) => {
       gameHistory.sort((a, b) => b.timestamp - a.timestamp);
       
       // Guardar en localStorage
-      saveGameHistory(gameHistory);
-    } else {
+    saveGameHistory(gameHistory);
+  } else {
       console.log(`Resultado duplicado para el día: ${dayKey}, ignorando`);
     }
   }

@@ -155,27 +155,27 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="bg-white/95 rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
           <div className="p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white flex justify-between items-center">
             <h2 className="text-xl font-bold">Game History</h2>
-            <button
-              onClick={onClose}
+          <button
+            onClick={onClose}
               className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
+          >
+            <X size={24} />
+          </button>
+        </div>
+        
           <div className="p-4 overflow-y-auto max-h-[calc(85vh-4rem)]">
-            {loading ? (
+          {loading ? (
               <div className="text-center py-8">
-                <div className="inline-block w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="inline-block w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
                 <p className="mt-2 text-gray-600">Loading history...</p>
-              </div>
-            ) : history.length === 0 ? (
+            </div>
+          ) : history.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No games recorded yet</p>
-            ) : (
+          ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {history.map(result => {
                   const hasWinners = result.firstPrize.length > 0 || result.secondPrize.length > 0 || 
@@ -186,8 +186,8 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
                       {/* Header with date */}
                       <div className="mb-3">
                         <p className="text-sm text-gray-500 font-medium">
-                          {formatDate(result.timestamp)}
-                        </p>
+                        {formatDate(result.timestamp)}
+                      </p>
                       </div>
                       
                       {/* Winning Numbers */}
@@ -320,11 +320,11 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
                   ) : (
                     <div className="text-center py-4 text-gray-500">
                       No winners in this category
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
           </div>
         );
       })()}

@@ -244,23 +244,23 @@ export const getCurrentUser = async (): Promise<User | null> => {
     
     // Si no hay usuario de wallet, intentar Farcaster como fallback
     console.log('[getCurrentUser] Intentando obtener usuario de Farcaster como fallback...');
-    const farcasterUser = await getFarcasterUserData();
+  const farcasterUser = await getFarcasterUserData();
     
-    if (farcasterUser) {
+  if (farcasterUser) {
       console.log('[getCurrentUser] Usuario de Farcaster obtenido exitosamente:', {
         id: farcasterUser.id,
         username: farcasterUser.username,
         walletAddress: farcasterUser.walletAddress,
         isFarcasterUser: farcasterUser.isFarcasterUser
       });
-      return farcasterUser;
-    }
-    
+    return farcasterUser;
+  }
+  
     // Si no hay usuario disponible
     console.log('[getCurrentUser] No hay usuario disponible');
     return null;
   } catch (error) {
     console.error('[getCurrentUser] Error obteniendo usuario:', error);
-    return null;
+  return null;
   }
 }; 

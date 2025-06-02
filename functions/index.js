@@ -357,7 +357,8 @@ const processGameDraw = async () => {
 // Función programada que se ejecuta cada día para realizar el sorteo automáticamente
 exports.scheduledGameDraw = onSchedule({
   schedule: "0 0 * * *", // Todos los días a medianoche (00:00)
-  timeZone: "Etc/GMT+8", // PST fijo (UTC-8) - Hora Estándar del Pacífico
+  timeZone: "Etc/GMT+0", // PST fijo (UTC-8) - Hora Estándar del Pacífico
+  memory: "512MiB", // Aumentar memoria para evitar errores
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
     minBackoffSeconds: 10
@@ -472,7 +473,10 @@ exports.scheduledGameDraw = onSchedule({
 });
 
 // Función Cloud que puede ser invocada manualmente (para pruebas o sorteos forzados)
-exports.triggerGameDraw = onCall({ maxInstances: 1 }, async (request) => {
+exports.triggerGameDraw = onCall({ 
+  maxInstances: 1,
+  memory: "512MiB" // Aumentar memoria para evitar errores
+}, async (request) => {
   logger.info("Solicitud manual de sorteo recibida");
   return await processGameDraw();
 });
