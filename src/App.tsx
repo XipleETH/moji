@@ -102,19 +102,7 @@ function App() {
           <h1 className="text-4xl md:text-6xl font-bold text-white">
             🎰 LottoMoji 🎲
           </h1>
-          <div className="flex items-center gap-2">
-            {user && (
-              <div className="bg-white/20 px-4 py-2 rounded-lg text-white flex items-center">
-                <UserCircle className="mr-2" size={18} />
-                <span>{user.username}</span>
-                {user.walletAddress && (
-                  <div className="ml-2 flex items-center text-sm text-white/70">
-                    <WalletIcon size={12} className="mr-1" />
-                    <span>{user.walletAddress.substring(0, 6)}...{user.walletAddress.substring(user.walletAddress.length - 4)}</span>
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="flex items-center gap-4">
             {context?.client?.added && (
               <button
                 onClick={() => viewProfile()}
@@ -123,13 +111,11 @@ function App() {
                 Ver Perfil
               </button>
             )}
+            <div className="relative">
+              <WalletConnector />
+            </div>
           </div>
         </div>
-        
-        {/* Componente de información de billetera */}
-          <div className="mb-6">
-          <WalletConnector />
-          </div>
         
         <p className="text-white/90 text-xl mb-4">
           Match 4 emojis to win! 🏆

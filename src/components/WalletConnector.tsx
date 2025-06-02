@@ -1,69 +1,74 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WalletIcon } from 'lucide-react';
 import { useWalletAuth } from '../hooks/useWalletAuth';
+import { UserMenu } from './UserMenu';
 
 export const WalletConnector: React.FC = () => {
   const { user, isConnected, isConnecting, error, connect, disconnect } = useWalletAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  if (isConnected && user) {
-    return (
-      <div className="bg-white/10 rounded-lg p-4 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <WalletIcon className="mr-2" size={18} />
-            <div>
-              <div className="font-medium">{user.username}</div>
-              <div className="text-sm text-white/70">
-                {user.walletAddress?.substring(0, 6)}...{user.walletAddress?.substring(user.walletAddress.length - 4)}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={disconnect}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors"
-          >
-            Desconectar
-          </button>
-        </div>
-        {user.chainId && (
-          <div className="mt-2 text-xs text-white/60">
-            Red: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const handleWalletClick = () => {
+    if (isConnected && user) {
+      setIsMenuOpen(true);
+    } else {
+      connect();
+    }
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+    setIsMenuOpen(false);
+  };
 
   return (
-    <div className="bg-white/10 rounded-lg p-4 text-white">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <WalletIcon className="mr-2" size={18} />
-          <div>
-            <div className="font-medium">Conectar Wallet</div>
-            <div className="text-sm text-white/70">
-              Coinbase Wallet o MetaMask
-            </div>
+    <>
+      <button
+        onClick={handleWalletClick}
+        disabled={isConnecting}
+        className={`
+          relative p-3 rounded-full transition-all duration-200 
+          ${isConnected 
+            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg' 
+            : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+          }
+          ${isConnecting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
+          disabled:opacity-50 shadow-md hover:shadow-lg
+        `}
+      >
+        <WalletIcon 
+          className={`text-white ${isConnecting ? 'animate-pulse' : ''}`} 
+          size={24} 
+        />
+        
+        {/* Indicator dot when connected */}
+        {isConnected && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse"></div>
+        )}
+        
+        {/* Loading indicator */}
+        {isConnecting && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
           </div>
-        </div>
-        <button
-          onClick={connect}
-          disabled={isConnecting}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-        >
-          {isConnecting ? 'Conectando...' : 'Conectar'}
-        </button>
-      </div>
-      
+        )}
+      </button>
+
+      {/* Error message */}
       {error && (
-        <div className="mt-2 text-red-300 text-sm">
+        <div className="absolute top-full mt-2 right-0 bg-red-500 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs">
           {error}
         </div>
       )}
-      
-      <div className="mt-2 text-xs text-white/60">
-        Necesitas una wallet para generar tickets y participar en la lotería
-      </div>
-    </div>
+
+      {/* User Menu Modal */}
+      {user && (
+        <UserMenu
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          user={user}
+          onDisconnect={handleDisconnect}
+        />
+      )}
+    </>
   );
 }; 

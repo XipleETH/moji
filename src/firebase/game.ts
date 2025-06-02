@@ -273,4 +273,69 @@ export const subscribeToCurrentGameState = (
     
     callback(winningNumbers, timeRemaining);
   });
+};
+
+// Función para obtener estadísticas del usuario
+export const getUserStatistics = async (userId: string) => {
+  try {
+    // Obtener todos los tickets del usuario
+    const ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const userTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Obtener todos los resultados de juegos
+    const resultsQuery = query(
+      collection(db, GAME_RESULTS_COLLECTION),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    const allResults = resultsSnapshot.docs.map(doc => mapFirestoreGameResult(doc));
+
+    // Contar premios ganados
+    let firstPrizeWins = 0;
+    let secondPrizeWins = 0;
+    let thirdPrizeWins = 0;
+    let freePrizeWins = 0;
+
+    allResults.forEach(result => {
+      // Verificar en cada categoría de premio
+      if (result.firstPrize?.some(ticket => ticket.userId === userId)) {
+        firstPrizeWins++;
+      }
+      if (result.secondPrize?.some(ticket => ticket.userId === userId)) {
+        secondPrizeWins++;
+      }
+      if (result.thirdPrize?.some(ticket => ticket.userId === userId)) {
+        thirdPrizeWins++;
+      }
+      if (result.freePrize?.some(ticket => ticket.userId === userId)) {
+        freePrizeWins++;
+      }
+    });
+
+    return {
+      totalTickets: userTickets.length,
+      freeTickets: userTickets.filter(ticket => ticket.isFreeTicket).length,
+      paidTickets: userTickets.filter(ticket => !ticket.isFreeTicket).length,
+      wins: {
+        firstPrize: firstPrizeWins,
+        secondPrize: secondPrizeWins,
+        thirdPrize: thirdPrizeWins,
+        freePrize: freePrizeWins
+      },
+      totalWins: firstPrizeWins + secondPrizeWins + thirdPrizeWins + freePrizeWins
+    };
+  } catch (error) {
+    console.error('Error getting user statistics:', error);
+    throw error;
+  }
 }; 
