@@ -28,7 +28,7 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
     // Validar emojis
     let emojis: string[] = [];
     if (Array.isArray(data.emojis)) {
-      emojis = data.emojis.filter(emoji => typeof emoji === 'string' && emoji.trim() !== '');
+      emojis = data.emojis.filter((emoji: any) => typeof emoji === 'string' && emoji.trim() !== '');
     } else if (typeof data.emojis === 'string' && data.emojis.trim() !== '') {
       // Manejar caso donde emojis pueda ser un string
       emojis = [data.emojis.trim()];
@@ -85,6 +85,9 @@ const mapFirestoreMessage = (doc: any): ChatMessage => {
 
 // Enviar un mensaje al chat
 export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
+  console.log('=== DEBUG CHAT MESSAGE ===');
+  console.log('1. Emojis recibidos:', emojis);
+  
   try {
     console.log('[sendChatMessage] Iniciando envío de mensaje con emojis:', emojis);
     
@@ -94,9 +97,11 @@ export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
       return false;
     }
     
+    console.log('2. Obteniendo usuario...');
     // Obtener usuario de forma asíncrona
     const user = await getCurrentUser();
     console.log('[sendChatMessage] Usuario obtenido:', user ? `${user.username} (${user.id})` : 'null');
+    console.log('3. Usuario completo:', user);
     
     // Preparar datos del mensaje
     const messageData = {
@@ -113,12 +118,36 @@ export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
       collection: CHAT_COLLECTION
     });
     
+    console.log('4. Datos completos a enviar:');
+    console.table(messageData);
+    
+    console.log('5. Intentando conectar con Firestore...');
+    console.log('   - Base de datos:', db);
+    console.log('   - Colección:', CHAT_COLLECTION);
+    
     // Intentar enviar el mensaje
+    console.log('6. Ejecutando addDoc...');
     const docRef = await addDoc(collection(db, CHAT_COLLECTION), messageData);
     console.log('[sendChatMessage] Mensaje enviado exitosamente con ID:', docRef.id);
+    console.log('7. ¡ÉXITO! Documento creado con ID:', docRef.id);
+    
+    // Verificar que el documento existe
+    console.log('8. Verificando que el documento existe...');
+    try {
+      const doc = await import('firebase/firestore').then(({ getDoc, doc }) => 
+        getDoc(doc(db, CHAT_COLLECTION, docRef.id))
+      );
+      console.log('9. Documento verificado:', doc.exists() ? 'EXISTS' : 'NOT FOUND');
+      if (doc.exists()) {
+        console.log('   Datos del documento:', doc.data());
+      }
+    } catch (verifyError) {
+      console.error('Error verificando documento:', verifyError);
+    }
     
     return true;
   } catch (error) {
+    console.error('=== ERROR EN CHAT ===');
     console.error('[sendChatMessage] Error sending chat message:', error);
     
     // Log adicional para debugging de navegadores
@@ -131,8 +160,10 @@ export const sendChatMessage = async (emojis: string[]): Promise<boolean> => {
     // Verificar si el error es de conexión/permisos
     if (error && typeof error === 'object' && 'code' in error) {
       console.error('[sendChatMessage] Firebase error code:', (error as any).code);
+      console.error('[sendChatMessage] Firebase error details:', error);
     }
     
+    console.log('=== FIN DEBUG ERROR ===');
     return false;
   }
 };
