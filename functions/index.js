@@ -357,7 +357,7 @@ const processGameDraw = async () => {
 // Función programada que se ejecuta cada día para realizar el sorteo automáticamente
 exports.scheduledGameDraw = onSchedule({
   schedule: "every 24 hours",
-  timeZone: "America/Mexico_City", // Ajusta a tu zona horaria
+  timeZone: "America/Los_Angeles", // Cambiado a Hora del Pacífico (PT)
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
     minBackoffSeconds: 10
