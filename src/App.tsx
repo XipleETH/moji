@@ -98,11 +98,15 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl md:text-6xl font-bold text-white">
-            🎰 LottoMoji 🎲
-          </h1>
-          <div className="flex items-center gap-4">
+        {/* Header con botones en esquinas */}
+        <div className="relative mb-8">
+          {/* Botón historial en esquina superior izquierda */}
+          <div className="absolute top-0 left-0">
+            <GameHistoryButton />
+          </div>
+          
+          {/* Botones de billetera y perfil en esquina superior derecha */}
+          <div className="absolute top-0 right-0 flex items-center gap-4">
             {context?.client?.added && (
               <button
                 onClick={() => viewProfile()}
@@ -115,14 +119,26 @@ function App() {
               <WalletConnector />
             </div>
           </div>
+          
+          {/* Título centrado */}
+          <div className="flex justify-center pt-4">
+            <h1 className="text-4xl md:text-6xl font-bold text-white text-center">
+              🎰 LottoMoji 🎲
+            </h1>
+          </div>
         </div>
         
-        <p className="text-white/90 text-xl mb-4">
-          Match 4 emojis to win! 🏆
-        </p>
-        <p className="text-white/80">Next draw in:</p>
-        <div className="flex justify-center mt-4">
-          <Timer seconds={gameState.timeRemaining} />
+        {/* Textos informativos centrados con emojis */}
+        <div className="text-center mb-8">
+          <p className="text-white/90 text-xl mb-4">
+            🎯 Match 4 emojis to win! 🏆
+          </p>
+          <p className="text-white/80 text-lg mb-4">
+            ⏰ Next draw in:
+          </p>
+          <div className="flex justify-center">
+            <Timer seconds={gameState.timeRemaining} />
+          </div>
         </div>
 
         <WinnerAnnouncement 
@@ -168,8 +184,6 @@ function App() {
         </div>
 
         <div className="mt-8 space-y-6">
-          <GameHistoryButton />
-          
           <div className="bg-white/10 rounded-lg p-6 text-white">
             <h3 className="text-2xl font-bold mb-4 flex items-center">
               <Trophy className="mr-2" size={24} />
