@@ -111,7 +111,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                      disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >
             <CheckCircle size={20} />
-            Confirmar Ticket con Emojis Seleccionados
+            Confirm Ticket with Selected Emojis
           </button>
         )}
         
@@ -127,52 +127,29 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
         {/* Prompt de conexión de wallet */}
         {showWalletPrompt && (
-          <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <WalletIcon className="mr-2" size={20} />
-                <div>
-                  <div className="font-medium text-white">Conectar Wallet Requerida</div>
-                  <div className="text-sm text-white/70">
-                    Necesitas conectar una wallet para generar tickets
-                  </div>
-                  {pendingTicket && (
-                    <div className="text-xs text-white/60 mt-1">
-                      Ticket con emojis: {pendingTicket.join(' ')}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCancelWalletPrompt}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleWalletConnect}
-                  disabled={isConnecting}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
-                >
-                  {isConnecting ? 'Conectando...' : 'Conectar'}
-                </button>
-              </div>
+          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-center">
+            <WalletIcon className="mx-auto mb-2" size={32} />
+            <div className="font-medium text-white">Wallet Connection Required</div>
+            <div className="text-red-200 text-sm mt-1">
+              You need to connect a wallet to generate tickets
+            </div>
+            <div className="text-red-200 text-sm mt-2">
+              Ticket with emojis: {pendingTicket.join(' ')}
             </div>
           </div>
         )}
 
         {/* Mostrar información del ticket count sin límites */}
-        <div className="text-center text-white/70 text-sm">
-          Tickets generados: {ticketCount}
-        </div>
-
-        {/* Instrucciones para el usuario */}
-        <div className="text-center text-white/60 text-xs">
-          {selectedEmojis.length === 0 && "Selecciona 4 emojis para crear un ticket personalizado"}
-          {selectedEmojis.length > 0 && selectedEmojis.length < 4 && 
-            `Selecciona ${4 - selectedEmojis.length} emoji${4 - selectedEmojis.length === 1 ? '' : 's'} más`}
-          {selectedEmojis.length === 4 && "¡Listo! Haz clic en 'Confirmar Ticket' para generar tu ticket"}
+        <div className="text-center space-y-2">
+          <div className="text-white/80">
+            Tickets generated: {ticketCount}
+          </div>
+          
+          <div className="text-white/70 text-sm">
+            {selectedEmojis.length === 0 && "Select 4 emojis to create a custom ticket"}
+            {selectedEmojis.length > 0 && selectedEmojis.length < 4 && `Select ${4 - selectedEmojis.length} more emoji${4 - selectedEmojis.length !== 1 ? 's' : ''}`}
+            {selectedEmojis.length === 4 && "Ready! Click 'Confirm Ticket' to generate your ticket"}
+          </div>
         </div>
       </div>
     </div>
