@@ -358,7 +358,7 @@ const processGameDraw = async () => {
 exports.scheduledGameDraw = onSchedule({
   schedule: "0 0 * * *", // Todos los días a medianoche (00:00)
   timeZone: "Etc/GMT-5", // PST fijo (UTC-8) - Hora Estándar del Pacífico
-  memory: "1024MiB", // Aumentar memoria para evitar errores
+  memory: "512MiB", // Aumentar memoria para evitar errores
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
     minBackoffSeconds: 10
