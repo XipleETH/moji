@@ -17,6 +17,16 @@ export const useWalletAuth = (): WalletAuthHook => {
   
   const isConnected = !!user?.walletAddress;
 
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('[useWalletAuth] State changed:', {
+      user: user ? { id: user.id, walletAddress: user.walletAddress } : null,
+      isConnected,
+      isConnecting,
+      error
+    });
+  }, [user, isConnected, isConnecting, error]);
+
   // Función para detectar si tenemos Coinbase Wallet o MetaMask
   const detectWallet = () => {
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -87,12 +97,23 @@ export const useWalletAuth = (): WalletAuthHook => {
       
       setUser(walletUser);
       
+      // Forzar una actualización del estado
+      setTimeout(() => {
+        console.log('[WalletAuth] Verificando estado después de conexión...');
+        setUser(prev => {
+          console.log('[WalletAuth] Estado actual del usuario:', prev);
+          return prev;
+        });
+      }, 100);
+      
       // Guardar en localStorage para persistencia
       localStorage.setItem('walletAuth', JSON.stringify({
         address,
         chainId,
         timestamp: Date.now()
       }));
+      
+      console.log('[WalletAuth] ¡Conexión exitosa! Usuario:', walletUser);
       
     } catch (err) {
       console.error('[WalletAuth] Error conectando wallet:', err);

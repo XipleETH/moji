@@ -29,15 +29,36 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     }
   }, [ticketCount]);
 
+  // Auto-hide wallet prompt when wallet gets connected
+  useEffect(() => {
+    if (isConnected && user?.walletAddress && showWalletPrompt) {
+      console.log('[TicketGenerator] Wallet connected, hiding prompt');
+      setShowWalletPrompt(false);
+      
+      // Si tenemos un ticket pendiente, generarlo automáticamente
+      if (pendingTicket) {
+        console.log('[TicketGenerator] Generating pending ticket:', pendingTicket);
+        onGenerateTicket(pendingTicket);
+        setPendingTicket(null);
+        setSelectedEmojis([]);
+      }
+    }
+  }, [isConnected, user?.walletAddress, showWalletPrompt, pendingTicket, onGenerateTicket]);
+
   const handleGenerateTicket = async (numbers: string[]) => {
+    console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
+    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user);
+    
     // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
     if (!isConnected || !user?.walletAddress) {
+      console.log('[TicketGenerator] No wallet connected, showing prompt');
       setPendingTicket(numbers);
       setShowWalletPrompt(true);
       return;
     }
     
     // Si hay wallet, generar ticket
+    console.log('[TicketGenerator] Wallet connected, generating ticket');
     onGenerateTicket(numbers);
     setSelectedEmojis([]); // Reset selection after generating ticket
     setPendingTicket(null);
@@ -45,18 +66,12 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleWalletConnect = async () => {
+    console.log('[TicketGenerator] Connecting wallet...');
     try {
       await connect();
-      setShowWalletPrompt(false);
-      
-      // Si tenemos un ticket pendiente, generarlo después de conectar
-      if (pendingTicket) {
-        onGenerateTicket(pendingTicket);
-        setPendingTicket(null);
-        setSelectedEmojis([]);
-      }
+      // No need to handle the rest here, the useEffect will take care of it
     } catch (error) {
-      console.error('Error conectando wallet:', error);
+      console.error('[TicketGenerator] Error connecting wallet:', error);
     }
   };
 
@@ -133,9 +148,36 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
             <div className="text-red-200 text-sm mt-1">
               You need to connect a wallet to generate tickets
             </div>
-            <div className="text-red-200 text-sm mt-2">
-              Ticket with emojis: {pendingTicket.join(' ')}
+            {pendingTicket && (
+              <div className="text-red-200 text-sm mt-2">
+                Ticket with emojis: {pendingTicket.join(' ')}
+              </div>
+            )}
+            <div className="flex gap-2 mt-4 justify-center">
+              <button
+                onClick={handleCancelWalletPrompt}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWalletConnect}
+                disabled={isConnecting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+              >
+                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+              </button>
             </div>
+          </div>
+        )}
+
+        {/* Debug info (only in development) */}
+        {import.meta.env.DEV && (
+          <div className="bg-black/20 p-2 rounded text-xs text-white/60 font-mono">
+            <div>Connected: {isConnected ? 'YES' : 'NO'}</div>
+            <div>User: {user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...` : 'None'}</div>
+            <div>Connecting: {isConnecting ? 'YES' : 'NO'}</div>
+            <div>Show Prompt: {showWalletPrompt ? 'YES' : 'NO'}</div>
           </div>
         )}
 
