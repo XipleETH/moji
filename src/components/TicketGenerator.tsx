@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { EmojiGrid } from './EmojiGrid';
 import { generateRandomEmojis } from '../utils/gameLogic';
-import { useWalletAuth } from '../hooks/useWalletAuth';
+import { useWallet } from '../contexts/WalletContext';
 import { WalletIcon, CheckCircle } from 'lucide-react';
 
 interface TicketGeneratorProps {
@@ -20,7 +20,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
-  const { user, isConnected, connect, isConnecting } = useWalletAuth();
+  const { user, isConnected, connect, isConnecting } = useWallet();
 
   // Reset selected emojis when ticket count changes to 0
   useEffect(() => {

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { WalletIcon } from 'lucide-react';
-import { useWalletAuth } from '../hooks/useWalletAuth';
+import { useWallet } from '../contexts/WalletContext';
 import { UserMenu } from './UserMenu';
 
 export const WalletConnector: React.FC = () => {
-  const { user, isConnected, isConnecting, error, connect, disconnect } = useWalletAuth();
+  const { user, isConnected, isConnecting, error, connect, disconnect } = useWallet();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleWalletClick = () => {
