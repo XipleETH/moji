@@ -357,7 +357,7 @@ const processGameDraw = async () => {
 // Función programada que se ejecuta cada día para realizar el sorteo automáticamente
 exports.scheduledGameDraw = onSchedule({
   schedule: "0 0 * * *", // Todos los días a medianoche (00:00)
-  timeZone: "Etc/GMT-4", // UTC+4 - Cuando sea medianoche aquí, serán las 3 PM en Colombia
+  timeZone: "America/Los_Angeles", // UTC+4 - Cuando sea medianoche aquí, serán las 3 PM en Colombia
   memory: "512MiB", // Aumentar memoria para evitar errores
   retryConfig: {
     maxRetryAttempts: 0, // Desactivar reintentos automáticos para evitar duplicados
