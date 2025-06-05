@@ -5,7 +5,6 @@ import { TicketGenerator } from './components/TicketGenerator';
 import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
-import { WalletProvider } from './contexts/WalletContext';
 import { NetworkInfo } from './components/NetworkInfo';
 import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
@@ -16,7 +15,7 @@ import { useAccount } from 'wagmi';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
 
-function AppContent() {
+function App() {
   const { 
     gameState, 
     generateTicket, 
@@ -29,6 +28,7 @@ function AppContent() {
     nextDrawTime,
     prizePools
   } = useGameState();
+  
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
@@ -170,9 +170,9 @@ function AppContent() {
 
         <WinnerAnnouncement 
           winningNumbers={gameState.winningNumbers || []}
-          firstPrize={gameState.lastResults?.firstPrize ? [gameState.lastResults.firstPrize] : []}
-          secondPrize={gameState.lastResults?.secondPrize ? [gameState.lastResults.secondPrize] : []}
-          thirdPrize={gameState.lastResults?.thirdPrize ? [gameState.lastResults.thirdPrize] : []}
+          firstPrize={gameState.lastResults?.freePrize || []}
+          secondPrize={gameState.lastResults?.freePrize || []}
+          thirdPrize={gameState.lastResults?.freePrize || []}
           freePrize={gameState.lastResults?.freePrize || []}
           currentUserId={user?.id}
         />
@@ -335,14 +335,6 @@ function AppContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-function App() {
-  return (
-    <WalletProvider>
-      <AppContent />
-    </WalletProvider>
   );
 }
 

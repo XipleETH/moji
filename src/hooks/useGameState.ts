@@ -36,15 +36,16 @@ export function useGameState() {
 
   // Update local game state when contract data changes
   useEffect(() => {
-    if (contractGameState) {
+    if (contractGameState && !contractGameState.isLoading) {
       setGameState(prev => ({
         ...prev,
-        winningNumbers: contractGameState.currentRound?.winningNumbers || [],
+        winningNumbers: contractGameState.currentRound?.winningNumbers?.map(n => n.toString()) || [],
         tickets: contractGameState.tickets.map(ticket => ({
           id: ticket.id.toString(),
           numbers: ticket.emojis.map(emoji => emoji.toString()),
           timestamp: ticket.mintTimestamp,
           userId: ticket.player,
+          walletAddress: ticket.player,
           isUsed: ticket.isUsed,
           isFreeTicket: ticket.isFreeTicket,
           paymentHash: ticket.paymentHash
@@ -60,7 +61,7 @@ export function useGameState() {
       }));
       
       // Update timer from contract data
-      if (contractGameState.timeRemaining !== timeRemaining) {
+      if (contractGameState.timeRemaining && contractGameState.timeRemaining !== timeRemaining * 1000) {
         updateTimer(Math.floor(contractGameState.timeRemaining / 1000));
       }
     }
@@ -105,8 +106,8 @@ export function useGameState() {
     isTransactionPending,
     isTransactionConfirmed,
     refreshGameData,
-    currentRound: contractGameState.currentRound,
-    nextDrawTime: contractGameState.nextDrawTime,
+    currentRound: contractGameState?.currentRound,
+    nextDrawTime: contractGameState?.nextDrawTime,
     prizePools: formattedPools
   };
 }

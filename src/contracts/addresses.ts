@@ -20,5 +20,6 @@ export const getContractAddresses = (chainId: number) => {
   if (chainId in CONTRACT_ADDRESSES) {
     return CONTRACT_ADDRESSES[chainId as SupportedChainId];
   }
-  throw new Error(`Unsupported chain ID: ${chainId}`);
+  console.warn(`Unsupported chain ID: ${chainId}`);
+  return null;
 }; 
