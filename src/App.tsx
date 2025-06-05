@@ -1,24 +1,23 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { sdk } from '@farcaster/frame-sdk';
 import { Timer } from './components/Timer';
-import { Ticket as TicketComponent } from './components/Ticket';
 import { TicketGenerator } from './components/TicketGenerator';
+import { Ticket as TicketComponent } from './components/Ticket';
+import { EmojiChat } from './components/EmojiChat';
 import { GameHistoryButton } from './components/GameHistoryButton';
-import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
 import { NetworkInfo } from './components/NetworkInfo';
-import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
-import { useMiniKit, useNotification, useViewProfile } from '@coinbase/onchainkit/minikit';
-import { sdk } from '@farcaster/frame-sdk';
-import { useAuth } from './components/AuthProvider';
+import { useAuth } from './contexts/AuthContext';
+import { useMiniKit } from './providers/MiniKitProvider';
+import { useNotification } from './hooks/useNotification';
+import { useViewProfile } from './hooks/useViewProfile';
 import { useAccount } from 'wagmi';
+import { Trophy, Zap, Terminal } from 'lucide-react';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
-import { WalletInfo } from './components/WalletInfo';
-import { useContractGame } from './hooks/useContractGame';
-import { usePrizePools } from './hooks/usePrizePools';
-import { getContractAddresses } from './contracts/addresses';
 
 function App() {
+  // Main game state hook (this should handle both Firebase and contracts)
   const { 
     gameState, 
     generateTicket, 
@@ -32,15 +31,19 @@ function App() {
     prizePools
   } = useGameState();
   
+  // Authentication and wallet
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
   const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
-  const { address, isConnected: isWalletConnected } = useAccount();
+  const { address, isConnected: isWalletConnected, chainId } = useAccount();
+  
+  // Local state
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'ETH' | 'USDC'>('ETH');
   const hasTriedSignIn = useRef(false);
-  
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
   // Create user object from wallet address or use auth user
   const walletUser = address ? {
     id: address,
@@ -50,11 +53,8 @@ function App() {
   } : null;
   
   const user = walletUser || authUser;
-  
-  // Para evitar renderizado constante
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  // Inicializar Firebase y SDK una sola vez
+  // Initialize SDK
   useEffect(() => {
     const initSDK = async () => {
       try {
@@ -68,26 +68,24 @@ function App() {
     initSDK();
   }, []);
 
-  // Intentar inicio de sesión automático si no hay usuario
+  // Auto sign-in attempt
   useEffect(() => {
-    // Solo intentamos una vez y cuando no estamos cargando ya
     if (!user && !isLoading && !hasTriedSignIn.current && !isWalletConnected) {
       console.log("Intentando inicio de sesión automático");
       hasTriedSignIn.current = true;
       signIn().catch(err => console.error("Error en inicio de sesión automático:", err));
     }
     
-    // Marcar como carga inicial completada después de un tiempo
     if (!initialLoadComplete) {
       const timer = setTimeout(() => {
         setInitialLoadComplete(true);
-      }, 2500); // Dar 2.5 segundos para la carga inicial
+      }, 2500);
       
       return () => clearTimeout(timer);
     }
   }, [user, isLoading, signIn, initialLoadComplete, isWalletConnected]);
 
-  // Mostrar notificación cuando hay ganadores
+  // Notification on win
   const handleWin = useCallback(async () => {
     if (gameState.lastResults?.firstPrize && parseFloat(gameState.lastResults.firstPrize) > 0) {
       try {
@@ -105,35 +103,7 @@ function App() {
     handleWin();
   }, [gameState.lastResults, handleWin]);
 
-  // Contract game state
-  const { 
-    gameState: contractGameState, 
-    buyTicketWithETH, 
-    buyTicketWithUSDC, 
-    ethPrice,
-    isTransactionPending,
-    isTransactionConfirmed,
-    error: contractError,
-    isValidChain,
-    refetch: refetchContracts
-  } = useContractGame();
-
-  // Prize pools
-  const { formattedPools: prizePools } = usePrizePools();
-
-  // Local game state
-  const { 
-    gameState, 
-    generateTicket, 
-    timeRemaining, 
-    updateTimer 
-  } = useGameState();
-
-  // Contract addresses
-  const { chainId } = useAccount();
-  const contracts = chainId ? getContractAddresses(chainId) : null;
-
-  // Pantalla de carga con animación
+  // Loading screen
   if (isLoading && !initialLoadComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
@@ -148,14 +118,12 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500">
       <div className="container mx-auto px-4 py-8">
-        {/* Header con botones en esquinas */}
+        {/* Header */}
         <div className="relative mb-8">
-          {/* Botón historial en esquina superior izquierda */}
           <div className="absolute top-0 left-0">
             <GameHistoryButton />
           </div>
           
-          {/* Botones de billetera y perfil en esquina superior derecha */}
           <div className="absolute top-0 right-0 flex items-center gap-4">
             {context?.client?.added && (
               <button
@@ -170,7 +138,6 @@ function App() {
             </div>
           </div>
           
-          {/* Título centrado */}
           <div className="flex justify-center pt-4">
             <h1 className="text-4xl md:text-6xl font-bold text-white text-center">
               🎰 LottoMoji 🎲
@@ -178,7 +145,7 @@ function App() {
           </div>
         </div>
         
-        {/* Textos informativos centrados con emojis */}
+        {/* Game info */}
         <div className="text-center mb-8">
           <p className="text-white/90 text-xl mb-4">
             🎯 Match 4 emojis to win! 🏆
@@ -208,6 +175,7 @@ function App() {
           currentUserId={user?.id}
         />
 
+        {/* Dev tools */}
         {import.meta.env.DEV && (
           <div className="flex justify-center gap-4 mb-6">
             <button
@@ -270,6 +238,7 @@ function App() {
           </div>
         )}
 
+        {/* Ticket generator */}
         <TicketGenerator
           onGenerateTicket={(numbers) => generateTicket(numbers, paymentMethod)}
           disabled={isTransactionPending || !isWalletConnected}
@@ -277,6 +246,7 @@ function App() {
           maxTickets={999}
         />
 
+        {/* User tickets */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {gameState.tickets.map(ticket => (
             <TicketComponent
@@ -292,6 +262,7 @@ function App() {
           ))}
         </div>
 
+        {/* Prize pool info and chat */}
         <div className="mt-8 space-y-6">
           <div className="bg-white/10 rounded-lg p-6 text-white">
             <h3 className="text-2xl font-bold mb-4 flex items-center">
@@ -334,6 +305,7 @@ function App() {
           
           <EmojiChat />
           
+          {/* Debug panel */}
           {import.meta.env.DEV && (
             <div className="bg-white/10 rounded-lg p-6 text-white">
               <div className="flex items-center justify-between mb-4">
@@ -363,16 +335,9 @@ function App() {
                   <div>ETH Price: {ethPrice || 'Loading...'}</div>
                   <div>Next Draw: {nextDrawTime?.toLocaleString() || 'Loading...'}</div>
                   <div>Chain ID: {chainId || 'Unknown'}</div>
-                  <div>Valid Chain: {isValidChain ? 'Yes' : 'No'}</div>
+                  <div>Valid Chain: {chainId === 84532 ? 'Yes' : 'No'}</div>
                   <div>Transaction Pending: {isTransactionPending ? 'Yes' : 'No'}</div>
                   <div>Transaction Confirmed: {isTransactionConfirmed ? 'Yes' : 'No'}</div>
-                  <div>Contract Error: {contractError ? contractError.message : 'None'}</div>
-                  <div className="mt-2 pt-2 border-t border-white/20">
-                    <div>Contract Addresses:</div>
-                    <div>Core: {contracts?.LottoMojiCore || 'Not loaded'}</div>
-                    <div>Tickets: {contracts?.LottoMojiTickets || 'Not loaded'}</div>
-                    <div>PrizePool: {contracts?.LottoMojiPrizePool || 'Not loaded'}</div>
-                  </div>
                 </div>
               )}
             </div>

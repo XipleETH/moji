@@ -1,120 +1,151 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { GameState, Ticket } from '../types';
-import { useContractGame } from './useContractGame';
-import { usePrizePools } from './usePrizePools';
 import { useRealTimeTimer } from './useRealTimeTimer';
-import { usePrizePoolsContract } from './usePrizePoolsContract';
-import { emojisToNumbers, numberToEmoji, numbersToEmojis } from '../utils/gameLogic';
+import { getCurrentUser } from '../firebase/auth';
 
 const initialGameState: GameState = {
   winningNumbers: [],
   tickets: [],
   lastResults: null,
-  gameStarted: true,
+  gameStarted: false,
   timeRemaining: 0
 };
 
 export function useGameState() {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
-  
-  // Use contract-based hooks
-  const {
-    gameState: contractGameState,
-    buyTicketWithETH,
-    buyTicketWithUSDC,
-    ethPrice,
-    isTransactionPending,
-    isTransactionConfirmed,
-    refetch
-  } = useContractGame();
+  const [isTransactionPending, setIsTransactionPending] = useState(false);
+  const [isTransactionConfirmed, setIsTransactionConfirmed] = useState(false);
+  const [ethPrice, setEthPrice] = useState<string | null>(null);
+  const [currentRound, setCurrentRound] = useState<any>(null);
+  const [nextDrawTime, setNextDrawTime] = useState<Date | null>(null);
+  const [prizePools, setPrizePools] = useState<any>(null);
 
-  const { formattedPools, refetch: refetchPools } = usePrizePools();
+  const { timeRemaining, updateTimer } = useRealTimeTimer();
 
-  // Timer hook
-  const { timeRemaining, updateTimer } = useRealTimeTimer(() => {
-    console.log('[useGameState] Timer ended, refreshing game data...');
-    refreshGameData();
-  });
-
-  // Update local game state when contract data changes
+  // Initialize with mock data for now
   useEffect(() => {
-    if (contractGameState && !contractGameState.isLoading) {
-      setGameState(prev => ({
-        ...prev,
-        winningNumbers: contractGameState.currentRound?.winningNumbers?.map(n => numberToEmoji(n)) || [],
-        tickets: contractGameState.tickets.map(ticket => ({
-          id: ticket.id.toString(),
-          numbers: numbersToEmojis(ticket.emojis),
-          timestamp: ticket.mintTimestamp,
-          userId: ticket.player,
-          walletAddress: ticket.player,
-          isUsed: ticket.isUsed,
-          isFreeTicket: ticket.isFreeTicket,
-          paymentHash: ticket.paymentHash
-        })),
-        timeRemaining,
-        gameStarted: true,
-        lastResults: contractGameState.currentRound?.numbersDrawn ? {
-          firstPrize: formattedPools?.eth.firstPrize || '0',
-          secondPrize: formattedPools?.eth.secondPrize || '0',
-          thirdPrize: formattedPools?.eth.thirdPrize || '0',
-          freePrize: []
-        } : null
-      }));
-      
-      // Update timer from contract data
-      if (contractGameState.timeRemaining && contractGameState.timeRemaining !== timeRemaining * 1000) {
-        updateTimer(Math.floor(contractGameState.timeRemaining / 1000));
-      }
-    }
-  }, [contractGameState, formattedPools, timeRemaining, updateTimer]);
+    console.log('Initializing game state...');
+    
+    // Set mock game data
+    setGameState(prev => ({
+      ...prev,
+      gameStarted: true,
+      timeRemaining
+    }));
 
-  // Generate ticket function using contracts
-  const generateTicket = useCallback(async (numbers: string[], paymentMethod: 'ETH' | 'USDC' = 'ETH') => {
+    // Set mock values for UI
+    setEthPrice('0.0005');
+    setPrizePools({
+      eth: {
+        firstPrize: '0.01',
+        secondPrize: '0.005',
+        thirdPrize: '0.002',
+        total: '0.017'
+      }
+    });
+    setCurrentRound({
+      id: 1,
+      isActive: true,
+      numbersDrawn: false
+    });
+
+    // Set next draw time (every 24 hours as per the repo)
+    const now = new Date();
+    const nextDraw = new Date(now);
+    nextDraw.setDate(nextDraw.getDate() + 1);
+    nextDraw.setHours(0, 0, 0, 0); // Next day at midnight
+    setNextDrawTime(nextDraw);
+
+  }, [timeRemaining]);
+
+  // Generate ticket function (simplified for now)
+  const handleGenerateTicket = useCallback(async (numbers: string[], paymentMethod: 'ETH' | 'USDC' = 'ETH') => {
     if (!numbers?.length) return;
     
     try {
-      console.log('Generating ticket with emojis:', numbers);
+      setIsTransactionPending(true);
+      console.log('Generating ticket with numbers:', numbers);
       
-      // Convert emoji strings to numbers for smart contracts
-      const emojiNumbers = emojisToNumbers(numbers);
-      console.log('Converted to numbers:', emojiNumbers);
-      
-      if (paymentMethod === 'ETH') {
-        console.log('Buying ticket with ETH...');
-        await buyTicketWithETH(emojiNumbers);
-      } else {
-        console.log('Buying ticket with USDC...');
-        await buyTicketWithUSDC(emojiNumbers);
+      const user = await getCurrentUser();
+      if (!user) {
+        throw new Error('User not authenticated');
       }
+
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Create mock ticket
+      const newTicket: Ticket = {
+        id: `temp-${Date.now()}`,
+        numbers,
+        timestamp: Date.now(),
+        userId: user.id,
+        walletAddress: user.walletAddress,
+      };
+      
+      console.log('Ticket generated successfully:', newTicket);
+      
+      // Add ticket to local state
+      setGameState(prev => ({
+        ...prev,
+        tickets: [...prev.tickets, newTicket]
+      }));
+      
+      setIsTransactionConfirmed(true);
+      setTimeout(() => setIsTransactionConfirmed(false), 5000);
       
     } catch (error) {
       console.error('Error generating ticket:', error);
       throw error;
+    } finally {
+      setIsTransactionPending(false);
     }
-  }, [buyTicketWithETH, buyTicketWithUSDC]);
-
-  // Force game draw is not needed - it's automated by Chainlink Automation
-  const forceGameDraw = useCallback(() => {
-    console.log('[useGameState] Los sorteos son automáticos cada 24 horas. No se puede forzar manualmente.');
   }, []);
 
-  // Refresh all data
+  // Force game draw (dev tool)
+  const forceGameDraw = useCallback(async () => {
+    try {
+      console.log('Forcing manual game draw...');
+      
+      // Generate mock winning numbers
+      const mockWinningNumbers = ['🌟', '🎈', '🎨', '🌈'];
+      
+      setGameState(prev => ({
+        ...prev,
+        winningNumbers: mockWinningNumbers,
+        lastResults: {
+          firstPrize: '0.01',
+          secondPrize: '0.005',
+          thirdPrize: '0.002',
+          freePrize: []
+        }
+      }));
+      
+      console.log('Mock game draw completed');
+    } catch (error) {
+      console.error('Error forcing game draw:', error);
+    }
+  }, []);
+
+  // Refresh data function
   const refreshGameData = useCallback(() => {
-    refetch();
-    refetchPools();
-  }, [refetch, refetchPools]);
+    console.log('Refreshing game data...');
+    // For now, this just logs - in a real implementation it would refetch from Firebase
+  }, []);
 
   return {
-    gameState,
-    generateTicket,
+    gameState: {
+      ...gameState,
+      timeRemaining
+    },
+    generateTicket: handleGenerateTicket,
     forceGameDraw,
     ethPrice,
     isTransactionPending,
     isTransactionConfirmed,
     refreshGameData,
-    currentRound: contractGameState?.currentRound,
-    nextDrawTime: contractGameState?.nextDrawTime,
-    prizePools: formattedPools
+    currentRound,
+    nextDrawTime,
+    prizePools
   };
 }

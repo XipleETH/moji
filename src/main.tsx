@@ -94,11 +94,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <MiniKitProvider>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </MiniKitProvider>
+    <MiniKitProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </MiniKitProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </ErrorBoundary>
