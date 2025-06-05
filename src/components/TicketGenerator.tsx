@@ -60,16 +60,43 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
     // Check if on supported network (Base Sepolia or Base Mainnet)
     if (chainId !== 84532 && chainId !== 8453) {
-      alert('Please switch to Base Sepolia (testnet) or Base Mainnet to play LottoMoji');
+      alert('⚠️ Wrong Network!\n\nPlease switch to Base Sepolia (testnet) to play LottoMoji.\n\nYou can switch networks in your Coinbase Wallet settings.');
+      return;
+    }
+
+    // Check if we have valid emojis
+    if (!numbers || numbers.length !== 4) {
+      alert('⚠️ Invalid Selection!\n\nPlease select exactly 4 emojis to create your ticket.');
       return;
     }
     
-    // Si hay wallet, generar ticket
-    console.log('[TicketGenerator] Wallet connected, generating ticket');
-    onGenerateTicket(numbers);
-    setSelectedEmojis([]); // Reset selection after generating ticket
-    setPendingTicket(null);
-    setShowWalletPrompt(false);
+    try {
+      // Si hay wallet, generar ticket
+      console.log('[TicketGenerator] Wallet connected, generating ticket');
+      await onGenerateTicket(numbers);
+      setSelectedEmojis([]); // Reset selection after generating ticket
+      setPendingTicket(null);
+      setShowWalletPrompt(false);
+    } catch (error: any) {
+      console.error('[TicketGenerator] Error generating ticket:', error);
+      
+      // Mostrar mensaje de error más amigable
+      let errorMessage = 'Failed to generate ticket. Please try again.';
+      
+      if (error.message?.includes('insufficient funds')) {
+        errorMessage = '💰 Insufficient Funds!\n\nYou need more ETH to buy a ticket. Please add funds to your wallet.';
+      } else if (error.message?.includes('user rejected')) {
+        errorMessage = '❌ Transaction Cancelled\n\nYou cancelled the transaction. Try again when ready!';
+      } else if (error.message?.includes('switch to Base Sepolia')) {
+        errorMessage = '🔄 Wrong Network!\n\nPlease switch to Base Sepolia network in your wallet to play LottoMoji.';
+      } else if (error.message?.includes('execution reverted')) {
+        errorMessage = '⚠️ Transaction Failed!\n\nThe game contract rejected your transaction. Please check if the game is active.';
+      } else if (error.message?.includes('Wallet not connected')) {
+        errorMessage = '🔐 Wallet Not Connected!\n\nPlease connect your Coinbase Wallet first.';
+      }
+      
+      alert(errorMessage);
+    }
   };
 
   const handleWalletConnect = async () => {

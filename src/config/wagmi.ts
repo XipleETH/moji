@@ -1,20 +1,39 @@
 import { createConfig, http } from 'wagmi';
 import { base, baseSepolia } from 'wagmi/chains';
-import { coinbaseWallet } from 'wagmi/connectors';
+import { coinbaseWallet, metaMask } from 'wagmi/connectors';
 
 export const wagmiConfig = createConfig({
   chains: [baseSepolia, base],
   connectors: [
     coinbaseWallet({
       appName: 'LottoMoji',
-      appLogoUrl: 'https://your-app-logo.com/logo.png',
-      preference: 'eoaOnly', // Only use EOA accounts
+      appLogoUrl: 'https://lottomoji.vercel.app/favicon.ico',
+      preference: 'smartWalletOnly', // Cambiado a smartWalletOnly para mejor compatibilidad
+      version: '4',
+    }),
+    metaMask({
+      dappMetadata: {
+        name: 'LottoMoji',
+        url: 'https://lottomoji.vercel.app',
+        iconUrl: 'https://lottomoji.vercel.app/favicon.ico',
+      },
     }),
   ],
   transports: {
-    [baseSepolia.id]: http(),
-    [base.id]: http(),
+    [baseSepolia.id]: http('https://sepolia.base.org', {
+      batch: true,
+      fetchOptions: {
+        timeout: 30000,
+      },
+    }),
+    [base.id]: http('https://mainnet.base.org', {
+      batch: true,
+      fetchOptions: {
+        timeout: 30000,
+      },
+    }),
   },
+  ssr: false, // Importante para Vercel
 });
 
 declare module 'wagmi' {

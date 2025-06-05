@@ -122,6 +122,15 @@ export const useContractGame = () => {
 
   // Buy ticket with ETH
   const buyTicketWithETH = useCallback(async (emojis: number[]) => {
+    // Validaciones mejoradas
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+    
+    if (chainId !== 84532) {
+      throw new Error('Please switch to Base Sepolia network');
+    }
+    
     if (!contracts?.LottoMojiCore || !ethPriceData) {
       console.error('Missing contract or ETH price data');
       console.log('Contract address:', contracts?.LottoMojiCore);
@@ -129,54 +138,112 @@ export const useContractGame = () => {
       throw new Error('Missing contract or ETH price data');
     }
 
+    if (!emojis || emojis.length !== 4) {
+      throw new Error('You must select exactly 4 emojis');
+    }
+
+    // Validar que todos los emojis sean válidos (0-24)
+    if (emojis.some(emoji => emoji < 0 || emoji > 24)) {
+      throw new Error('Invalid emoji selection');
+    }
+
     try {
       console.log('Buying ticket with ETH...');
       console.log('Contract address:', contracts.LottoMojiCore);
       console.log('Emojis:', emojis);
-      console.log('ETH value:', ethPriceData);
+      console.log('ETH value (wei):', ethPriceData?.toString());
+      console.log('ETH value (ether):', formatEther(ethPriceData as bigint));
+      console.log('User address:', address);
+      console.log('Chain ID:', chainId);
       
-      const tx = writeContract({
+      // Usar writeContract de forma más explícita
+      const result = writeContract({
         address: contracts.LottoMojiCore as `0x${string}`,
         abi: LottoMojiCoreABI.abi,
         functionName: 'buyTicketWithETH',
         args: [emojis],
-        value: ethPriceData as bigint
+        value: ethPriceData as bigint,
+        gas: 300000n, // Gas limit explícito
       });
       
-      console.log('Transaction initiated:', tx);
-      return tx;
-    } catch (error) {
+      console.log('Transaction initiated successfully');
+      return result;
+    } catch (error: any) {
       console.error('Error buying ticket with ETH:', error);
-      throw error;
+      
+      // Mensajes de error más específicos
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient ETH balance for transaction');
+      } else if (error.message?.includes('user rejected')) {
+        throw new Error('Transaction was rejected by user');
+      } else if (error.message?.includes('execution reverted')) {
+        throw new Error('Transaction failed - please check game status');
+      } else {
+        throw new Error(`Transaction failed: ${error.message || 'Unknown error'}`);
+      }
     }
-  }, [contracts?.LottoMojiCore, ethPriceData, writeContract]);
+  }, [contracts?.LottoMojiCore, ethPriceData, writeContract, address, chainId]);
 
   // Buy ticket with USDC (requires approval first)
   const buyTicketWithUSDC = useCallback(async (emojis: number[]) => {
+    // Validaciones mejoradas
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+    
+    if (chainId !== 84532) {
+      throw new Error('Please switch to Base Sepolia network');
+    }
+    
     if (!contracts?.LottoMojiCore) {
       console.error('Missing contract data');
       throw new Error('Missing contract data');
+    }
+
+    if (!emojis || emojis.length !== 4) {
+      throw new Error('You must select exactly 4 emojis');
+    }
+
+    // Validar que todos los emojis sean válidos (0-24)
+    if (emojis.some(emoji => emoji < 0 || emoji > 24)) {
+      throw new Error('Invalid emoji selection');
     }
 
     try {
       console.log('Buying ticket with USDC...');
       console.log('Contract address:', contracts.LottoMojiCore);
       console.log('Emojis:', emojis);
+      console.log('User address:', address);
+      console.log('Chain ID:', chainId);
       
-      const tx = writeContract({
+      // Usar writeContract de forma más explícita
+      const result = writeContract({
         address: contracts.LottoMojiCore as `0x${string}`,
         abi: LottoMojiCoreABI.abi,
         functionName: 'buyTicketWithUSDC',
-        args: [emojis]
+        args: [emojis],
+        gas: 300000n, // Gas limit explícito
       });
       
-      console.log('Transaction initiated:', tx);
-      return tx;
-    } catch (error) {
+      console.log('Transaction initiated successfully');
+      return result;
+    } catch (error: any) {
       console.error('Error buying ticket with USDC:', error);
-      throw error;
+      
+      // Mensajes de error más específicos
+      if (error.message?.includes('insufficient allowance')) {
+        throw new Error('Please approve USDC spending first');
+      } else if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient USDC balance');
+      } else if (error.message?.includes('user rejected')) {
+        throw new Error('Transaction was rejected by user');
+      } else if (error.message?.includes('execution reverted')) {
+        throw new Error('Transaction failed - please check game status');
+      } else {
+        throw new Error(`Transaction failed: ${error.message || 'Unknown error'}`);
+      }
     }
-  }, [contracts?.LottoMojiCore, writeContract]);
+  }, [contracts?.LottoMojiCore, writeContract, address, chainId]);
 
   // Process current round data
   useEffect(() => {

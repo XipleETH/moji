@@ -15,6 +15,7 @@ import { useViewProfile } from './hooks/useViewProfile';
 import { useAccount } from 'wagmi';
 import { Trophy, Zap, Terminal } from 'lucide-react';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
+import { WalletTroubleshooting } from './components/WalletTroubleshooting';
 
 function App() {
   // Main game state hook (this should handle both Firebase and contracts)
@@ -182,6 +183,11 @@ function App() {
               🔄 Please switch to Base Sepolia network to play LottoMoji
             </div>
           </div>
+        )}
+
+        {/* Wallet troubleshooting */}
+        {isWalletConnected && (
+          <WalletTroubleshooting />
         )}
 
         <WinnerAnnouncement 
