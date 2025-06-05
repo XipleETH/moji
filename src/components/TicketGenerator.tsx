@@ -73,11 +73,13 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleWalletConnect = async () => {
-    console.log('[TicketGenerator] Connecting wallet...');
+    console.log('[TicketGenerator] Connecting Coinbase Wallet...');
     try {
-      const connector = connectors[0];
-      if (connector) {
-        connect({ connector });
+      const coinbaseConnector = connectors.find(c => c.name === 'Coinbase Wallet');
+      if (coinbaseConnector) {
+        connect({ connector: coinbaseConnector });
+      } else {
+        alert('Please install Coinbase Wallet extension to play LottoMoji');
       }
       // No need to handle the rest here, the useEffect will take care of it
     } catch (error) {
@@ -152,14 +154,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
         {/* Prompt de conexión de wallet */}
         {showWalletPrompt && (
-          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-center">
+          <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 text-center">
             <WalletIcon className="mx-auto mb-2" size={32} />
-            <div className="font-medium text-white">Wallet Connection Required</div>
-            <div className="text-red-200 text-sm mt-1">
-              You need to connect a wallet to generate tickets
+            <div className="font-medium text-white">Coinbase Wallet Required</div>
+            <div className="text-blue-200 text-sm mt-1">
+              You need to connect Coinbase Wallet to play LottoMoji
             </div>
             {pendingTicket && (
-              <div className="text-red-200 text-sm mt-2">
+              <div className="text-blue-200 text-sm mt-2">
                 Ticket with emojis: {pendingTicket.join(' ')}
               </div>
             )}
@@ -173,9 +175,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
               <button
                 onClick={handleWalletConnect}
                 disabled={isConnecting}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
               >
-                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                {isConnecting ? 'Connecting...' : 'Connect Coinbase Wallet'}
               </button>
             </div>
           </div>

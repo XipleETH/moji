@@ -13,10 +13,12 @@ export const WalletConnector: React.FC = () => {
     if (isConnected && address) {
       setIsMenuOpen(true);
     } else {
-      // Try to connect with the first available connector (injected)
-      const connector = connectors[0];
-      if (connector) {
-        connect({ connector });
+      // Connect specifically with Coinbase Wallet
+      const coinbaseConnector = connectors.find(c => c.name === 'Coinbase Wallet');
+      if (coinbaseConnector) {
+        connect({ connector: coinbaseConnector });
+      } else {
+        alert('Please install Coinbase Wallet extension to play LottoMoji');
       }
     }
   };
@@ -71,7 +73,14 @@ export const WalletConnector: React.FC = () => {
       {/* Connection status */}
       {isConnected && address && (
         <div className="absolute top-full mt-2 right-0 bg-green-500/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
-          Connected to {chainId === 84532 ? 'Base Sepolia' : chainId === 8453 ? 'Base Mainnet' : 'Unknown Network'}
+          Coinbase Wallet - {chainId === 84532 ? 'Base Sepolia' : chainId === 8453 ? 'Base Mainnet' : 'Unknown Network'}
+        </div>
+      )}
+
+      {/* Coinbase Wallet required message */}
+      {!isConnected && (
+        <div className="absolute top-full mt-2 right-0 bg-blue-500/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs">
+          Coinbase Wallet Required
         </div>
       )}
 

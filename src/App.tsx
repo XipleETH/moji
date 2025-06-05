@@ -152,6 +152,9 @@ function AppContent() {
           <p className="text-white/90 text-xl mb-4">
             🎯 Match 4 emojis to win! 🏆
           </p>
+          <p className="text-blue-200 text-lg mb-2">
+            🔷 Coinbase Wallet Required to Play
+          </p>
           <p className="text-white/80 text-lg mb-4">
             ⏰ Next draw in:
           </p>
