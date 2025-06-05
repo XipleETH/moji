@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { getContractAddresses } from '../contracts/addresses';
+import { numbersToEmojis } from '../utils/gameLogic';
 
 // Use blockchain types instead of main types
 interface Round {
@@ -80,6 +81,25 @@ export const useContractGame = () => {
     }
   });
 
+  // Prepare ticket info calls for batch reading
+  const ticketInfoCalls = userTicketsData ? 
+    (userTicketsData as bigint[]).map(ticketId => ({
+      address: contracts?.LottoMojiTickets as `0x${string}`,
+      abi: LottoMojiTicketsABI.abi,
+      functionName: 'getTicketInfo',
+      args: [ticketId]
+    })) : [];
+
+  // Read all ticket details in batch
+  const { data: ticketInfosData, refetch: refetchTicketInfos } = useReadContracts({
+    contracts: ticketInfoCalls,
+    query: {
+      enabled: isEnabled && !!userTicketsData && ticketInfoCalls.length > 0,
+      retry: 2,
+      retryDelay: 1000
+    }
+  });
+
   // Get ETH price for ticket
   const { data: ethPriceData } = useReadContract({
     address: contracts?.LottoMojiPrizePool as `0x${string}`,
@@ -104,17 +124,27 @@ export const useContractGame = () => {
   const buyTicketWithETH = useCallback(async (emojis: number[]) => {
     if (!contracts?.LottoMojiCore || !ethPriceData) {
       console.error('Missing contract or ETH price data');
-      return;
+      console.log('Contract address:', contracts?.LottoMojiCore);
+      console.log('ETH price data:', ethPriceData);
+      throw new Error('Missing contract or ETH price data');
     }
 
     try {
-      writeContract({
+      console.log('Buying ticket with ETH...');
+      console.log('Contract address:', contracts.LottoMojiCore);
+      console.log('Emojis:', emojis);
+      console.log('ETH value:', ethPriceData);
+      
+      const tx = writeContract({
         address: contracts.LottoMojiCore as `0x${string}`,
         abi: LottoMojiCoreABI.abi,
         functionName: 'buyTicketWithETH',
         args: [emojis],
         value: ethPriceData as bigint
       });
+      
+      console.log('Transaction initiated:', tx);
+      return tx;
     } catch (error) {
       console.error('Error buying ticket with ETH:', error);
       throw error;
@@ -125,16 +155,23 @@ export const useContractGame = () => {
   const buyTicketWithUSDC = useCallback(async (emojis: number[]) => {
     if (!contracts?.LottoMojiCore) {
       console.error('Missing contract data');
-      return;
+      throw new Error('Missing contract data');
     }
 
     try {
-      writeContract({
+      console.log('Buying ticket with USDC...');
+      console.log('Contract address:', contracts.LottoMojiCore);
+      console.log('Emojis:', emojis);
+      
+      const tx = writeContract({
         address: contracts.LottoMojiCore as `0x${string}`,
         abi: LottoMojiCoreABI.abi,
         functionName: 'buyTicketWithUSDC',
         args: [emojis]
       });
+      
+      console.log('Transaction initiated:', tx);
+      return tx;
     } catch (error) {
       console.error('Error buying ticket with USDC:', error);
       throw error;
@@ -179,46 +216,44 @@ export const useContractGame = () => {
     }
   }, [currentRoundData, roundError]);
 
-  // Process user tickets data
+  // Process user tickets data with full information
   useEffect(() => {
-    const processTickets = async () => {
-      if (userTicketsData && contracts?.LottoMojiTickets && address) {
-        try {
-          const ticketIds = userTicketsData as bigint[];
-          const tickets: Ticket[] = [];
+    if (userTicketsData && ticketInfosData && contracts?.LottoMojiTickets && address) {
+      try {
+        const ticketIds = userTicketsData as bigint[];
+        const tickets: Ticket[] = [];
 
-          // Get detailed info for each ticket
-          for (const ticketId of ticketIds) {
-            try {
-              // For now, we'll create a basic structure
-              // You might need to add separate contract calls to get emoji data
+        ticketIds.forEach((ticketId, index) => {
+          try {
+            const ticketInfo = ticketInfosData[index];
+            if (ticketInfo?.status === 'success' && ticketInfo.result) {
+              const [emojis, roundId, player, isUsed, isFreeTicket, isValid, mintTimestamp, paymentHash] = ticketInfo.result as any[];
+              
               tickets.push({
                 id: Number(ticketId),
-                emojis: [], // Will be fetched separately if needed
-                roundId: gameState.currentRound?.id || 0,
-                player: address,
-                isUsed: false,
-                isFreeTicket: false,
-                mintTimestamp: Date.now(),
-                paymentHash: ''
+                emojis: emojis || [],
+                roundId: Number(roundId),
+                player: player,
+                isUsed: isUsed,
+                isFreeTicket: isFreeTicket,
+                mintTimestamp: Number(mintTimestamp),
+                paymentHash: paymentHash
               });
-            } catch (error) {
-              console.error('Error fetching ticket details:', error);
             }
+          } catch (error) {
+            console.error('Error processing ticket info for ticket:', ticketId, error);
           }
+        });
 
-          setGameState(prev => ({
-            ...prev,
-            tickets
-          }));
-        } catch (error) {
-          console.error('Error processing tickets:', error);
-        }
+        setGameState(prev => ({
+          ...prev,
+          tickets
+        }));
+      } catch (error) {
+        console.error('Error processing tickets:', error);
       }
-    };
-
-    processTickets();
-  }, [userTicketsData, contracts?.LottoMojiTickets, address, gameState.currentRound?.id]);
+    }
+  }, [userTicketsData, ticketInfosData, contracts?.LottoMojiTickets, address]);
 
   // Timer effect
   useEffect(() => {
@@ -247,9 +282,10 @@ export const useContractGame = () => {
       setTimeout(() => {
         refetchRound();
         refetchTickets();
+        refetchTicketInfos();
       }, 2000); // Wait 2 seconds for blockchain to update
     }
-  }, [isConfirmed, refetchRound, refetchTickets]);
+  }, [isConfirmed, refetchRound, refetchTickets, refetchTicketInfos]);
 
   // Log errors for debugging
   useEffect(() => {
@@ -268,6 +304,7 @@ export const useContractGame = () => {
     refetch: () => {
       refetchRound();
       refetchTickets();
+      refetchTicketInfos();
     },
     error: roundError || writeError,
     isValidChain: chainId === 84532

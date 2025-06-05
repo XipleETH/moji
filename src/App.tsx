@@ -14,6 +14,9 @@ import { useAuth } from './components/AuthProvider';
 import { useAccount } from 'wagmi';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
+import { useContractGame } from './hooks/useContractGame';
+import { usePrizePools } from './hooks/usePrizePools';
+import { getContractAddresses } from './contracts/addresses';
 
 function App() {
   const { 
@@ -101,6 +104,34 @@ function App() {
   useEffect(() => {
     handleWin();
   }, [gameState.lastResults, handleWin]);
+
+  // Contract game state
+  const { 
+    gameState: contractGameState, 
+    buyTicketWithETH, 
+    buyTicketWithUSDC, 
+    ethPrice,
+    isTransactionPending,
+    isTransactionConfirmed,
+    error: contractError,
+    isValidChain,
+    refetch: refetchContracts
+  } = useContractGame();
+
+  // Prize pools
+  const { formattedPools: prizePools } = usePrizePools();
+
+  // Local game state
+  const { 
+    gameState, 
+    generateTicket, 
+    timeRemaining, 
+    updateTimer 
+  } = useGameState();
+
+  // Contract addresses
+  const { chainId } = useAccount();
+  const contracts = chainId ? getContractAddresses(chainId) : null;
 
   // Pantalla de carga con animación
   if (isLoading && !initialLoadComplete) {
@@ -192,7 +223,7 @@ function App() {
         <div className="flex justify-center mb-6">
           <div className="bg-white/10 rounded-lg p-4">
             <h3 className="text-white text-lg font-bold mb-3 text-center">
-              💰 Choose Payment Method
+              💰 Ticket Price: $2.00 USD
             </h3>
             <div className="flex gap-4">
               <button
@@ -203,7 +234,7 @@ function App() {
                     : 'bg-white/20 text-white hover:bg-white/30'
                 }`}
               >
-                🔷 ETH {ethPrice && `(${parseFloat(ethPrice).toFixed(4)} ETH)`}
+                🔷 Pay with ETH {ethPrice && `(≈${parseFloat(ethPrice).toFixed(4)} ETH)`}
               </button>
               <button
                 onClick={() => setPaymentMethod('USDC')}
@@ -213,8 +244,11 @@ function App() {
                     : 'bg-white/20 text-white hover:bg-white/30'
                 }`}
               >
-                💵 USDC ($5.00)
+                💵 Pay with USDC ($2.00)
               </button>
+            </div>
+            <div className="text-center mt-2 text-white/70 text-sm">
+              Choose your preferred payment method
             </div>
           </div>
         </div>
@@ -328,6 +362,17 @@ function App() {
                   <div>Time Remaining: {gameState.timeRemaining}s</div>
                   <div>ETH Price: {ethPrice || 'Loading...'}</div>
                   <div>Next Draw: {nextDrawTime?.toLocaleString() || 'Loading...'}</div>
+                  <div>Chain ID: {chainId || 'Unknown'}</div>
+                  <div>Valid Chain: {isValidChain ? 'Yes' : 'No'}</div>
+                  <div>Transaction Pending: {isTransactionPending ? 'Yes' : 'No'}</div>
+                  <div>Transaction Confirmed: {isTransactionConfirmed ? 'Yes' : 'No'}</div>
+                  <div>Contract Error: {contractError ? contractError.message : 'None'}</div>
+                  <div className="mt-2 pt-2 border-t border-white/20">
+                    <div>Contract Addresses:</div>
+                    <div>Core: {contracts?.LottoMojiCore || 'Not loaded'}</div>
+                    <div>Tickets: {contracts?.LottoMojiTickets || 'Not loaded'}</div>
+                    <div>PrizePool: {contracts?.LottoMojiPrizePool || 'Not loaded'}</div>
+                  </div>
                 </div>
               )}
             </div>

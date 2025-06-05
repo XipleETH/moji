@@ -4,6 +4,27 @@ export const EMOJIS = ['🌟', '🎈', '🎨', '🌈', '🦄', '🍭', '🎪', '
                       '🌺', '🦋', '🐬', '🌸', '🍦', '🎵', '🎯', '🌴', '🎩', '🎭',
                       '🎁', '🎮', '🚀', '🌍', '🍀'];
 
+// Convert emoji to its index number (for smart contracts)
+export const emojiToNumber = (emoji: string): number => {
+  const index = EMOJIS.indexOf(emoji);
+  return index >= 0 ? index : 0; // Default to first emoji if not found
+};
+
+// Convert number index back to emoji (from smart contracts)
+export const numberToEmoji = (number: number): string => {
+  return EMOJIS[number] || EMOJIS[0]; // Default to first emoji if index is invalid
+};
+
+// Convert array of emojis to array of numbers
+export const emojisToNumbers = (emojis: string[]): number[] => {
+  return emojis.map(emoji => emojiToNumber(emoji));
+};
+
+// Convert array of numbers to array of emojis  
+export const numbersToEmojis = (numbers: number[]): string[] => {
+  return numbers.map(number => numberToEmoji(number));
+};
+
 export const generateRandomEmojis = (count: number): string[] => {
   const result: string[] = [];
   

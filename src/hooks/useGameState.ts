@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GameState } from '../types';
+import { GameState, Ticket } from '../types';
 import { useContractGame } from './useContractGame';
 import { usePrizePools } from './usePrizePools';
 import { useRealTimeTimer } from './useRealTimeTimer';
+import { usePrizePoolsContract } from './usePrizePoolsContract';
+import { emojisToNumbers, numberToEmoji, numbersToEmojis } from '../utils/gameLogic';
 
 const initialGameState: GameState = {
   winningNumbers: [],
@@ -39,10 +41,10 @@ export function useGameState() {
     if (contractGameState && !contractGameState.isLoading) {
       setGameState(prev => ({
         ...prev,
-        winningNumbers: contractGameState.currentRound?.winningNumbers?.map(n => n.toString()) || [],
+        winningNumbers: contractGameState.currentRound?.winningNumbers?.map(n => numberToEmoji(n)) || [],
         tickets: contractGameState.tickets.map(ticket => ({
           id: ticket.id.toString(),
-          numbers: ticket.emojis.map(emoji => emoji.toString()),
+          numbers: numbersToEmojis(ticket.emojis),
           timestamp: ticket.mintTimestamp,
           userId: ticket.player,
           walletAddress: ticket.player,
@@ -72,12 +74,17 @@ export function useGameState() {
     if (!numbers?.length) return;
     
     try {
-      // Convert emoji strings to numbers
-      const emojiNumbers = numbers.map(num => parseInt(num));
+      console.log('Generating ticket with emojis:', numbers);
+      
+      // Convert emoji strings to numbers for smart contracts
+      const emojiNumbers = emojisToNumbers(numbers);
+      console.log('Converted to numbers:', emojiNumbers);
       
       if (paymentMethod === 'ETH') {
+        console.log('Buying ticket with ETH...');
         await buyTicketWithETH(emojiNumbers);
       } else {
+        console.log('Buying ticket with USDC...');
         await buyTicketWithUSDC(emojiNumbers);
       }
       
