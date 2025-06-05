@@ -9,7 +9,7 @@ import { WalletConnector } from './components/WalletConnector';
 import { NetworkInfo } from './components/NetworkInfo';
 import { useGameState } from './hooks/useGameState';
 import { useAuth } from './components/AuthProvider';
-import { useMiniKit } from './providers/MiniKitProvider';
+import { useMiniKitAuth } from './providers/MiniKitProvider';
 import { useNotification } from './hooks/useNotification';
 import { useViewProfile } from './hooks/useViewProfile';
 import { useAccount } from 'wagmi';
@@ -32,7 +32,7 @@ function App() {
   } = useGameState();
   
   // Authentication and wallet
-  const { context } = useMiniKit();
+  const { context } = useMiniKitAuth();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
   const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
@@ -161,10 +161,28 @@ function App() {
           </div>
         </div>
 
-        {/* Network info */}
+        {/* Network info and errors */}
         <div className="flex justify-center mb-6">
           <NetworkInfo />
         </div>
+
+        {/* Contract errors */}
+        {gameState.error && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-red-500/20 text-red-200 px-4 py-2 rounded-lg border border-red-500">
+              ⚠️ Error: {gameState.error.message || 'Unknown error occurred'}
+            </div>
+          </div>
+        )}
+
+        {/* Chain validation */}
+        {isWalletConnected && chainId !== 84532 && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-orange-500/20 text-orange-200 px-4 py-2 rounded-lg border border-orange-500">
+              🔄 Please switch to Base Sepolia network to play LottoMoji
+            </div>
+          </div>
+        )}
 
         <WinnerAnnouncement 
           winningNumbers={gameState.winningNumbers || []}
