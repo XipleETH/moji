@@ -183,9 +183,12 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         {showWalletPrompt && (
           <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 text-center">
             <WalletIcon className="mx-auto mb-2" size={32} />
-            <div className="font-medium text-white">Coinbase Wallet Required</div>
+            <div className="font-medium text-white">Coinbase Wallet Extension Required</div>
             <div className="text-blue-200 text-sm mt-1">
-              You need to connect Coinbase Wallet to play LottoMoji
+              You need to install and connect Coinbase Wallet browser extension to play LottoMoji
+            </div>
+            <div className="text-blue-200 text-xs mt-2">
+              📌 Make sure to use the browser extension, not the mobile app or Smart Wallet
             </div>
             {pendingTicket && (
               <div className="text-blue-200 text-sm mt-2">
@@ -204,7 +207,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                 disabled={isConnecting}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
               >
-                {isConnecting ? 'Connecting...' : 'Connect Coinbase Wallet'}
+                {isConnecting ? 'Connecting...' : 'Connect Extension'}
               </button>
             </div>
           </div>

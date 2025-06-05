@@ -8,7 +8,7 @@ export const wagmiConfig = createConfig({
     coinbaseWallet({
       appName: 'LottoMoji',
       appLogoUrl: 'https://lottomoji.vercel.app/favicon.ico',
-      preference: 'smartWalletOnly', // Cambiado a smartWalletOnly para mejor compatibilidad
+      preference: 'eoaOnly', // Cambiado de vuelta a eoaOnly para usar extensión tradicional
       version: '4',
     }),
     metaMask({

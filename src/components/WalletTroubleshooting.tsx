@@ -24,12 +24,13 @@ export const WalletTroubleshooting: React.FC = () => {
           <div className="border-l-2 border-blue-400 pl-3">
             <h4 className="font-medium mb-1">🔄 "Funds Protected" Error?</h4>
             <p className="text-blue-200">
-              This usually means you need to update Coinbase Wallet or switch to Base Sepolia network.
+              This usually means you need to update Coinbase Wallet extension or switch to Base Sepolia network.
             </p>
             <div className="mt-2 space-y-1">
-              <div>1. Open Coinbase Wallet settings</div>
+              <div>1. Install Coinbase Wallet browser extension</div>
               <div>2. Switch to "Base Sepolia" network</div>
               <div>3. Make sure you have ETH for gas fees</div>
+              <div>4. Use traditional wallet (not Smart Wallet)</div>
             </div>
           </div>
 
@@ -61,11 +62,12 @@ export const WalletTroubleshooting: React.FC = () => {
           <div className="border-l-2 border-blue-400 pl-3">
             <h4 className="font-medium mb-1">🔧 Quick Fixes</h4>
             <div className="space-y-1 text-blue-200">
-              <div>• Refresh the page and reconnect wallet</div>
+              <div>• Use Coinbase Wallet browser extension (not mobile app)</div>
               <div>• Make sure you're on Base Sepolia (Chain ID: 84532)</div>
               <div>• Check you have at least 0.001 ETH for gas</div>
-              <div>• Update Coinbase Wallet to latest version</div>
+              <div>• Update Coinbase Wallet extension to latest version</div>
               <div>• Try disconnecting and reconnecting wallet</div>
+              <div>• Refresh the page after switching networks</div>
             </div>
           </div>
 
@@ -74,6 +76,19 @@ export const WalletTroubleshooting: React.FC = () => {
             <p className="text-blue-200">
               For best experience, use Coinbase Wallet mobile browser or desktop with Coinbase Wallet extension.
             </p>
+          </div>
+
+          <div className="border-l-2 border-blue-400 pl-3">
+            <h4 className="font-medium mb-1">🖥️ Desktop Users (Recommended)</h4>
+            <p className="text-blue-200">
+              For best experience, use Coinbase Wallet browser extension on desktop.
+            </p>
+            <div className="mt-2 space-y-1">
+              <div>1. Install extension from Chrome Web Store</div>
+              <div>2. Create or import your wallet</div>
+              <div>3. Add Base Sepolia network manually if needed</div>
+              <div>4. Get test ETH from faucets</div>
+            </div>
           </div>
         </div>
       )}
