@@ -16,6 +16,7 @@ import { useAccount } from 'wagmi';
 import { Trophy, Zap, Terminal } from 'lucide-react';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletTroubleshooting } from './components/WalletTroubleshooting';
+import { DebugInfo } from './components/DebugInfo';
 
 function App() {
   // Main game state hook (this should handle both Firebase and contracts)
@@ -146,6 +147,9 @@ function App() {
           </div>
         </div>
         
+        {/* Debug info for development */}
+        <DebugInfo />
+
         {/* Game info */}
         <div className="text-center mb-8">
           <p className="text-white/90 text-xl mb-4">

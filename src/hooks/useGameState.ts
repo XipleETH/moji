@@ -77,26 +77,44 @@ export function useGameState() {
 
   // Generate ticket function using contracts
   const handleGenerateTicket = useCallback(async (numbers: string[], paymentMethod: 'ETH' | 'USDC' = 'ETH') => {
-    if (!numbers?.length) return;
+    console.log('=== USE GAME STATE GENERATE TICKET START ===');
+    console.log('[useGameState] Input numbers:', numbers);
+    console.log('[useGameState] Payment method:', paymentMethod);
+    console.log('[useGameState] Numbers length:', numbers?.length);
+    
+    if (!numbers?.length) {
+      console.error('[useGameState] ❌ No numbers provided');
+      return;
+    }
     
     try {
-      console.log('Generating ticket with emojis:', numbers);
+      console.log('[useGameState] ✅ Converting emojis to numbers...');
+      console.log('[useGameState] Generating ticket with emojis:', numbers);
       
       // Convert emoji strings to numbers for smart contracts
       const emojiNumbers = emojisToNumbers(numbers);
-      console.log('Converted to numbers:', emojiNumbers);
+      console.log('[useGameState] ✅ Converted to numbers:', emojiNumbers);
       
       if (paymentMethod === 'ETH') {
-        console.log('Buying ticket with ETH...');
+        console.log('[useGameState] 🔷 Buying ticket with ETH...');
         await buyTicketWithETH(emojiNumbers);
+        console.log('[useGameState] ✅ ETH ticket purchase completed');
       } else {
-        console.log('Buying ticket with USDC...');
+        console.log('[useGameState] 💵 Buying ticket with USDC...');
         await buyTicketWithUSDC(emojiNumbers);
+        console.log('[useGameState] ✅ USDC ticket purchase completed');
       }
       
+      console.log('[useGameState] ✅ Ticket generation successful!');
+      console.log('=== USE GAME STATE GENERATE TICKET END ===');
+      
     } catch (error) {
+      console.error('=== USE GAME STATE GENERATE TICKET ERROR ===');
+      console.error('[useGameState] Error type:', typeof error);
+      console.error('[useGameState] Error message:', (error as any)?.message);
+      console.error('[useGameState] Full error:', error);
       console.error('Error generating ticket:', error);
-      throw error;
+      throw error; // Re-throw para que el componente pueda manejarlo
     }
   }, [buyTicketWithETH, buyTicketWithUSDC]);
 

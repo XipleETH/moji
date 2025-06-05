@@ -122,39 +122,54 @@ export const useContractGame = () => {
 
   // Buy ticket with ETH
   const buyTicketWithETH = useCallback(async (emojis: number[]) => {
+    console.log('=== BUY TICKET WITH ETH START ===');
+    console.log('Input emojis:', emojis);
+    console.log('User address:', address);
+    console.log('Chain ID:', chainId);
+    console.log('Contracts available:', !!contracts);
+    console.log('ETH price data available:', !!ethPriceData);
+    
     // Validaciones mejoradas
     if (!address) {
+      console.error('❌ No wallet address');
       throw new Error('Wallet not connected');
     }
     
     if (chainId !== 84532) {
+      console.error('❌ Wrong network. Current:', chainId, 'Expected: 84532');
       throw new Error('Please switch to Base Sepolia network');
     }
     
-    if (!contracts?.LottoMojiCore || !ethPriceData) {
-      console.error('Missing contract or ETH price data');
-      console.log('Contract address:', contracts?.LottoMojiCore);
-      console.log('ETH price data:', ethPriceData);
-      throw new Error('Missing contract or ETH price data');
+    if (!contracts?.LottoMojiCore) {
+      console.error('❌ Missing contract address');
+      console.log('Available contracts:', contracts);
+      throw new Error('Smart contract not available. Please refresh the page.');
+    }
+    
+    if (!ethPriceData) {
+      console.error('❌ Missing ETH price data');
+      throw new Error('Unable to calculate ticket price. Please try again.');
     }
 
     if (!emojis || emojis.length !== 4) {
+      console.error('❌ Invalid emojis length:', emojis?.length);
       throw new Error('You must select exactly 4 emojis');
     }
 
     // Validar que todos los emojis sean válidos (0-24)
     if (emojis.some(emoji => emoji < 0 || emoji > 24)) {
+      console.error('❌ Invalid emoji values:', emojis);
       throw new Error('Invalid emoji selection');
     }
 
     try {
-      console.log('Buying ticket with ETH...');
+      console.log('✅ All validations passed, initiating transaction...');
       console.log('Contract address:', contracts.LottoMojiCore);
-      console.log('Emojis:', emojis);
-      console.log('ETH value (wei):', ethPriceData?.toString());
-      console.log('ETH value (ether):', formatEther(ethPriceData as bigint));
-      console.log('User address:', address);
-      console.log('Chain ID:', chainId);
+      console.log('Function: buyTicketWithETH');
+      console.log('Args:', [emojis]);
+      console.log('Value (wei):', ethPriceData?.toString());
+      console.log('Value (ether):', formatEther(ethPriceData as bigint));
+      console.log('Gas limit: 300000');
       
       // Usar writeContract de forma más explícita
       const result = writeContract({
@@ -166,20 +181,31 @@ export const useContractGame = () => {
         gas: 300000n, // Gas limit explícito
       });
       
-      console.log('Transaction initiated successfully');
+      console.log('✅ Transaction initiated successfully');
+      console.log('=== BUY TICKET WITH ETH END ===');
       return result;
     } catch (error: any) {
-      console.error('Error buying ticket with ETH:', error);
+      console.error('=== BUY TICKET WITH ETH ERROR ===');
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error.message);
+      console.error('Error code:', error.code);
+      console.error('Error details:', error);
       
       // Mensajes de error más específicos
       if (error.message?.includes('insufficient funds')) {
         throw new Error('Insufficient ETH balance for transaction');
-      } else if (error.message?.includes('user rejected')) {
+      } else if (error.message?.includes('user rejected') || error.code === 4001) {
         throw new Error('Transaction was rejected by user');
       } else if (error.message?.includes('execution reverted')) {
         throw new Error('Transaction failed - please check game status');
+      } else if (error.message?.includes('network')) {
+        throw new Error('Network error - please check your connection');
+      } else if (error.message?.includes('gas')) {
+        throw new Error('Gas estimation failed - please try again');
       } else {
-        throw new Error(`Transaction failed: ${error.message || 'Unknown error'}`);
+        // Log completo del error para debugging
+        console.error('Unknown error details:', JSON.stringify(error, null, 2));
+        throw new Error(`Transaction failed: ${error.message || 'Unknown error occurred'}`);
       }
     }
   }, [contracts?.LottoMojiCore, ethPriceData, writeContract, address, chainId]);

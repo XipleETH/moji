@@ -47,12 +47,15 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   }, [isConnected, address, showWalletPrompt, pendingTicket, onGenerateTicket]);
 
   const handleGenerateTicket = async (numbers: string[]) => {
+    console.log('=== TICKET GENERATOR START ===');
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
     console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'address:', address);
+    console.log('[TicketGenerator] Chain ID:', chainId);
+    console.log('[TicketGenerator] Disabled state:', disabled);
     
     // Check if wallet is connected and on correct network
     if (!isConnected || !address) {
-      console.log('[TicketGenerator] No wallet connected, showing prompt');
+      console.log('[TicketGenerator] ❌ No wallet connected, showing prompt');
       setPendingTicket(numbers);
       setShowWalletPrompt(true);
       return;
@@ -60,41 +63,59 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
     // Check if on supported network (Base Sepolia or Base Mainnet)
     if (chainId !== 84532 && chainId !== 8453) {
+      console.log('[TicketGenerator] ❌ Wrong network:', chainId);
       alert('⚠️ Wrong Network!\n\nPlease switch to Base Sepolia (testnet) to play LottoMoji.\n\nYou can switch networks in your Coinbase Wallet settings.');
       return;
     }
 
     // Check if we have valid emojis
     if (!numbers || numbers.length !== 4) {
+      console.log('[TicketGenerator] ❌ Invalid emoji selection:', numbers);
       alert('⚠️ Invalid Selection!\n\nPlease select exactly 4 emojis to create your ticket.');
       return;
     }
     
     try {
+      console.log('[TicketGenerator] ✅ All checks passed, calling onGenerateTicket...');
+      console.log('[TicketGenerator] Numbers to generate:', numbers);
+      
       // Si hay wallet, generar ticket
       console.log('[TicketGenerator] Wallet connected, generating ticket');
       await onGenerateTicket(numbers);
+      
+      console.log('[TicketGenerator] ✅ Ticket generation successful!');
       setSelectedEmojis([]); // Reset selection after generating ticket
       setPendingTicket(null);
       setShowWalletPrompt(false);
+      
     } catch (error: any) {
-      console.error('[TicketGenerator] Error generating ticket:', error);
+      console.error('=== TICKET GENERATOR ERROR ===');
+      console.error('[TicketGenerator] Error type:', typeof error);
+      console.error('[TicketGenerator] Error message:', error.message);
+      console.error('[TicketGenerator] Error stack:', error.stack);
+      console.error('[TicketGenerator] Full error object:', error);
       
       // Mostrar mensaje de error más amigable
       let errorMessage = 'Failed to generate ticket. Please try again.';
       
-      if (error.message?.includes('insufficient funds')) {
+      if (error.message?.includes('insufficient funds') || error.message?.includes('Insufficient ETH')) {
         errorMessage = '💰 Insufficient Funds!\n\nYou need more ETH to buy a ticket. Please add funds to your wallet.';
-      } else if (error.message?.includes('user rejected')) {
+      } else if (error.message?.includes('user rejected') || error.message?.includes('rejected')) {
         errorMessage = '❌ Transaction Cancelled\n\nYou cancelled the transaction. Try again when ready!';
-      } else if (error.message?.includes('switch to Base Sepolia')) {
+      } else if (error.message?.includes('switch to Base Sepolia') || error.message?.includes('network')) {
         errorMessage = '🔄 Wrong Network!\n\nPlease switch to Base Sepolia network in your wallet to play LottoMoji.';
-      } else if (error.message?.includes('execution reverted')) {
-        errorMessage = '⚠️ Transaction Failed!\n\nThe game contract rejected your transaction. Please check if the game is active.';
+      } else if (error.message?.includes('execution reverted') || error.message?.includes('contract')) {
+        errorMessage = '⚠️ Smart Contract Error!\n\nThe game contract rejected your transaction. Please check if the game is active and try again.';
       } else if (error.message?.includes('Wallet not connected')) {
         errorMessage = '🔐 Wallet Not Connected!\n\nPlease connect your Coinbase Wallet first.';
+      } else if (error.message?.includes('gas')) {
+        errorMessage = '⛽ Gas Error!\n\nTransaction failed due to gas issues. Please try again with more ETH for gas.';
+      } else if (error.message && error.message !== 'Failed to generate ticket. Please try again.') {
+        // Si tenemos un mensaje específico, úsalo
+        errorMessage = `🚫 Error: ${error.message}`;
       }
       
+      console.log('[TicketGenerator] Showing error to user:', errorMessage);
       alert(errorMessage);
     }
   };
