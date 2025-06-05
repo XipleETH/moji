@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title LottoMoji Soulbound Tickets
  * @dev NFTs soulbound que representan tickets de lotería válidos solo por un día
  */
 contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
-    using Counters for Counters.Counter;
-    
     bytes32 public constant LOTTERY_ROLE = keccak256("LOTTERY_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
-    Counters.Counter private _tokenIdCounter;
+    uint256 private _nextTokenId = 1;
     
     // Estructura del ticket
     struct Ticket {
@@ -84,8 +81,8 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
         require(player != address(0), "Invalid player address");
         require(roundId > 0, "Invalid round ID");
         
-        uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
+        uint256 tokenId = _nextTokenId;
+        _nextTokenId++;
         
         // Mintear el NFT
         _safeMint(player, tokenId);
@@ -117,7 +114,7 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
      * @dev Marcar ticket como usado para reclamar premio
      */
     function useTicket(uint256 tokenId) external onlyLottery {
-        require(_exists(tokenId), "Ticket does not exist");
+        require(_ownerOf(tokenId) != address(0), "Ticket does not exist");
         require(!tickets[tokenId].isUsed, "Ticket already used");
         require(isTicketValid(tokenId), "Ticket is not valid");
         
@@ -130,7 +127,7 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
      * @dev Verificar si un ticket es válido para la ronda actual
      */
     function isTicketValid(uint256 tokenId) public view returns (bool) {
-        if (!_exists(tokenId)) return false;
+        if (_ownerOf(tokenId) == address(0)) return false;
         
         Ticket memory ticket = tickets[tokenId];
         
@@ -216,9 +213,10 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
         bool isUsed,
         bool isFreeTicket,
         bool isValid,
-        uint256 mintTimestamp
+        uint256 mintTimestamp,
+        bytes32 paymentHash
     ) {
-        require(_exists(tokenId), "Ticket does not exist");
+        require(_ownerOf(tokenId) != address(0), "Ticket does not exist");
         
         Ticket memory ticket = tickets[tokenId];
         
@@ -229,7 +227,8 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
             ticket.isUsed,
             ticket.isFreeTicket,
             isTicketValid(tokenId),
-            ticket.mintTimestamp
+            ticket.mintTimestamp,
+            ticket.paymentHash
         );
     }
     
@@ -243,7 +242,7 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
             uint256 tokenId = roundTicketsList[i];
             
             // Si el ticket existe y ha expirado, quemarlo
-            if (_exists(tokenId) && !isTicketValid(tokenId) && !tickets[tokenId].isUsed) {
+            if (_ownerOf(tokenId) != address(0) && !isTicketValid(tokenId) && !tickets[tokenId].isUsed) {
                 address owner = ownerOf(tokenId);
                 _burn(tokenId);
                 
@@ -262,60 +261,29 @@ contract LottoMojiTickets is ERC721, AccessControl, ReentrancyGuard {
     /**
      * @dev Override para hacer los tokens soulbound (no transferibles)
      */
-    function _beforeTokenTransfer(
-        address from,
+    function _update(
         address to,
         uint256 tokenId,
-        uint256 batchSize
-    ) internal override {
+        address auth
+    ) internal override returns (address) {
+        address from = _ownerOf(tokenId);
+        
         // Permitir mint (from = address(0)) y burn (to = address(0))
         require(
             from == address(0) || to == address(0), 
             "Tickets are soulbound and cannot be transferred"
         );
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        
+        return super._update(to, tokenId, auth);
     }
     
-    /**
-     * @dev Override de approve para deshabilitarlo
-     */
-    function approve(address, uint256) public pure override {
-        revert("Tickets are soulbound and cannot be approved");
-    }
-    
-    /**
-     * @dev Override de setApprovalForAll para deshabilitarlo
-     */
-    function setApprovalForAll(address, bool) public pure override {
-        revert("Tickets are soulbound and cannot be approved");
-    }
-    
-    /**
-     * @dev Override de transferFrom para deshabilitarlo
-     */
-    function transferFrom(address, address, uint256) public pure override {
-        revert("Tickets are soulbound and cannot be transferred");
-    }
-    
-    /**
-     * @dev Override de safeTransferFrom para deshabilitarlo
-     */
-    function safeTransferFrom(address, address, uint256, bytes memory) public pure override {
-        revert("Tickets are soulbound and cannot be transferred");
-    }
-    
-    /**
-     * @dev Override de safeTransferFrom para deshabilitarlo
-     */
-    function safeTransferFrom(address, address, uint256) public pure override {
-        revert("Tickets are soulbound and cannot be transferred");
-    }
+
     
     /**
      * @dev Obtener conteo total de tickets minteados
      */
     function totalSupply() external view returns (uint256) {
-        return _tokenIdCounter.current();
+        return _nextTokenId;
     }
     
     /**

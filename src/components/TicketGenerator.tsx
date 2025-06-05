@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { EmojiGrid } from './EmojiGrid';
 import { generateRandomEmojis } from '../utils/gameLogic';
-import { useWallet } from '../contexts/WalletContext';
+import { useAccount, useConnect } from 'wagmi';
 import { WalletIcon, CheckCircle } from 'lucide-react';
 
 interface TicketGeneratorProps {
@@ -20,7 +20,8 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
-  const { user, isConnected, connect, isConnecting } = useWallet();
+  const { address, isConnected, chainId } = useAccount();
+  const { connect, connectors, isPending: isConnecting } = useConnect();
 
   // Reset selected emojis when ticket count changes to 0
   useEffect(() => {
@@ -31,7 +32,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
   // Auto-hide wallet prompt when wallet gets connected
   useEffect(() => {
-    if (isConnected && user?.walletAddress && showWalletPrompt) {
+    if (isConnected && address && showWalletPrompt) {
       console.log('[TicketGenerator] Wallet connected, hiding prompt');
       setShowWalletPrompt(false);
       
@@ -43,17 +44,23 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         setSelectedEmojis([]);
       }
     }
-  }, [isConnected, user?.walletAddress, showWalletPrompt, pendingTicket, onGenerateTicket]);
+  }, [isConnected, address, showWalletPrompt, pendingTicket, onGenerateTicket]);
 
   const handleGenerateTicket = async (numbers: string[]) => {
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
-    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user);
+    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'address:', address);
     
-    // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
-    if (!isConnected || !user?.walletAddress) {
+    // Check if wallet is connected and on correct network
+    if (!isConnected || !address) {
       console.log('[TicketGenerator] No wallet connected, showing prompt');
       setPendingTicket(numbers);
       setShowWalletPrompt(true);
+      return;
+    }
+
+    // Check if on supported network (Base Sepolia or Base Mainnet)
+    if (chainId !== 84532 && chainId !== 8453) {
+      alert('Please switch to Base Sepolia (testnet) or Base Mainnet to play LottoMoji');
       return;
     }
     
@@ -68,7 +75,10 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const handleWalletConnect = async () => {
     console.log('[TicketGenerator] Connecting wallet...');
     try {
-      await connect();
+      const connector = connectors[0];
+      if (connector) {
+        connect({ connector });
+      }
       // No need to handle the rest here, the useEffect will take care of it
     } catch (error) {
       console.error('[TicketGenerator] Error connecting wallet:', error);
@@ -175,7 +185,8 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         {import.meta.env.DEV && (
           <div className="bg-black/20 p-2 rounded text-xs text-white/60 font-mono">
             <div>Connected: {isConnected ? 'YES' : 'NO'}</div>
-            <div>User: {user?.walletAddress ? `${user.walletAddress.substring(0, 8)}...` : 'None'}</div>
+            <div>Address: {address ? `${address.substring(0, 8)}...` : 'None'}</div>
+            <div>Chain ID: {chainId || 'Unknown'}</div>
             <div>Connecting: {isConnecting ? 'YES' : 'NO'}</div>
             <div>Show Prompt: {showWalletPrompt ? 'YES' : 'NO'}</div>
           </div>

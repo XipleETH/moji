@@ -13,7 +13,7 @@ const BASE_SEPOLIA_CONTRACTS = {
   USDC: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
   ETH_USD_FEED: "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1", // Chainlink ETH/USD Base Sepolia
   VRF_COORDINATOR: "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE", // Base Sepolia VRF
-  VRF_KEY_HASH: "0x9dfd9b0c5f82ba5d4fc4eb8a7a9f0d9e4e4e2d2a2a2a2a2a2a2a2a2a2a2a2a2a", // Placeholder
+  VRF_KEY_HASH: "0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae", // Base Sepolia Key Hash
 };
 
 async function main() {
@@ -22,7 +22,10 @@ async function main() {
   // Obtener deployer
   const [deployer] = await ethers.getSigners();
   console.log("📋 Deployando con la cuenta:", deployer.address);
-  console.log("💰 Balance de la cuenta:", ethers.formatEther(await deployer.getBalance()), "ETH");
+  
+  // Obtener balance usando provider
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("💰 Balance de la cuenta:", ethers.formatEther(balance), "ETH");
   
   // Seleccionar contratos según la red
   const network = await ethers.provider.getNetwork();

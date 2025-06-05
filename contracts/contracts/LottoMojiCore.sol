@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
+import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./LottoMojiTickets.sol";
 import "./LottoMojiPrizePool.sol";
 
@@ -23,7 +23,7 @@ contract LottoMojiCore is
     
     // Chainlink VRF
     VRFCoordinatorV2Interface private immutable COORDINATOR;
-    uint64 private immutable s_subscriptionId;
+    uint256 private immutable s_subscriptionId;
     bytes32 private immutable s_keyHash;
     uint32 private constant CALLBACK_GAS_LIMIT = 2500000;
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
@@ -77,7 +77,7 @@ contract LottoMojiCore is
     
     constructor(
         address _vrfCoordinator,
-        uint64 _subscriptionId,
+        uint256 _subscriptionId,
         bytes32 _keyHash,
         address _ticketContract,
         address _prizePoolContract
@@ -87,7 +87,7 @@ contract LottoMojiCore is
         s_keyHash = _keyHash;
         
         ticketContract = LottoMojiTickets(_ticketContract);
-        prizePoolContract = LottoMojiPrizePool(_prizePoolContract);
+        prizePoolContract = LottoMojiPrizePool(payable(_prizePoolContract));
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(OPERATOR_ROLE, msg.sender);
@@ -208,7 +208,7 @@ contract LottoMojiCore is
     function _requestRandomNumbers(uint256 roundId) internal {
         uint256 requestId = COORDINATOR.requestRandomWords(
             s_keyHash,
-            s_subscriptionId,
+            uint64(s_subscriptionId),
             REQUEST_CONFIRMATIONS,
             CALLBACK_GAS_LIMIT,
             NUM_WORDS
@@ -268,7 +268,7 @@ contract LottoMojiCore is
         // Verificar cada ticket
         for (uint256 i = 0; i < validTickets.length; i++) {
             uint256 ticketId = validTickets[i];
-            (uint256[4] memory ticketEmojis,,,,,) = ticketContract.getTicketInfo(ticketId);
+            (uint256[4] memory ticketEmojis,,,,,,,) = ticketContract.getTicketInfo(ticketId);
             
             (bool first, bool second, bool third, bool free) = _checkWin(ticketEmojis, winningNumbers);
             
@@ -321,7 +321,7 @@ contract LottoMojiCore is
             ticketContract.useTicket(ticketId);
             
             // Obtener hash de pago para reclamar premio
-            (,,,,,, bytes32 paymentHash) = ticketContract.getTicketInfo(ticketId);
+            (,,,,,,, bytes32 paymentHash) = ticketContract.getTicketInfo(ticketId);
             
             // Transferir premio
             if (ethPerWinner > 0 || usdcPerWinner > 0) {
@@ -341,7 +341,7 @@ contract LottoMojiCore is
             ticketContract.useTicket(ticketId);
             
             // Obtener dueño del ticket
-            (,, address player,,,) = ticketContract.getTicketInfo(ticketId);
+            (,, address player,,,,,) = ticketContract.getTicketInfo(ticketId);
             
             // Generar ticket gratis para la próxima ronda (nueva ronda que se acaba de crear)
             uint256[4] memory freeEmojis = _generateRandomEmojis();

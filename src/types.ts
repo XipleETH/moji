@@ -42,16 +42,19 @@ export interface Ticket {
   walletAddress?: string;  // Añadimos la billetera para futuras integraciones con contratos
   fid?: number;            // Farcaster ID para identificación
   txHash?: string;         // Hash de transacción si el ticket se mintea como NFT
+  isUsed?: boolean;        // Si el ticket ya fue usado para ganar
+  isFreeTicket?: boolean;  // Si es un ticket gratuito del cuarto premio
+  paymentHash?: string;    // Hash del pago que generó el ticket
 }
 
 export interface GameResult {
   id: string;
   timestamp: number;
   winningNumbers: string[];
-  firstPrize: Ticket[];
-  secondPrize: Ticket[];
-  thirdPrize: Ticket[];
-  freePrize: Ticket[];
+  firstPrize: string;    // Prize amounts as formatted strings
+  secondPrize: string;
+  thirdPrize: string;
+  freePrize: Ticket[];   // Free tickets for fourth prize
   // Campos para futuras integraciones blockchain
   blockNumber?: number;     // Bloque donde se procesó el resultado
   randomSeed?: string;      // Semilla aleatoria utilizada
@@ -62,13 +65,13 @@ export interface GameState {
   winningNumbers: string[];
   tickets: Ticket[];
   lastResults: null | {
-    firstPrize: Ticket[];
-    secondPrize: Ticket[];
-    thirdPrize: Ticket[];
+    firstPrize: string;
+    secondPrize: string;
+    thirdPrize: string;
     freePrize: Ticket[];
   };
   gameStarted: boolean;
-  timeRemaining?: number;
+  timeRemaining: number;
 }
 
 // Interfaces para integración con contratos inteligentes

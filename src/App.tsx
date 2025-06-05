@@ -6,26 +6,46 @@ import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
 import { WalletProvider } from './contexts/WalletContext';
+import { NetworkInfo } from './components/NetworkInfo';
 import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useMiniKit, useNotification, useViewProfile } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
-import { useWallet } from './contexts/WalletContext';
+import { useAccount } from 'wagmi';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
 
 function AppContent() {
-  const { gameState, generateTicket, forceGameDraw } = useGameState();
+  const { 
+    gameState, 
+    generateTicket, 
+    forceGameDraw,
+    ethPrice,
+    isTransactionPending,
+    isTransactionConfirmed,
+    refreshGameData,
+    currentRound,
+    nextDrawTime,
+    prizePools
+  } = useGameState();
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
   const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
-  const { user: walletUser, isConnected: isWalletConnected } = useWallet();
+  const { address, isConnected: isWalletConnected } = useAccount();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'ETH' | 'USDC'>('ETH');
   const hasTriedSignIn = useRef(false);
   
-  // Usar wallet user si está disponible, sino usar auth user
+  // Create user object from wallet address or use auth user
+  const walletUser = address ? {
+    id: address,
+    username: `${address.slice(0, 6)}...${address.slice(-4)}`,
+    walletAddress: address,
+    isFarcasterUser: false
+  } : null;
+  
   const user = walletUser || authUser;
   
   // Para evitar renderizado constante
@@ -66,13 +86,11 @@ function AppContent() {
 
   // Mostrar notificación cuando hay ganadores
   const handleWin = useCallback(async () => {
-    // Usar verificación de seguridad para evitar errores undefined
-    const firstPrizeLength = gameState.lastResults?.firstPrize?.length || 0;
-    if (firstPrizeLength > 0) {
+    if (gameState.lastResults?.firstPrize && parseFloat(gameState.lastResults.firstPrize) > 0) {
       try {
         await sendNotification({
           title: '🎉 You Won!',
-          body: 'Congratulations! You matched all emojis and won the first prize!'
+          body: `Congratulations! You won ${gameState.lastResults.firstPrize} ETH in the first prize!`
         });
       } catch (error) {
         console.error('Failed to send notification:', error);
@@ -142,11 +160,16 @@ function AppContent() {
           </div>
         </div>
 
+        {/* Network info */}
+        <div className="flex justify-center mb-6">
+          <NetworkInfo />
+        </div>
+
         <WinnerAnnouncement 
           winningNumbers={gameState.winningNumbers || []}
-          firstPrize={gameState.lastResults?.firstPrize || []}
-          secondPrize={gameState.lastResults?.secondPrize || []}
-          thirdPrize={gameState.lastResults?.thirdPrize || []}
+          firstPrize={gameState.lastResults?.firstPrize ? [gameState.lastResults.firstPrize] : []}
+          secondPrize={gameState.lastResults?.secondPrize ? [gameState.lastResults.secondPrize] : []}
+          thirdPrize={gameState.lastResults?.thirdPrize ? [gameState.lastResults.thirdPrize] : []}
           freePrize={gameState.lastResults?.freePrize || []}
           currentUserId={user?.id}
         />
@@ -162,9 +185,57 @@ function AppContent() {
           </div>
         )}
 
+        {/* Payment method selector */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-white/10 rounded-lg p-4">
+            <h3 className="text-white text-lg font-bold mb-3 text-center">
+              💰 Choose Payment Method
+            </h3>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setPaymentMethod('ETH')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  paymentMethod === 'ETH'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+              >
+                🔷 ETH {ethPrice && `(${parseFloat(ethPrice).toFixed(4)} ETH)`}
+              </button>
+              <button
+                onClick={() => setPaymentMethod('USDC')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  paymentMethod === 'USDC'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+              >
+                💵 USDC ($5.00)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Transaction status */}
+        {isTransactionPending && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-yellow-500/20 text-yellow-200 px-4 py-2 rounded-lg">
+              ⏳ Transaction pending...
+            </div>
+          </div>
+        )}
+
+        {isTransactionConfirmed && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-green-500/20 text-green-200 px-4 py-2 rounded-lg">
+              ✅ Ticket purchased successfully!
+            </div>
+          </div>
+        )}
+
         <TicketGenerator
-          onGenerateTicket={generateTicket}
-          disabled={false}
+          onGenerateTicket={(numbers) => generateTicket(numbers, paymentMethod)}
+          disabled={isTransactionPending || !isWalletConnected}
           ticketCount={gameState.tickets.length}
           maxTickets={999}
         />
@@ -193,19 +264,33 @@ function AppContent() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>🥇 First Prize (4 exact matches):</span>
-                <span className="font-bold">1000 tokens</span>
+                <span className="font-bold">
+                  {prizePools?.eth.firstPrize ? `${parseFloat(prizePools.eth.firstPrize).toFixed(4)} ETH` : 'Loading...'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>🥈 Second Prize (4 any order):</span>
-                <span className="font-bold">500 tokens</span>
+                <span className="font-bold">
+                  {prizePools?.eth.secondPrize ? `${parseFloat(prizePools.eth.secondPrize).toFixed(4)} ETH` : 'Loading...'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>🥉 Third Prize (3 exact matches):</span>
-                <span className="font-bold">100 tokens</span>
+                <span className="font-bold">
+                  {prizePools?.eth.thirdPrize ? `${parseFloat(prizePools.eth.thirdPrize).toFixed(4)} ETH` : 'Loading...'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>🎫 Free Ticket (3 any order):</span>
                 <span className="font-bold">Free ticket</span>
+              </div>
+              <div className="mt-4 pt-2 border-t border-white/20">
+                <div className="flex justify-between text-lg">
+                  <span>💰 Total Prize Pool:</span>
+                  <span className="font-bold">
+                    {prizePools?.eth.total ? `${parseFloat(prizePools.eth.total).toFixed(4)} ETH` : 'Loading...'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -232,9 +317,14 @@ function AppContent() {
                   <div>User ID: {user?.id || 'Not logged in'}</div>
                   <div>Wallet: {user?.walletAddress || 'No wallet'}</div>
                   <div>Is Wallet Connected: {isWalletConnected ? 'Yes' : 'No'}</div>
+                  <div>Current Round: {currentRound?.id || 'Loading...'}</div>
+                  <div>Round Active: {currentRound?.isActive ? 'Yes' : 'No'}</div>
+                  <div>Numbers Drawn: {currentRound?.numbersDrawn ? 'Yes' : 'No'}</div>
                   <div>Tickets: {gameState.tickets.length}</div>
                   <div>Winning Numbers: {gameState.winningNumbers?.join(', ') || 'None'}</div>
                   <div>Time Remaining: {gameState.timeRemaining}s</div>
+                  <div>ETH Price: {ethPrice || 'Loading...'}</div>
+                  <div>Next Draw: {nextDrawTime?.toLocaleString() || 'Loading...'}</div>
                 </div>
               )}
             </div>

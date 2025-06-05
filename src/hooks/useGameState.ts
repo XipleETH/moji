@@ -1,154 +1,112 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GameState, Ticket, GameResult } from '../types';
+import { GameState } from '../types';
+import { useContractGame } from './useContractGame';
+import { usePrizePools } from './usePrizePools';
 import { useRealTimeTimer } from './useRealTimeTimer';
-import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
-import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
 
 const initialGameState: GameState = {
   winningNumbers: [],
   tickets: [],
   lastResults: null,
-  gameStarted: true
+  gameStarted: true,
+  timeRemaining: 0
 };
 
 export function useGameState() {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
-  const processedResultsRef = useRef<Set<string>>(new Set());
-  const lastProcessedMinuteRef = useRef<string>('');
+  
+  // Use contract-based hooks
+  const {
+    gameState: contractGameState,
+    buyTicketWithETH,
+    buyTicketWithUSDC,
+    ethPrice,
+    isTransactionPending,
+    isTransactionConfirmed,
+    refetch
+  } = useContractGame();
 
-  // Suscribirse a los tickets del usuario y al estado del juego
+  const { formattedPools, refetch: refetchPools } = usePrizePools();
+
+  // Timer hook
+  const { timeRemaining, updateTimer } = useRealTimeTimer(() => {
+    console.log('[useGameState] Timer ended, refreshing game data...');
+    refreshGameData();
+  });
+
+  // Update local game state when contract data changes
   useEffect(() => {
-    console.log('[useGameState] Inicializando suscripciones...');
-    
-    // Suscribirse a los tickets del usuario
-    const unsubscribeTickets = subscribeToUserTickets((tickets) => {
+    if (contractGameState) {
       setGameState(prev => ({
         ...prev,
-        tickets
+        winningNumbers: contractGameState.currentRound?.winningNumbers || [],
+        tickets: contractGameState.tickets.map(ticket => ({
+          id: ticket.id.toString(),
+          numbers: ticket.emojis.map(emoji => emoji.toString()),
+          timestamp: ticket.mintTimestamp,
+          userId: ticket.player,
+          isUsed: ticket.isUsed,
+          isFreeTicket: ticket.isFreeTicket,
+          paymentHash: ticket.paymentHash
+        })),
+        timeRemaining,
+        gameStarted: true,
+        lastResults: contractGameState.currentRound?.numbersDrawn ? {
+          firstPrize: formattedPools?.eth.firstPrize || '0',
+          secondPrize: formattedPools?.eth.secondPrize || '0',
+          thirdPrize: formattedPools?.eth.thirdPrize || '0',
+          freePrize: []
+        } : null
       }));
-    });
-
-    // Suscribirse al estado del juego para obtener los números ganadores actuales
-    const unsubscribeState = subscribeToGameState((nextDrawTime, winningNumbers) => {
-      setGameState(prev => ({
-        ...prev,
-        winningNumbers
-      }));
-    });
-
-    return () => {
-      console.log('[useGameState] Limpiando suscripciones de tickets y estado del juego');
-      unsubscribeTickets();
-      unsubscribeState();
-    };
-  }, []);
-
-  // Función para obtener la clave de día de un timestamp
-  const getDayKey = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
-  };
-
-  // Suscribirse a los resultados del juego en Firebase
-  useEffect(() => {
-    console.log('[useGameState] Inicializando suscripción a resultados del juego');
-    const unsubscribe = subscribeToGameResults((results) => {
-      if (results.length > 0) {
-        const latestResult = results[0]; // El primer resultado es el más reciente
-        
-        // Solo procesar si es un resultado nuevo que no hemos visto antes
-        const resultDay = getDayKey(latestResult.timestamp);
-        const resultId = latestResult.id || 'unknown';
-        
-        if (!processedResultsRef.current.has(resultId) && resultDay !== lastProcessedMinuteRef.current) {
-          console.log(`[useGameState] Nuevo resultado recibido para el día ${resultDay} con ID: ${resultId}`, latestResult);
-          processedResultsRef.current.add(resultId);
-          lastProcessedMinuteRef.current = resultDay;
-          
-          setGameState(prev => ({
-            ...prev,
-            winningNumbers: latestResult.winningNumbers,
-            lastResults: {
-              firstPrize: latestResult.firstPrize,
-              secondPrize: latestResult.secondPrize,
-              thirdPrize: latestResult.thirdPrize,
-              freePrize: latestResult.freePrize || [] // Compatibilidad con resultados antiguos
-            }
-          }));
-        } else {
-          console.log(`[useGameState] Ignorando resultado ya procesado para el día ${resultDay} con ID: ${resultId}`);
-        }
+      
+      // Update timer from contract data
+      if (contractGameState.timeRemaining !== timeRemaining) {
+        updateTimer(Math.floor(contractGameState.timeRemaining / 1000));
       }
-    });
-    
-    return () => {
-      console.log('[useGameState] Limpiando suscripción a resultados del juego');
-      unsubscribe();
-    };
-  }, []);
+    }
+  }, [contractGameState, formattedPools, timeRemaining, updateTimer]);
 
-  // Esta función se llama cuando termina el temporizador
-  const onGameProcessed = useCallback(() => {
-    // No es necesario solicitar manualmente un nuevo sorteo
-    // El sorteo lo ejecuta automáticamente la Cloud Function cada minuto
-    console.log('[useGameState] Temporizador terminado, esperando próximo sorteo automático...');
-    
-    // IMPORTANTE: NO hacer nada aquí que pueda desencadenar un sorteo
-    // Solo registrar que el temporizador ha terminado
-  }, []);
-
-  // Obtener el tiempo restante del temporizador
-  const timeRemaining = useRealTimeTimer(onGameProcessed);
-
-  // Función para forzar un sorteo manualmente
-  const forceGameDraw = useCallback(() => {
-    console.log('[useGameState] Forzando sorteo manual...');
-    requestManualGameDraw();
-  }, []);
-
-  // Función para generar un nuevo ticket (sin límites)
-  const generateTicket = useCallback(async (numbers: string[]) => {
+  // Generate ticket function using contracts
+  const generateTicket = useCallback(async (numbers: string[], paymentMethod: 'ETH' | 'USDC' = 'ETH') => {
     if (!numbers?.length) return;
     
     try {
-      // Crear un ticket temporal para mostrar inmediatamente
-      const tempTicket: Ticket = {
-        id: 'temp-' + crypto.randomUUID(),
-        numbers,
-        timestamp: Date.now(),
-        userId: 'temp'
-      };
+      // Convert emoji strings to numbers
+      const emojiNumbers = numbers.map(num => parseInt(num));
       
-      // Actualizar el estado inmediatamente con el ticket temporal
-      setGameState(prev => ({
-        ...prev,
-        tickets: [...prev.tickets, tempTicket]
-      }));
-      
-      // Generar el ticket en Firebase
-      const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
-        return generateFirebaseTicket(numbers);
-      });
-      
-      if (!ticket) {
-        // Si hay un error, eliminar el ticket temporal
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
-        }));
+      if (paymentMethod === 'ETH') {
+        await buyTicketWithETH(emojiNumbers);
+      } else {
+        await buyTicketWithUSDC(emojiNumbers);
       }
       
     } catch (error) {
       console.error('Error generating ticket:', error);
+      throw error;
     }
+  }, [buyTicketWithETH, buyTicketWithUSDC]);
+
+  // Force game draw is not needed - it's automated by Chainlink Automation
+  const forceGameDraw = useCallback(() => {
+    console.log('[useGameState] Los sorteos son automáticos cada 24 horas. No se puede forzar manualmente.');
   }, []);
 
+  // Refresh all data
+  const refreshGameData = useCallback(() => {
+    refetch();
+    refetchPools();
+  }, [refetch, refetchPools]);
+
   return {
-    gameState: {
-      ...gameState,
-      timeRemaining
-    },
+    gameState,
     generateTicket,
-    forceGameDraw
+    forceGameDraw,
+    ethPrice,
+    isTransactionPending,
+    isTransactionConfirmed,
+    refreshGameData,
+    currentRound: contractGameState.currentRound,
+    nextDrawTime: contractGameState.nextDrawTime,
+    prizePools: formattedPools
   };
 }

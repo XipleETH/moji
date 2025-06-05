@@ -1,0 +1,6 @@
+module.exports = [
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC
+  "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1", // ETH_USD_FEED
+  "0xDfA9A93f2d5d1861553cb22eb3023Ee3eFEF67e0", // dev wallet (deployer)
+  "0x0000000000000000000000000000000000000001" // placeholder lottery contract
+]; 

@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
 import { WalletIcon } from 'lucide-react';
-import { useWallet } from '../contexts/WalletContext';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { UserMenu } from './UserMenu';
 
 export const WalletConnector: React.FC = () => {
-  const { user, isConnected, isConnecting, error, connect, disconnect } = useWallet();
+  const { address, isConnected, chainId } = useAccount();
+  const { connect, connectors, isPending } = useConnect();
+  const { disconnect } = useDisconnect();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleWalletClick = () => {
-    if (isConnected && user) {
+    if (isConnected && address) {
       setIsMenuOpen(true);
     } else {
-      connect();
+      // Try to connect with the first available connector (injected)
+      const connector = connectors[0];
+      if (connector) {
+        connect({ connector });
+      }
     }
   };
 
@@ -20,23 +26,32 @@ export const WalletConnector: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  // Create user object for UserMenu compatibility
+  const user = isConnected && address ? {
+    id: address,
+    username: `${address.slice(0, 6)}...${address.slice(-4)}`,
+    walletAddress: address,
+    isFarcasterUser: false,
+    chainId
+  } : null;
+
   return (
     <>
       <button
         onClick={handleWalletClick}
-        disabled={isConnecting}
+        disabled={isPending}
         className={`
           relative p-3 rounded-full transition-all duration-200 
           ${isConnected 
             ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg' 
             : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
           }
-          ${isConnecting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
+          ${isPending ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
           disabled:opacity-50 shadow-md hover:shadow-lg
         `}
       >
         <WalletIcon 
-          className={`text-white ${isConnecting ? 'animate-pulse' : ''}`} 
+          className={`text-white ${isPending ? 'animate-pulse' : ''}`} 
           size={24} 
         />
         
@@ -46,17 +61,17 @@ export const WalletConnector: React.FC = () => {
         )}
         
         {/* Loading indicator */}
-        {isConnecting && (
+        {isPending && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
           </div>
         )}
       </button>
 
-      {/* Error message */}
-      {error && (
-        <div className="absolute top-full mt-2 right-0 bg-red-500 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs">
-          {error}
+      {/* Connection status */}
+      {isConnected && address && (
+        <div className="absolute top-full mt-2 right-0 bg-green-500/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
+          Connected to {chainId === 84532 ? 'Base Sepolia' : chainId === 8453 ? 'Base Mainnet' : 'Unknown Network'}
         </div>
       )}
 
