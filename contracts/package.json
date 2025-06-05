@@ -1,0 +1,23 @@
+{
+  "name": "lottomoji-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for LottoMoji decentralized lottery",
+  "main": "index.js",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "deploy:testnet": "npx hardhat run scripts/deploy.js --network base-sepolia",
+    "deploy:mainnet": "npx hardhat run scripts/deploy.js --network base-mainnet",
+    "test": "npx hardhat test",
+    "verify": "npx hardhat verify"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "@chainlink/contracts": "^0.8.0",
+    "@openzeppelin/contracts": "^5.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^6.8.0"
+  }
+} 
