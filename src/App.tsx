@@ -18,6 +18,7 @@ import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletTroubleshooting } from './components/WalletTroubleshooting';
 import { DebugInfo } from './components/DebugInfo';
 import { PaymentMethodSelector } from './components/PaymentMethodSelector';
+import { USDCApprovalButton } from './components/USDCApprovalButton';
 
 function App() {
   // Main game state hook (this should handle both Firebase and contracts)
@@ -226,6 +227,15 @@ function App() {
             />
           </div>
         </div>
+
+        {/* USDC Approval (always visible when connected and USDC selected) */}
+        {isWalletConnected && paymentMethod === 'USDC' && (
+          <div className="flex justify-center mb-6">
+            <div className="w-full max-w-md">
+              <USDCApprovalButton />
+            </div>
+          </div>
+        )}
 
         {/* Transaction status */}
         {isTransactionPending && (
