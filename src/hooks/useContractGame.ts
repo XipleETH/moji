@@ -210,8 +210,96 @@ export const useContractGame = () => {
     }
   }, [contracts?.LottoMojiCore, ethPriceData, writeContract, address, chainId]);
 
+  // Read USDC allowance
+  const { data: usdcAllowance } = useReadContract({
+    address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`, // Base Sepolia USDC
+    abi: [
+      {
+        "inputs": [
+          {"internalType": "address", "name": "owner", "type": "address"},
+          {"internalType": "address", "name": "spender", "type": "address"}
+        ],
+        "name": "allowance",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ],
+    functionName: 'allowance',
+    args: address && contracts?.LottoMojiCore ? [address, contracts.LottoMojiCore] : undefined,
+    query: {
+      enabled: isEnabled && !!address && !!contracts?.LottoMojiCore,
+    }
+  });
+
+  // Read USDC balance
+  const { data: usdcBalance } = useReadContract({
+    address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`, // Base Sepolia USDC
+    abi: [
+      {
+        "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ],
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: isEnabled && !!address,
+    }
+  });
+
+  // Approve USDC spending
+  const approveUSDC = useCallback(async () => {
+    if (!contracts?.LottoMojiCore) {
+      throw new Error('Contract not available');
+    }
+
+    console.log('Approving USDC spending...');
+    console.log('Spender:', contracts.LottoMojiCore);
+    console.log('Amount: 2000000 (2 USDC)');
+
+    try {
+      const result = writeContract({
+        address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`,
+        abi: [
+          {
+            "inputs": [
+              {"internalType": "address", "name": "spender", "type": "address"},
+              {"internalType": "uint256", "name": "amount", "type": "uint256"}
+            ],
+            "name": "approve",
+            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          }
+        ],
+        functionName: 'approve',
+        args: [contracts.LottoMojiCore, 2000000n], // 2 USDC (6 decimals)
+        gas: 100000n,
+      });
+
+      console.log('USDC approval initiated');
+      return result;
+    } catch (error: any) {
+      console.error('Error approving USDC:', error);
+      if (error.message?.includes('user rejected')) {
+        throw new Error('Transaction was rejected by user');
+      } else {
+        throw new Error(`Approval failed: ${error.message || 'Unknown error'}`);
+      }
+    }
+  }, [contracts?.LottoMojiCore, writeContract]);
+
   // Buy ticket with USDC (requires approval first)
   const buyTicketWithUSDC = useCallback(async (emojis: number[]) => {
+    console.log('=== BUY TICKET WITH USDC START ===');
+    console.log('USDC Balance:', usdcBalance?.toString());
+    console.log('USDC Allowance:', usdcAllowance?.toString());
+    console.log('Required USDC: 2000000 (2 USDC)');
+
     // Validaciones mejoradas
     if (!address) {
       throw new Error('Wallet not connected');
@@ -222,8 +310,7 @@ export const useContractGame = () => {
     }
     
     if (!contracts?.LottoMojiCore) {
-      console.error('Missing contract data');
-      throw new Error('Missing contract data');
+      throw new Error('Smart contract not available');
     }
 
     if (!emojis || emojis.length !== 4) {
@@ -235,41 +322,48 @@ export const useContractGame = () => {
       throw new Error('Invalid emoji selection');
     }
 
+    // Check USDC balance
+    if (!usdcBalance || usdcBalance < 2000000n) {
+      throw new Error('Insufficient USDC balance. You need at least 2 USDC.');
+    }
+
+    // Check USDC allowance
+    if (!usdcAllowance || usdcAllowance < 2000000n) {
+      throw new Error('Please approve USDC spending first. Click "Approve USDC" button.');
+    }
+
     try {
-      console.log('Buying ticket with USDC...');
-      console.log('Contract address:', contracts.LottoMojiCore);
-      console.log('Emojis:', emojis);
-      console.log('User address:', address);
-      console.log('Chain ID:', chainId);
+      console.log('✅ All validations passed, buying ticket with USDC...');
       
-      // Usar writeContract de forma más explícita
       const result = writeContract({
         address: contracts.LottoMojiCore as `0x${string}`,
         abi: LottoMojiCoreABI.abi,
         functionName: 'buyTicketWithUSDC',
         args: [emojis],
-        gas: 300000n, // Gas limit explícito
+        gas: 300000n,
       });
       
-      console.log('Transaction initiated successfully');
+      console.log('✅ USDC ticket transaction initiated');
+      console.log('=== BUY TICKET WITH USDC END ===');
       return result;
     } catch (error: any) {
-      console.error('Error buying ticket with USDC:', error);
+      console.error('=== BUY TICKET WITH USDC ERROR ===');
+      console.error('Error details:', error);
       
       // Mensajes de error más específicos
-      if (error.message?.includes('insufficient allowance')) {
-        throw new Error('Please approve USDC spending first');
-      } else if (error.message?.includes('insufficient funds')) {
+      if (error.message?.includes('insufficient allowance') || error.message?.includes('ERC20: transfer amount exceeds allowance')) {
+        throw new Error('USDC allowance insufficient. Please approve USDC spending first.');
+      } else if (error.message?.includes('insufficient funds') || error.message?.includes('ERC20: transfer amount exceeds balance')) {
         throw new Error('Insufficient USDC balance');
-      } else if (error.message?.includes('user rejected')) {
+      } else if (error.message?.includes('user rejected') || error.code === 4001) {
         throw new Error('Transaction was rejected by user');
       } else if (error.message?.includes('execution reverted')) {
-        throw new Error('Transaction failed - please check game status');
+        throw new Error('Transaction failed - please check game status and try again');
       } else {
-        throw new Error(`Transaction failed: ${error.message || 'Unknown error'}`);
+        throw new Error(`Transaction failed: ${error.message || 'Unknown error occurred'}`);
       }
     }
-  }, [contracts?.LottoMojiCore, writeContract, address, chainId]);
+  }, [contracts?.LottoMojiCore, writeContract, address, chainId, usdcBalance, usdcAllowance]);
 
   // Process current round data
   useEffect(() => {
@@ -391,7 +485,11 @@ export const useContractGame = () => {
     gameState,
     buyTicketWithETH,
     buyTicketWithUSDC,
+    approveUSDC,
     ethPrice: ethPriceData ? formatEther(ethPriceData as bigint) : null,
+    usdcBalance: usdcBalance ? Number(usdcBalance) / 1e6 : 0, // Convert to readable format
+    usdcAllowance: usdcAllowance ? Number(usdcAllowance) / 1e6 : 0, // Convert to readable format
+    needsUsdcApproval: !usdcAllowance || usdcAllowance < 2000000n,
     isTransactionPending: isPending || isConfirming,
     isTransactionConfirmed: isConfirmed,
     refetch: () => {

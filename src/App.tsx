@@ -17,6 +17,7 @@ import { Trophy, Zap, Terminal } from 'lucide-react';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletTroubleshooting } from './components/WalletTroubleshooting';
 import { DebugInfo } from './components/DebugInfo';
+import { PaymentMethodSelector } from './components/PaymentMethodSelector';
 
 function App() {
   // Main game state hook (this should handle both Firebase and contracts)
@@ -217,35 +218,12 @@ function App() {
 
         {/* Payment method selector */}
         <div className="flex justify-center mb-6">
-          <div className="bg-white/10 rounded-lg p-4">
-            <h3 className="text-white text-lg font-bold mb-3 text-center">
-              💰 Ticket Price: $2.00 USD
-            </h3>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setPaymentMethod('ETH')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  paymentMethod === 'ETH'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white/20 text-white hover:bg-white/30'
-                }`}
-              >
-                🔷 Pay with ETH {ethPrice && `(≈${parseFloat(ethPrice).toFixed(4)} ETH)`}
-              </button>
-              <button
-                onClick={() => setPaymentMethod('USDC')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  paymentMethod === 'USDC'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-white/20 text-white hover:bg-white/30'
-                }`}
-              >
-                💵 Pay with USDC ($2.00)
-              </button>
-            </div>
-            <div className="text-center mt-2 text-white/70 text-sm">
-              Choose your preferred payment method
-            </div>
+          <div className="w-full max-w-md">
+            <PaymentMethodSelector
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={setPaymentMethod}
+              disabled={isTransactionPending || !isWalletConnected}
+            />
           </div>
         </div>
 
