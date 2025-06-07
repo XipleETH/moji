@@ -4,7 +4,14 @@ import { getContractAddresses } from '../contracts/addresses';
 
 export const USDCVerification: React.FC = () => {
   const { chainId } = useAccount();
-  const contracts = chainId ? getContractAddresses(chainId) : null;
+  const contracts = React.useMemo(() => {
+    try {
+      return chainId ? getContractAddresses(chainId) : null;
+    } catch (error) {
+      console.error('Error getting contract addresses:', error);
+      return null;
+    }
+  }, [chainId]);
 
   if (!chainId || chainId !== 84532) {
     return null;

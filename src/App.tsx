@@ -19,7 +19,7 @@ import { WalletTroubleshooting } from './components/WalletTroubleshooting';
 import { DebugInfo } from './components/DebugInfo';
 import { PaymentMethodSelector } from './components/PaymentMethodSelector';
 import { USDCApprovalButton } from './components/USDCApprovalButton';
-import { USDCVerification } from './components/USDCVerification';
+// import { USDCVerification } from './components/USDCVerification';
 
 function App() {
   // Main game state hook (this should handle both Firebase and contracts)
@@ -153,12 +153,7 @@ function App() {
         {/* Debug info for development */}
         <DebugInfo />
         
-        {/* USDC Contract Verification */}
-        {import.meta.env.DEV && (
-          <div className="flex justify-center mb-6">
-            <USDCVerification />
-          </div>
-        )}
+        {/* USDC Contract Verification - Temporarily disabled for debugging */}
 
         {/* Game info */}
         <div className="text-center mb-8">

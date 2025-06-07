@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { getContractAddresses } from '../contracts/addresses';
@@ -53,8 +53,8 @@ export const useContractGame = () => {
   // Get contract addresses for current chain
   const contracts = chainId ? getContractAddresses(chainId) : null;
 
-  // Only enable reads if we have valid contracts
-  const isEnabled = !!contracts?.LottoMojiCore && !!chainId && chainId === 84532; // Only Base Sepolia
+  // Only enable reads if we have valid contracts and are on Base Sepolia
+  const isEnabled = !!contracts?.LottoMojiCore && !!chainId && chainId === 84532;
 
   // Read current round info
   const { data: currentRoundData, refetch: refetchRound, error: roundError } = useReadContract({
