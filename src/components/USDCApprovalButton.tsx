@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import { getContractAddresses } from '../contracts/addresses';
 
 export const USDCApprovalButton: React.FC = () => {
   const { address, chainId } = useAccount();
   const [isApproving, setIsApproving] = useState(false);
   
-  const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-  const LOTTO_ADDRESS = "0x089Cc443794c25CEb744A07EB1372A5977d0D230";
+  // Get contract addresses for current chain
+  const contracts = chainId ? getContractAddresses(chainId) : null;
+  const USDC_ADDRESS = contracts?.USDC;
+  const LOTTO_ADDRESS = contracts?.LottoMojiCore;
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: USDC_ADDRESS as `0x${string}`,

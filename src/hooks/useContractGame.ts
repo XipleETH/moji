@@ -212,7 +212,7 @@ export const useContractGame = () => {
 
   // Read USDC allowance
   const { data: usdcAllowance } = useReadContract({
-    address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`, // Base Sepolia USDC
+    address: contracts?.USDC as `0x${string}`,
     abi: [
       {
         "inputs": [
@@ -234,7 +234,7 @@ export const useContractGame = () => {
 
   // Read USDC balance
   const { data: usdcBalance } = useReadContract({
-    address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`, // Base Sepolia USDC
+    address: contracts?.USDC as `0x${string}`,
     abi: [
       {
         "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
@@ -263,7 +263,7 @@ export const useContractGame = () => {
 
     try {
       const result = writeContract({
-        address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`,
+        address: contracts.USDC as `0x${string}`,
         abi: [
           {
             "inputs": [
