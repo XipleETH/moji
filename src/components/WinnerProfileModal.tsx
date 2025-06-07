@@ -138,66 +138,86 @@ const WinnerCard: React.FC<WinnerCardProps> = memo(({
   const { statistics, loading } = useUserStatistics(isExpanded ? winner.userId : null);
 
   return (
-    <div className={`border-2 ${prizeInfo.borderColor} rounded-lg transition-all duration-200 ${
-      isExpanded ? prizeInfo.bgColor : 'bg-white hover:' + prizeInfo.bgColor
-    }`}>
-      {/* Winner Header */}
-      <div 
-        className="p-4 cursor-pointer"
-        onClick={onToggleExpanded}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${prizeInfo.gradientFrom} ${prizeInfo.gradientTo} flex items-center justify-center text-white font-bold text-sm mr-3`}>
-              {index}
-            </div>
-            <div>
-              <div className="font-semibold text-gray-800">{winner.username}</div>
-              <div className="text-sm text-gray-600">
-                {winner.walletAddress.substring(0, 6)}...{winner.walletAddress.substring(winner.walletAddress.length - 4)}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {/* Winning tickets count */}
-            <div className="text-center">
-              <div className={`text-lg font-bold ${prizeInfo.iconColor}`}>
-                {winner.tickets.length}
-              </div>
-              <div className="text-xs text-gray-600">
-                ticket{winner.tickets.length !== 1 ? 's' : ''}
-              </div>
+    <div className="space-y-2">
+      {/* Mostrar cada ticket ganador con el estilo original */}
+      {winner.tickets.map((ticket, ticketIndex) => (
+        <div 
+          key={ticket.id || ticketIndex}
+          className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+            isExpanded 
+              ? `bg-green-100 ${prizeInfo.borderColor}` 
+              : `bg-gray-50 border-gray-200 hover:${prizeInfo.bgColor} hover:${prizeInfo.borderColor}`
+          }`}
+          onClick={onToggleExpanded}
+          title={`Click to ${isExpanded ? 'hide' : 'show'} user profile and stats`}
+        >
+          <div className="flex justify-between items-center">
+            {/* Emojis del ticket (estilo original) */}
+            <div className="flex gap-1">
+              {ticket.numbers?.map((emoji, i) => (
+                <span key={i} className="text-xl">{emoji}</span>
+              )) || <span className="text-gray-500">No numbers</span>}
             </div>
             
-            {/* Profit */}
-            {winner.profit > 0 && (
-              <div className="text-center">
-                <div className="text-lg font-bold text-green-600">
-                  {winner.profit}
+            {/* Información del usuario al lado */}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="font-semibold text-gray-800 text-sm">{winner.username}</div>
+                <div className="text-xs text-gray-600">
+                  {winner.walletAddress.substring(0, 6)}...{winner.walletAddress.substring(winner.walletAddress.length - 4)}
                 </div>
-                <div className="text-xs text-gray-600">tokens</div>
               </div>
-            )}
-            
-            {prizeInfo.profit === 0 && (
-              <div className="text-center">
-                <div className="text-lg font-bold text-blue-600">
-                  {winner.tickets.length}
+              
+              {/* Ganancias */}
+              {winner.profit > 0 ? (
+                <div className="text-center">
+                  <div className="text-sm font-bold text-green-600">+{prizeInfo.profit}</div>
+                  <div className="text-xs text-gray-500">tokens</div>
                 </div>
-                <div className="text-xs text-gray-600">free ticket{winner.tickets.length !== 1 ? 's' : ''}</div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center">
+                  <div className="text-sm font-bold text-blue-600">Free</div>
+                  <div className="text-xs text-gray-500">ticket</div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      ))}
 
-      {/* Expanded Details */}
+      
+      {/* Expanded Details - Solo se muestra una vez por usuario */}
       {isExpanded && (
-        <div className="border-t px-4 pb-4">
-          <div className="pt-4 space-y-4">
+        <div className={`mt-3 p-4 rounded-lg border-2 ${prizeInfo.borderColor} ${prizeInfo.bgColor}`}>
+          <div className="space-y-4">
+            {/* Header del usuario */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${prizeInfo.gradientFrom} ${prizeInfo.gradientTo} flex items-center justify-center text-white font-bold text-sm mr-3`}>
+                  {index}
+                </div>
+                <div>
+                  <div className="font-bold text-gray-800">{winner.username}</div>
+                  <div className="text-sm text-gray-600">
+                    {winner.walletAddress.substring(0, 6)}...{winner.walletAddress.substring(winner.walletAddress.length - 4)}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <div className={`text-lg font-bold ${prizeInfo.iconColor}`}>
+                  {winner.tickets.length} ticket{winner.tickets.length !== 1 ? 's' : ''}
+                </div>
+                {winner.profit > 0 && (
+                  <div className="text-sm font-bold text-green-600">
+                    Total: +{winner.profit} tokens
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Wallet Info */}
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm bg-white/50 p-2 rounded">
               <div className="flex items-center text-gray-600">
                 <Wallet size={14} className="mr-2" />
                 <span>{getWalletProviderName(winner.walletProvider)}</span>
@@ -215,43 +235,22 @@ const WinnerCard: React.FC<WinnerCardProps> = memo(({
               </div>
             ) : statistics ? (
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/50 p-3 rounded-lg text-center">
+                <div className="bg-white/70 p-3 rounded-lg text-center">
                   <div className="text-lg font-bold text-blue-600">{statistics.totalTickets}</div>
                   <div className="text-xs text-gray-600">Total Tickets</div>
                 </div>
-                <div className="bg-white/50 p-3 rounded-lg text-center">
+                <div className="bg-white/70 p-3 rounded-lg text-center">
                   <div className="text-lg font-bold text-green-600">{statistics.totalWins}</div>
                   <div className="text-xs text-gray-600">Total Wins</div>
                 </div>
               </div>
             ) : (
               <div className="text-center py-3">
-                <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                  Click to load user statistics
+                <div className="text-xs text-gray-500 bg-white/50 px-3 py-1 rounded-full">
+                  Expand to load detailed statistics
                 </div>
               </div>
             )}
-
-            {/* Winning Tickets */}
-            <div>
-              <div className="text-sm font-medium text-gray-700 mb-2">Winning Tickets:</div>
-              <div className="space-y-2">
-                {winner.tickets.map((ticket, ticketIndex) => (
-                  <div key={ticket.id || ticketIndex} className="bg-white/50 p-3 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <div className="flex gap-1">
-                        {ticket.numbers?.map((emoji, i) => (
-                          <span key={i} className="text-xl">{emoji}</span>
-                        )) || <span className="text-gray-500">No numbers</span>}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        #{ticket.id?.slice(-4) || 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -333,7 +332,7 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = memo(({
             <div className="flex items-center">
               <User className="mr-2" size={16} />
               <span className="text-sm font-medium">
-                {winnersList.length} Winner{winnersList.length !== 1 ? 's' : ''}
+                {winnersList.length} Winner{winnersList.length !== 1 ? 's' : ''} • {winners.length} Ticket{winners.length !== 1 ? 's' : ''}
               </span>
             </div>
             {prizeInfo.profit > 0 && (
@@ -376,6 +375,13 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = memo(({
                   </button>
                 </div>
               )}
+              
+              {/* Texto explicativo */}
+              <div className="text-center mt-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">
+                  Each ticket shows winning emojis and user info • Click any ticket to view detailed user statistics
+                </p>
+              </div>
             </>
           ) : (
             <div className="text-center py-8 text-gray-500">
