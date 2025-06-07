@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Trophy, Award, Medal, Ticket, Users, Target } from 'lucide-react';
+import { X, Trophy, Award, Medal, Ticket, Users, Target, Wallet } from 'lucide-react';
 import { useUserStatistics } from '../hooks/useUserStatistics';
+import { WalletProvider } from '../types';
 
 interface UserMenuProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface UserMenuProps {
     walletAddress: string;
     id: string;
     chainId?: number;
+    walletProvider?: WalletProvider;
   };
   onDisconnect: () => void;
 }
@@ -43,11 +45,21 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             <div className="text-sm text-white/80">
               {user.walletAddress?.substring(0, 6)}...{user.walletAddress?.substring(user.walletAddress.length - 4)}
             </div>
-            {user.chainId && (
-              <div className="text-xs text-white/70 mt-1">
-                Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
-              </div>
-            )}
+            <div className="flex items-center gap-3 mt-2">
+              {user.walletProvider && (
+                <div className="flex items-center text-xs text-white/70">
+                  <Wallet size={12} className="mr-1" />
+                  {user.walletProvider === 'coinbase' && 'Coinbase Wallet'}
+                  {user.walletProvider === 'metamask' && 'MetaMask'}
+                  {user.walletProvider === 'injected' && 'Browser Wallet'}
+                </div>
+              )}
+              {user.chainId && (
+                <div className="text-xs text-white/70">
+                  Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

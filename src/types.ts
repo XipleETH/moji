@@ -8,6 +8,19 @@ export interface ChatMessage {
   username?: string;
 }
 
+// Nuevos tipos para múltiples wallets
+export type WalletProvider = 'coinbase' | 'metamask' | 'walletconnect' | 'injected';
+
+export interface WalletInfo {
+  id: WalletProvider;
+  name: string;
+  icon: string;
+  description: string;
+  isAvailable: boolean;
+  isInstalled?: boolean;
+  downloadUrl?: string;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -24,6 +37,9 @@ export interface User {
   dailyTokens?: number;    // Tokens disponibles para el día actual
   lastTokenReset?: string; // Fecha del último reset de tokens (YYYY-MM-DD)
   totalTokensUsed?: number; // Total de tokens usados históricamente
+  // Nuevos campos para múltiples wallets
+  walletProvider?: WalletProvider; // Proveedor de wallet utilizado
+  connectedAt?: number;    // Timestamp de conexión
 }
 
 export interface FarcasterProfile {
