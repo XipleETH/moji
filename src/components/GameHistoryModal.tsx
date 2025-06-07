@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, Award, Medal, Ticket as TicketIcon, User } from 'lucide-react';
+import { X, Trophy, Award, Medal, Ticket as TicketIcon } from 'lucide-react';
 import { GameResult } from '../types';
 import { db } from '../firebase/config';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { UserProfile } from './UserProfile';
 
 interface GameHistoryModalProps {
   onClose: () => void;
@@ -17,30 +16,10 @@ interface SelectedPrize {
   gameDate: string;
 }
 
-interface SelectedUser {
-  user: {
-    id: string;
-    username: string;
-    walletAddress: string;
-    walletProvider?: string;
-    chainId?: number;
-    isFarcasterUser?: boolean;
-    verifiedWallet?: boolean;
-    connectedAt?: number;
-  };
-  winningTicket: {
-    numbers: string[];
-    timestamp: number;
-    prizeType: 'first' | 'second' | 'third' | 'free';
-    gameDate: string;
-  };
-}
-
 export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) => {
   const [history, setHistory] = useState<GameResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPrize, setSelectedPrize] = useState<SelectedPrize | null>(null);
-  const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
 
   useEffect(() => {
     const fetchGameHistory = async () => {
@@ -172,54 +151,6 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
   const getSelectedGameResult = () => {
     if (!selectedPrize) return null;
     return history.find(game => game.id === selectedPrize.gameId);
-  };
-
-  const handleUserClick = async (userId: string, ticket: any, prizeType: 'first' | 'second' | 'third' | 'free', gameDate: string) => {
-    try {
-      // Usar datos del ticket si están disponibles, sino usar valores por defecto
-      const userData = {
-        id: ticket.userId || userId,
-        username: ticket.username || `${(ticket.userId || userId).substring(0, 8)}...`,
-        walletAddress: ticket.walletAddress || ticket.userId || userId,
-        walletProvider: ticket.walletProvider || 'injected',
-        chainId: ticket.chainId || 8453,
-        isFarcasterUser: ticket.isFarcasterUser || false,
-        verifiedWallet: ticket.verifiedWallet !== undefined ? ticket.verifiedWallet : true,
-        connectedAt: ticket.connectedAt || ticket.timestamp || Date.now()
-      };
-
-      const winningTicket = {
-        numbers: ticket.numbers || [],
-        timestamp: ticket.timestamp || Date.now(),
-        prizeType,
-        gameDate
-      };
-
-      setSelectedUser({ user: userData, winningTicket });
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      
-      // Fallback con datos mínimos
-      const fallbackUserData = {
-        id: userId,
-        username: `${userId.substring(0, 8)}...`,
-        walletAddress: userId,
-        walletProvider: 'injected' as const,
-        chainId: 8453,
-        isFarcasterUser: false,
-        verifiedWallet: true,
-        connectedAt: Date.now()
-      };
-
-      const fallbackWinningTicket = {
-        numbers: ticket.numbers || [],
-        timestamp: ticket.timestamp || Date.now(),
-        prizeType,
-        gameDate
-      };
-
-      setSelectedUser({ user: fallbackUserData, winningTicket: fallbackWinningTicket });
-    }
   };
 
   return (
@@ -377,45 +308,11 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
                     tickets.map((ticket, index) => (
                       <div 
                         key={ticket.id || index}
-                        className="p-4 rounded-lg border-2 bg-gray-50 border-gray-200"
+                        className="p-3 rounded-lg border-2 bg-gray-50 border-gray-200"
                       >
-                        {/* User Info Section */}
-                        <div className="flex items-center justify-between mb-3">
-                          <button
-                            onClick={() => handleUserClick(
-                              ticket.userId || `user_${index}`,
-                              ticket,
-                              selectedPrize!.category === 'firstPrize' ? 'first' :
-                              selectedPrize!.category === 'secondPrize' ? 'second' :
-                              selectedPrize!.category === 'thirdPrize' ? 'third' : 'free',
-                              selectedPrize!.gameDate
-                            )}
-                            className="flex items-center gap-2 hover:bg-gray-200 p-2 rounded-lg transition-colors group"
-                          >
-                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                              <User className="text-purple-600" size={16} />
-                            </div>
-                            <div className="text-left">
-                              <p className="text-sm font-semibold text-gray-800 group-hover:text-purple-600">
-                                {ticket.username || `${(ticket.userId || `user_${index}`).substring(0, 6)}...`}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {ticket.userId ? 
-                                  `${ticket.userId.substring(0, 6)}...${ticket.userId.substring(ticket.userId.length - 4)}` :
-                                  'Winner'
-                                }
-                              </p>
-                            </div>
-                          </button>
-                          <div className="text-xs text-gray-400">
-                            Click to view profile
-                          </div>
-                        </div>
-
-                        {/* Winning Numbers */}
-                        <div className="flex gap-1 justify-center">
+                        <div className="flex gap-1">
                           {ticket.numbers?.map((emoji, i) => (
-                            <span key={i} className="text-xl bg-white p-2 rounded-lg border">{emoji}</span>
+                            <span key={i} className="text-xl">{emoji}</span>
                           )) || <span className="text-gray-500">No numbers</span>}
                         </div>
                       </div>
@@ -431,16 +328,6 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({ onClose }) =
           </div>
         );
       })()}
-
-      {/* User Profile Modal */}
-      {selectedUser && (
-        <UserProfile
-          isOpen={true}
-          onClose={() => setSelectedUser(null)}
-          user={selectedUser.user}
-          winningTicket={selectedUser.winningTicket}
-        />
-      )}
     </>
   );
 };

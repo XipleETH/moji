@@ -49,14 +49,7 @@ const mapFirestoreTicket = (doc: any): Ticket => {
     txHash: data.txHash,
     gameDay: data.gameDay || getCurrentGameDay(),
     tokenCost: data.tokenCost || 1,
-    isActive: data.isActive !== undefined ? data.isActive : true,
-    // Campos adicionales para mostrar perfil de usuario
-    username: data.username,
-    walletProvider: data.walletProvider,
-    chainId: data.chainId,
-    isFarcasterUser: data.isFarcasterUser,
-    verifiedWallet: data.verifiedWallet,
-    connectedAt: data.connectedAt
+    isActive: data.isActive !== undefined ? data.isActive : true
   };
 };
 
@@ -139,14 +132,7 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       fid: user.fid,
       gameDay: currentGameDay,
       tokenCost: 1,
-      isActive: true,
-      // Campos adicionales para mostrar perfil de usuario
-      username: user.username,
-      walletProvider: user.walletProvider,
-      chainId: user.chainId,
-      isFarcasterUser: user.isFarcasterUser,
-      verifiedWallet: user.verifiedWallet,
-      connectedAt: user.connectedAt
+      isActive: true
     };
     
     console.log('[generateTicket] Ticket devuelto:', newTicket);
