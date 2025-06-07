@@ -99,6 +99,7 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       isFarcasterUser: user.isFarcasterUser || false,
       verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
       chainId: user.chainId || 8453, // Base por defecto
+      walletProvider: user.walletProvider || 'injected', // Proveedor de wallet utilizado
       ticketHash: uniqueHash,
       // Nuevos campos para el sistema de tokens y días
       gameDay: currentGameDay,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, ExternalLink, Wallet, ChevronRight } from 'lucide-react';
 import { WalletInfo, WalletProvider } from '../types';
-import { getSupportedWallets } from '../utils/wallets';
+import { getSupportedWallets, debugWalletDetection } from '../utils/wallets';
 
 interface WalletSelectorProps {
   isOpen: boolean;
@@ -22,6 +22,8 @@ export const WalletSelector: React.FC<WalletSelectorProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      console.log('[WalletSelector] Modal opened, debugging wallet detection...');
+      debugWalletDetection();
       setWallets(getSupportedWallets());
     }
   }, [isOpen]);
