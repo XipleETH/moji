@@ -8,6 +8,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
   const processingRef = useRef<boolean>(false);
   const lastProcessedTimeRef = useRef<number>(0);
   const lastDrawTimeRef = useRef<number>(0);
+  const syncRef = useRef<boolean>(false);
 
   useEffect(() => {
     console.log('[useRealTimeTimer] Inicializando temporizador en tiempo real');
@@ -17,54 +18,51 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((nextDrawTime - now) / 1000));
       
-      // Actualizar el tiempo restante solo si es diferente
-      if (timeRemaining !== remaining) {
-        setTimeRemaining(remaining);
+      console.log(`[useRealTimeTimer] Firebase sync - nextDrawTime: ${new Date(nextDrawTime).toLocaleString()}, remaining: ${remaining}s`);
+      
+      // Sincronización inicial - ajustar el timer local con el de Firebase
+      if (!syncRef.current) {
+        syncRef.current = true;
+        console.log(`[useRealTimeTimer] Sincronización inicial - ajustando timer a ${remaining}s`);
       }
       
-      // Solo procesar eventos de fin de temporizador si el nextDrawTime ha cambiado
-      // Esto evita múltiples procesamiento del mismo evento
+      // Actualizar el tiempo restante con los datos de Firebase
+      setTimeRemaining(remaining);
+      
+      // Detectar cuando el sorteo ha sido completado (nuevo nextDrawTime)
       if (nextDrawTime !== lastDrawTimeRef.current) {
         lastDrawTimeRef.current = nextDrawTime;
         
-        // Detectar cambio de día para notificar al componente padre
-        const currentDay = new Date().getDate();
-        const currentTime = now;
-        
-        // Solo procesar si:
-        // 1. El tiempo restante es 0
-        // 2. El día actual es diferente al último procesado
-        // 3. No estamos ya procesando un evento
-        // 4. Han pasado al menos 30 segundos desde el último procesamiento
-        if (
-          remaining === 0 && 
-          currentDay !== lastDayRef.current && 
-          !processingRef.current &&
-          (currentTime - lastProcessedTimeRef.current) > 30000
-        ) {
-          lastDayRef.current = currentDay;
-          processingRef.current = true;
-          lastProcessedTimeRef.current = currentTime;
+        // Si el tiempo restante es muy alto (cerca de 24 horas), significa que hubo un nuevo sorteo
+        if (remaining > 86000) { // Más de 23.8 horas = nuevo sorteo
+          const currentDay = new Date().getDate();
           
-          console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Detectado cambio de día, notificando fin de temporizador`);
-          
-          // Añadir un pequeño retraso para evitar múltiples llamadas
-          setTimeout(() => {
-            console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Ejecutando onTimeEnd()`);
-            onTimeEnd();
-            processingRef.current = false;
-          }, 500);
+          if (currentDay !== lastDayRef.current && !processingRef.current) {
+            lastDayRef.current = currentDay;
+            processingRef.current = true;
+            
+            console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Nuevo sorteo detectado, notificando fin de temporizador anterior`);
+            
+            // Pequeño retraso para evitar múltiples llamadas
+            setTimeout(() => {
+              console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Ejecutando onTimeEnd()`);
+              onTimeEnd();
+              processingRef.current = false;
+            }, 1000);
+          }
         }
       }
     });
     
-    // Actualizar el tiempo restante cada segundo para mantener la UI actualizada
+    // Actualizar el tiempo restante cada segundo solo para UI suave
+    // El tiempo real viene de Firebase
     timerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
-        if (prev > 0) {
+        // Solo decrementar si no estamos cerca de la sincronización de Firebase
+        if (prev > 1) {
           return prev - 1;
         }
-        return 0;
+        return prev; // Mantener en 0 o 1 hasta que Firebase actualice
       });
     }, 1000);
 

@@ -167,6 +167,8 @@ function AppContent() {
           disabled={false}
           ticketCount={gameState.tickets.length}
           maxTickets={999}
+          userTokens={gameState.userTokens}
+          tokensUsed={10 - gameState.userTokens}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

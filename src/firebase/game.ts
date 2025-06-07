@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { GameResult, Ticket } from '../types';
 import { getCurrentUser } from './auth';
+import { useTokensForTicket, canUserBuyTicket, getCurrentGameDay } from './tokens';
 
 const GAME_RESULTS_COLLECTION = 'game_results';
 const TICKETS_COLLECTION = 'player_tickets';
@@ -42,7 +43,13 @@ const mapFirestoreTicket = (doc: any): Ticket => {
     id: doc.id,
     numbers: data.numbers || [],
     timestamp: data.timestamp?.toMillis() || Date.now(),
-    userId: data.userId
+    userId: data.userId,
+    walletAddress: data.walletAddress,
+    fid: data.fid,
+    txHash: data.txHash,
+    gameDay: data.gameDay || getCurrentGameDay(),
+    tokenCost: data.tokenCost || 1,
+    isActive: data.isActive !== undefined ? data.isActive : true
   };
 };
 
@@ -60,7 +67,23 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       return null;
     }
     
-    console.log('[generateTicket] Validaciones pasadas, creando ticket...');
+    // Verificar si el usuario puede comprar un ticket (tiene tokens suficientes)
+    const { canBuy, reason, tokensAvailable } = await canUserBuyTicket(user.id);
+    if (!canBuy) {
+      console.error(`[generateTicket] Error: Usuario no puede comprar ticket - ${reason}. Tokens disponibles: ${tokensAvailable}`);
+      return null;
+    }
+    
+    // Usar tokens para el ticket
+    const tokenUsed = await useTokensForTicket(user.id, 1);
+    if (!tokenUsed) {
+      console.error('[generateTicket] Error: No se pudieron usar los tokens');
+      return null;
+    }
+    
+    console.log('[generateTicket] Tokens utilizados exitosamente, creando ticket...');
+    
+    const currentGameDay = getCurrentGameDay();
     
     // Generar un hash único para el ticket (simulado)
     const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
@@ -76,7 +99,11 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       isFarcasterUser: user.isFarcasterUser || false,
       verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
       chainId: user.chainId || 8453, // Base por defecto
-      ticketHash: uniqueHash
+      ticketHash: uniqueHash,
+      // Nuevos campos para el sistema de tokens y días
+      gameDay: currentGameDay,
+      tokenCost: 1,
+      isActive: true
     };
     
     console.log('[generateTicket] Datos del ticket preparados:', {
@@ -95,13 +122,16 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);
     
     // Devolver el ticket creado
-    const newTicket = {
+    const newTicket: Ticket = {
       id: ticketRef.id,
       numbers,
       timestamp: Date.now(),
       userId: user.id,
       walletAddress: user.walletAddress,
-      fid: user.fid
+      fid: user.fid,
+      gameDay: currentGameDay,
+      tokenCost: 1,
+      isActive: true
     };
     
     console.log('[generateTicket] Ticket devuelto:', newTicket);
@@ -204,7 +234,7 @@ export const subscribeToGameResults = (
   }
 };
 
-// Suscribirse a los tickets del usuario actual
+// Suscribirse a los tickets del usuario actual (solo del día actual)
 export const subscribeToUserTickets = (
   callback: (tickets: Ticket[]) => void
 ) => {
@@ -216,9 +246,13 @@ export const subscribeToUserTickets = (
         return () => {};
       }
       
+      const currentGameDay = getCurrentGameDay();
+      
       const ticketsQuery = query(
         collection(db, TICKETS_COLLECTION),
         where('userId', '==', user.id),
+        where('gameDay', '==', currentGameDay),
+        where('isActive', '==', true),
         orderBy('timestamp', 'desc')
       );
       

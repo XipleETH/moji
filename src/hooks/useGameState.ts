@@ -1,26 +1,30 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GameState, Ticket, GameResult } from '../types';
+import { GameState, Ticket, GameResult, DailyTokens } from '../types';
 import { useRealTimeTimer } from './useRealTimeTimer';
 import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
 import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
+import { subscribeToUserTokens, getCurrentGameDay } from '../firebase/tokens';
 
 const initialGameState: GameState = {
   winningNumbers: [],
   tickets: [],
   lastResults: null,
-  gameStarted: true
+  gameStarted: true,
+  currentGameDay: getCurrentGameDay(),
+  userTokens: 0
 };
 
 export function useGameState() {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [userTokens, setUserTokens] = useState<DailyTokens | null>(null);
   const processedResultsRef = useRef<Set<string>>(new Set());
   const lastProcessedMinuteRef = useRef<string>('');
 
-  // Suscribirse a los tickets del usuario y al estado del juego
+  // Suscribirse a los tickets del usuario, al estado del juego y a los tokens
   useEffect(() => {
     console.log('[useGameState] Inicializando suscripciones...');
     
-    // Suscribirse a los tickets del usuario
+    // Suscribirse a los tickets del usuario (solo del día actual)
     const unsubscribeTickets = subscribeToUserTickets((tickets) => {
       setGameState(prev => ({
         ...prev,
@@ -36,10 +40,20 @@ export function useGameState() {
       }));
     });
 
+    // Suscribirse a los tokens diarios del usuario
+    const unsubscribeTokens = subscribeToUserTokens((tokens) => {
+      setUserTokens(tokens);
+      setGameState(prev => ({
+        ...prev,
+        userTokens: tokens?.tokensAvailable || 0
+      }));
+    });
+
     return () => {
-      console.log('[useGameState] Limpiando suscripciones de tickets y estado del juego');
+      console.log('[useGameState] Limpiando suscripciones de tickets, estado del juego y tokens');
       unsubscribeTickets();
       unsubscribeState();
+      unsubscribeTokens();
     };
   }, []);
 

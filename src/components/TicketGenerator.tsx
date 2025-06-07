@@ -2,20 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { EmojiGrid } from './EmojiGrid';
 import { generateRandomEmojis } from '../utils/gameLogic';
 import { useWallet } from '../contexts/WalletContext';
-import { WalletIcon, CheckCircle } from 'lucide-react';
+import { WalletIcon, CheckCircle, Coins } from 'lucide-react';
+import { TokenDisplay } from './TokenDisplay';
 
 interface TicketGeneratorProps {
   onGenerateTicket: (numbers: string[]) => void;
   disabled: boolean;
   ticketCount: number;
   maxTickets: number;
+  userTokens: number;
+  tokensUsed?: number;
 }
 
 export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   onGenerateTicket,
   disabled,
   ticketCount,
-  maxTickets
+  maxTickets,
+  userTokens,
+  tokensUsed = 0
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
@@ -47,7 +52,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
 
   const handleGenerateTicket = async (numbers: string[]) => {
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
-    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user);
+    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user, 'tokens:', userTokens);
+    
+    // Verificar si hay tokens suficientes
+    if (userTokens < 1) {
+      console.log('[TicketGenerator] Insufficient tokens');
+      // TODO: Mostrar mensaje de tokens insuficientes
+      return;
+    }
     
     // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
     if (!isConnected || !user?.walletAddress) {
@@ -57,8 +69,8 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
       return;
     }
     
-    // Si hay wallet, generar ticket
-    console.log('[TicketGenerator] Wallet connected, generating ticket');
+    // Si hay wallet y tokens, generar ticket
+    console.log('[TicketGenerator] Wallet connected and tokens available, generating ticket');
     onGenerateTicket(numbers);
     setSelectedEmojis([]); // Reset selection after generating ticket
     setPendingTicket(null);
@@ -76,7 +88,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    if (disabled) return;
+    if (disabled || userTokens < 1) return;
     
     const newSelection = [...selectedEmojis, emoji];
     setSelectedEmojis(newSelection);
@@ -90,7 +102,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleRandomGenerate = () => {
-    if (disabled) return;
+    if (disabled || userTokens < 1) return;
     const randomEmojis = generateRandomEmojis(4);
     handleGenerateTicket(randomEmojis);
   };
@@ -106,9 +118,19 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     setPendingTicket(null);
   };
 
+  const canGenerateTicket = userTokens >= 1 && !disabled;
+  const isOutOfTokens = userTokens === 0;
+
   return (
     <div className="mb-8 space-y-4">
       <div className="flex flex-col gap-4">
+        {/* Token Display */}
+        <TokenDisplay 
+          tokensAvailable={userTokens}
+          tokensUsed={tokensUsed}
+          totalDailyTokens={10}
+        />
+        
         <EmojiGrid
           selectedEmojis={selectedEmojis}
           onEmojiSelect={handleEmojiSelect}
@@ -120,24 +142,25 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         {selectedEmojis.length === 4 && (
           <button
             onClick={handleConfirmSelectedTicket}
-            disabled={disabled}
-            className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 
-                     rounded-xl shadow-lg transform transition hover:scale-105 
-                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+            disabled={!canGenerateTicket}
+            className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105 
+                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
+                     ${canGenerateTicket ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-500 text-gray-300'}`}
           >
             <CheckCircle size={20} />
-            Confirm Ticket with Selected Emojis
+            {isOutOfTokens ? 'No Tokens Available' : 'Confirm Ticket (1 Token)'}
           </button>
         )}
         
         <button
           onClick={handleRandomGenerate}
-          disabled={disabled}
-          className={`w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 
-                   rounded-xl shadow-lg transform transition hover:scale-105 
-                   disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={!canGenerateTicket}
+          className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105 
+                   disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
+                   ${canGenerateTicket ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-gray-500 text-gray-300'}`}
         >
-          Generate Random Ticket
+          <Coins size={20} />
+          {isOutOfTokens ? 'No Tokens Available' : 'Generate Random Ticket (1 Token)'}
         </button>
 
         {/* Prompt de conexión de wallet */}
