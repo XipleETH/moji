@@ -54,5 +54,29 @@ service cloud.firestore {
       allow read: if true;  // Permitir lectura total para debugging
       allow write: if true; // Permitir escritura total para debugging
     }
+    
+    // Prize pools - Sistema de pools de premios dinámicos
+    match /prize_pools/{poolId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize distributions - Distribuciones de premios
+    match /prize_distributions/{distributionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Ticket purchases - Compras de tickets para pools
+    match /ticket_purchases/{purchaseId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Pool transactions - Transacciones de pools de premios
+    match /pool_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
   }
 }

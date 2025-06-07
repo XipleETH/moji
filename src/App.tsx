@@ -18,6 +18,7 @@ import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDispla
 import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
 import { getCurrentUser } from './firebase/auth';
 import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
+import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -66,6 +67,8 @@ import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 // Funciones globales para debuggear pools de premios
 (window as any).debugPrizePool = debugPrizePool;
 (window as any).distributePrizePool = distributePrizePool;
+(window as any).initializeDailyPool = initializeDailyPool;
+(window as any).checkPoolsHealth = checkPoolsHealth;
 
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
@@ -89,6 +92,14 @@ function AppContent() {
       try {
         await sdk.actions.ready();
         console.log("SDK inicializado correctamente");
+        
+        // Inicializar pool de premios del día
+        try {
+          await initializeDailyPool();
+          console.log("Pool de premios inicializada correctamente");
+        } catch (poolError) {
+          console.error("Error inicializando pool de premios:", poolError);
+        }
       } catch (error) {
         console.error("Error inicializando SDK:", error);
       }
