@@ -238,14 +238,26 @@ export const getUserTokenTransactions = async (userId: string, limitCount: numbe
 // Verificar si un usuario puede comprar un ticket
 export const canUserBuyTicket = async (userId: string): Promise<{ canBuy: boolean; reason?: string; tokensAvailable: number }> => {
   try {
+    console.log(`[canUserBuyTicket] Verificando capacidad de compra para usuario: ${userId}`);
+    
     const tokens = await getUserDailyTokens(userId);
     
+    console.log(`[canUserBuyTicket] Tokens obtenidos:`, {
+      userId: tokens.userId,
+      date: tokens.date,
+      tokensAvailable: tokens.tokensAvailable,
+      tokensUsed: tokens.tokensUsed,
+      lastUpdated: new Date(tokens.lastUpdated).toISOString()
+    });
+    
     if (tokens.tokensAvailable >= 1) {
+      console.log(`[canUserBuyTicket] Usuario PUEDE comprar ticket. Tokens disponibles: ${tokens.tokensAvailable}`);
       return {
         canBuy: true,
         tokensAvailable: tokens.tokensAvailable
       };
     } else {
+      console.log(`[canUserBuyTicket] Usuario NO PUEDE comprar ticket. Tokens disponibles: ${tokens.tokensAvailable}`);
       return {
         canBuy: false,
         reason: 'Insufficient tokens for today',
@@ -259,5 +271,29 @@ export const canUserBuyTicket = async (userId: string): Promise<{ canBuy: boolea
       reason: 'Error checking token balance',
       tokensAvailable: 0
     };
+  }
+};
+
+// Función para resetear manualmente los tokens de un usuario (para testing)
+export const resetUserTokens = async (userId: string): Promise<boolean> => {
+  const currentDay = getCurrentGameDay();
+  const tokensRef = doc(db, DAILY_TOKENS_COLLECTION, `${userId}_${currentDay}`);
+  
+  try {
+    console.log(`[resetUserTokens] Reseteando tokens para usuario: ${userId}`);
+    
+    await setDoc(tokensRef, {
+      userId,
+      date: currentDay,
+      tokensAvailable: INITIAL_DAILY_TOKENS,
+      tokensUsed: 0,
+      lastUpdated: serverTimestamp()
+    });
+    
+    console.log(`[resetUserTokens] Tokens reseteados exitosamente para usuario ${userId}: ${INITIAL_DAILY_TOKENS} tokens`);
+    return true;
+  } catch (error) {
+    console.error('[resetUserTokens] Error reseteando tokens:', error);
+    return false;
   }
 }; 

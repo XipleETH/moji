@@ -14,6 +14,52 @@ import { useAuth } from './components/AuthProvider';
 import { useWallet } from './contexts/WalletContext';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
+import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
+import { getCurrentUser } from './firebase/auth';
+
+// Función global para debuggear tokens
+(window as any).debugTokens = async () => {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[debugTokens] No hay usuario conectado');
+      return;
+    }
+    
+    console.log('[debugTokens] Usuario actual:', user.id);
+    
+    const result = await canUserBuyTicket(user.id);
+    console.log('[debugTokens] Resultado de canUserBuyTicket:', result);
+    
+    return result;
+  } catch (error) {
+    console.error('[debugTokens] Error:', error);
+  }
+};
+
+// Función global para resetear tokens
+(window as any).resetTokens = async () => {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[resetTokens] No hay usuario conectado');
+      return;
+    }
+    
+    console.log('[resetTokens] Reseteando tokens para usuario:', user.id);
+    
+    const result = await resetUserTokens(user.id);
+    console.log('[resetTokens] Resultado:', result);
+    
+    // Verificar después del reset
+    const check = await canUserBuyTicket(user.id);
+    console.log('[resetTokens] Verificación después del reset:', check);
+    
+    return result;
+  } catch (error) {
+    console.error('[resetTokens] Error:', error);
+  }
+};
 
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
@@ -248,6 +294,12 @@ function AppContent() {
 }
 
 function App() {
+  useEffect(() => {
+    console.log('[App] Funciones de debug agregadas a window:');
+    console.log('- window.debugTokens() - Ver estado actual de tokens');
+    console.log('- window.resetTokens() - Resetear tokens del usuario actual');
+  }, []);
+
   return (
     <WalletProvider>
       <AppContent />
