@@ -16,15 +16,15 @@ import {
 } from 'firebase/firestore';
 import { DailyTokens, TokenTransaction } from '../types';
 import { getCurrentUser } from './auth';
+import { getCurrentGameDaySaoPaulo } from '../utils/timezone';
 
 const DAILY_TOKENS_COLLECTION = 'daily_tokens';
 const TOKEN_TRANSACTIONS_COLLECTION = 'token_transactions';
 const INITIAL_DAILY_TOKENS = 10;
 
-// Obtener la fecha actual en formato YYYY-MM-DD
+// Obtener la fecha actual en formato YYYY-MM-DD usando timezone de São Paulo
 export const getCurrentGameDay = (): string => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return getCurrentGameDaySaoPaulo();
 };
 
 // Obtener o crear los tokens diarios del usuario

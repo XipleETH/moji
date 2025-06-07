@@ -1,76 +1,138 @@
 import { useState, useEffect, useRef } from 'react';
 import { subscribeToGameState } from '../firebase/gameServer';
+import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo } from '../utils/timezone';
 
 export function useRealTimeTimer(onTimeEnd: () => void) {
-  const [timeRemaining, setTimeRemaining] = useState(86400); // 24 horas en segundos
+  // Inicializar con el tiempo real hasta medianoche de São Paulo
+  const [timeRemaining, setTimeRemaining] = useState(() => getTimeUntilNextDrawSaoPaulo());
   const timerRef = useRef<NodeJS.Timeout>();
-  const lastDayRef = useRef<number>(-1);
+  const lastDayRef = useRef<string>('');
   const processingRef = useRef<boolean>(false);
   const lastProcessedTimeRef = useRef<number>(0);
   const lastDrawTimeRef = useRef<number>(0);
   const syncRef = useRef<boolean>(false);
+  const fallbackTimerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
-    console.log('[useRealTimeTimer] Inicializando temporizador en tiempo real');
+    console.log('[useRealTimeTimer] Inicializando temporizador sincronizado con São Paulo');
+    
+    // Función para calcular tiempo usando timezone de São Paulo
+    const updateSaoPauloTime = () => {
+      const spTime = getTimeUntilNextDrawSaoPaulo();
+      const currentGameDay = getCurrentGameDaySaoPaulo();
+      
+      // Log detallado del timezone
+      console.log(`[useRealTimeTimer] [SP Sync] Game Day: ${currentGameDay}, Time until midnight: ${Math.floor(spTime / 3600)}h ${Math.floor((spTime % 3600) / 60)}m ${spTime % 60}s`);
+      
+      setTimeRemaining(spTime);
+      
+      // Detectar cambio de día en São Paulo
+      if (currentGameDay !== lastDayRef.current && lastDayRef.current !== '') {
+        if (!processingRef.current) {
+          processingRef.current = true;
+          console.log(`[useRealTimeTimer] [SP Sync] Cambio de día detectado: ${lastDayRef.current} → ${currentGameDay}`);
+          
+          setTimeout(() => {
+            console.log(`[useRealTimeTimer] [SP Sync] Ejecutando onTimeEnd por cambio de día`);
+            onTimeEnd();
+            processingRef.current = false;
+          }, 1000);
+        }
+      }
+      
+      lastDayRef.current = currentGameDay;
+      return spTime;
+    };
+
+    // Sincronización inicial
+    const initialTime = updateSaoPauloTime();
+    console.log(`[useRealTimeTimer] [SP Sync] Tiempo inicial calculado: ${initialTime}s`);
     
     // Suscribirse a los cambios de estado del juego desde Firebase
     const unsubscribe = subscribeToGameState((nextDrawTime, winningNumbers) => {
       const now = Date.now();
-      const remaining = Math.max(0, Math.floor((nextDrawTime - now) / 1000));
+      const firebaseRemaining = Math.max(0, Math.floor((nextDrawTime - now) / 1000));
+      const saoPauloRemaining = getTimeUntilNextDrawSaoPaulo();
       
-      console.log(`[useRealTimeTimer] Firebase sync - nextDrawTime: ${new Date(nextDrawTime).toLocaleString()}, remaining: ${remaining}s`);
+      console.log(`[useRealTimeTimer] [Firebase] nextDrawTime: ${formatTimeSaoPaulo(new Date(nextDrawTime))}`);
+      console.log(`[useRealTimeTimer] [Firebase] remaining: ${firebaseRemaining}s vs [SP Calc] ${saoPauloRemaining}s`);
       
-      // Sincronización inicial - ajustar el timer local con el de Firebase
-      if (!syncRef.current) {
-        syncRef.current = true;
-        console.log(`[useRealTimeTimer] Sincronización inicial - ajustando timer a ${remaining}s`);
+      // Usar el tiempo de São Paulo como fuente de verdad, pero sincronizar con Firebase
+      // Solo ajustar si hay una diferencia significativa (más de 10 segundos)
+      const timeDifference = Math.abs(firebaseRemaining - saoPauloRemaining);
+      
+      if (timeDifference > 10) {
+        console.log(`[useRealTimeTimer] [Sync] Diferencia significativa detectada: ${timeDifference}s, usando Firebase`);
+        setTimeRemaining(firebaseRemaining);
+      } else {
+        // Usar el cálculo de São Paulo para mayor precisión
+        setTimeRemaining(saoPauloRemaining);
       }
-      
-      // Actualizar el tiempo restante con los datos de Firebase
-      setTimeRemaining(remaining);
       
       // Detectar cuando el sorteo ha sido completado (nuevo nextDrawTime)
       if (nextDrawTime !== lastDrawTimeRef.current) {
         lastDrawTimeRef.current = nextDrawTime;
         
         // Si el tiempo restante es muy alto (cerca de 24 horas), significa que hubo un nuevo sorteo
-        if (remaining > 86000) { // Más de 23.8 horas = nuevo sorteo
-          const currentDay = new Date().getDate();
+        if (firebaseRemaining > 86000) { // Más de 23.8 horas = nuevo sorteo
+          const currentGameDay = getCurrentGameDaySaoPaulo();
           
-          if (currentDay !== lastDayRef.current && !processingRef.current) {
-            lastDayRef.current = currentDay;
+          if (currentGameDay !== lastDayRef.current && !processingRef.current) {
+            lastDayRef.current = currentGameDay;
             processingRef.current = true;
             
-            console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Nuevo sorteo detectado, notificando fin de temporizador anterior`);
+            console.log(`[useRealTimeTimer] [Firebase] Nuevo sorteo detectado, notificando fin de temporizador anterior`);
             
-            // Pequeño retraso para evitar múltiples llamadas
             setTimeout(() => {
-              console.log(`[useRealTimeTimer] [${new Date().toLocaleTimeString()}] Ejecutando onTimeEnd()`);
+              console.log(`[useRealTimeTimer] [Firebase] Ejecutando onTimeEnd()`);
               onTimeEnd();
               processingRef.current = false;
             }, 1000);
           }
         }
       }
+      
+      if (!syncRef.current) {
+        syncRef.current = true;
+        console.log(`[useRealTimeTimer] [Firebase] Sincronización inicial completada`);
+      }
     });
     
-    // Actualizar el tiempo restante cada segundo solo para UI suave
-    // El tiempo real viene de Firebase
+    // Temporizador principal - actualizar cada segundo usando cálculo de São Paulo
     timerRef.current = setInterval(() => {
+      const currentSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
+      
       setTimeRemaining(prev => {
-        // Solo decrementar si no estamos cerca de la sincronización de Firebase
+        // Usar el cálculo de São Paulo para mantener precisión
+        if (Math.abs(currentSaoPauloTime - prev) > 2) {
+          // Si hay diferencia significativa, usar el cálculo fresco
+          console.log(`[useRealTimeTimer] [Local] Ajustando tiempo: ${prev}s → ${currentSaoPauloTime}s`);
+          return currentSaoPauloTime;
+        }
+        
+        // Solo decrementar si no estamos cerca de 0
         if (prev > 1) {
           return prev - 1;
         }
-        return prev; // Mantener en 0 o 1 hasta que Firebase actualice
+        return currentSaoPauloTime; // Usar cálculo fresco cerca de 0
       });
     }, 1000);
 
+    // Temporizador de respaldo - recalcular cada 30 segundos para mayor precisión
+    fallbackTimerRef.current = setInterval(() => {
+      const preciseSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
+      console.log(`[useRealTimeTimer] [Fallback] Recálculo preciso: ${preciseSaoPauloTime}s`);
+      setTimeRemaining(preciseSaoPauloTime);
+    }, 30000);
+
     return () => {
-      console.log('[useRealTimeTimer] Limpiando suscripción y temporizador');
+      console.log('[useRealTimeTimer] Limpiando suscripción y temporizadores');
       unsubscribe();
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (fallbackTimerRef.current) {
+        clearInterval(fallbackTimerRef.current);
       }
     };
   }, [onTimeEnd]);
