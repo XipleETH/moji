@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { subscribeToGameState } from '../firebase/gameServer';
 import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo } from '../utils/timezone';
+import { distributePrizePool, getDailyPrizePool } from '../firebase/prizePools';
 
 export function useRealTimeTimer(onTimeEnd: () => void) {
   // Inicializar con el tiempo real hasta medianoche de São Paulo
@@ -12,6 +13,8 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
   const lastDrawTimeRef = useRef<number>(0);
   const syncRef = useRef<boolean>(false);
   const fallbackTimerRef = useRef<NodeJS.Timeout>();
+  const poolDistributionRef = useRef<boolean>(false);
+  const poolCheckTimerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     console.log('[useRealTimeTimer] Inicializando temporizador sincronizado con São Paulo');
@@ -125,6 +128,84 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       setTimeRemaining(preciseSaoPauloTime);
     }, 30000);
 
+    // Temporizador para distribución automática de pools (cada minuto)
+    poolCheckTimerRef.current = setInterval(async () => {
+      const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
+      const currentGameDay = getCurrentGameDaySaoPaulo();
+      
+      // Distribuir 10 minutos antes del sorteo (600 segundos)
+      if (timeUntilDraw <= 600 && timeUntilDraw > 590 && !poolDistributionRef.current) {
+        try {
+          console.log(`[useRealTimeTimer] [Pool] Iniciando distribución automática de pool para el día ${currentGameDay}`);
+          poolDistributionRef.current = true;
+          
+          // Verificar si la pool existe y aún no está distribuida
+          const currentPool = await getDailyPrizePool(currentGameDay);
+          
+          if (currentPool && !currentPool.poolsDistributed && currentPool.totalTokensCollected > 0) {
+            const distributionSuccess = await distributePrizePool(currentGameDay);
+            
+            if (distributionSuccess) {
+              console.log(`[useRealTimeTimer] [Pool] ✅ Pool distribuida exitosamente: ${currentPool.totalTokensCollected} tokens`);
+            } else {
+              console.error(`[useRealTimeTimer] [Pool] ❌ Error distribuyendo pool del día ${currentGameDay}`);
+            }
+          } else {
+            console.log(`[useRealTimeTimer] [Pool] ℹ️ Pool del día ${currentGameDay} ya distribuida o sin tokens`);
+          }
+        } catch (error) {
+          console.error(`[useRealTimeTimer] [Pool] Error en distribución automática:`, error);
+        }
+      }
+      
+      // Resetear flag de distribución cuando empieza un nuevo día
+      if (timeUntilDraw > 23 * 60 * 60) { // Más de 23 horas = nuevo día
+        if (poolDistributionRef.current) {
+          console.log(`[useRealTimeTimer] [Pool] Nuevo día detectado, reseteando flag de distribución`);
+          poolDistributionRef.current = false;
+        }
+      }
+    }, 60000); // Cada minuto
+
+    // Temporizador para distribución automática de pools (cada minuto)
+    poolCheckTimerRef.current = setInterval(async () => {
+      const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
+      const currentGameDay = getCurrentGameDaySaoPaulo();
+      
+      // Distribuir 10 minutos antes del sorteo (600 segundos)
+      if (timeUntilDraw <= 600 && timeUntilDraw > 590 && !poolDistributionRef.current) {
+        try {
+          console.log(`[useRealTimeTimer] [Pool] Iniciando distribución automática de pool para el día ${currentGameDay}`);
+          poolDistributionRef.current = true;
+          
+          // Verificar si la pool existe y aún no está distribuida
+          const currentPool = await getDailyPrizePool(currentGameDay);
+          
+          if (currentPool && !currentPool.poolsDistributed && currentPool.totalTokensCollected > 0) {
+            const distributionSuccess = await distributePrizePool(currentGameDay);
+            
+            if (distributionSuccess) {
+              console.log(`[useRealTimeTimer] [Pool] ✅ Pool distribuida exitosamente: ${currentPool.totalTokensCollected} tokens`);
+            } else {
+              console.error(`[useRealTimeTimer] [Pool] ❌ Error distribuyendo pool del día ${currentGameDay}`);
+            }
+          } else {
+            console.log(`[useRealTimeTimer] [Pool] ℹ️ Pool del día ${currentGameDay} ya distribuida o sin tokens`);
+          }
+        } catch (error) {
+          console.error(`[useRealTimeTimer] [Pool] Error en distribución automática:`, error);
+        }
+      }
+      
+      // Resetear flag de distribución cuando empieza un nuevo día
+      if (timeUntilDraw > 23 * 60 * 60) { // Más de 23 horas = nuevo día
+        if (poolDistributionRef.current) {
+          console.log(`[useRealTimeTimer] [Pool] Nuevo día detectado, reseteando flag de distribución`);
+          poolDistributionRef.current = false;
+        }
+      }
+    }, 60000); // Cada minuto
+
     return () => {
       console.log('[useRealTimeTimer] Limpiando suscripción y temporizadores');
       unsubscribe();
@@ -133,6 +214,9 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       }
       if (fallbackTimerRef.current) {
         clearInterval(fallbackTimerRef.current);
+      }
+      if (poolCheckTimerRef.current) {
+        clearInterval(poolCheckTimerRef.current);
       }
     };
   }, [onTimeEnd]);

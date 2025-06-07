@@ -14,8 +14,10 @@ import { useAuth } from './components/AuthProvider';
 import { useWallet } from './contexts/WalletContext';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { WalletInfo } from './components/WalletInfo';
+import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
 import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
 import { getCurrentUser } from './firebase/auth';
+import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -60,6 +62,10 @@ import { getCurrentUser } from './firebase/auth';
     console.error('[resetTokens] Error:', error);
   }
 };
+
+// Funciones globales para debuggear pools de premios
+(window as any).debugPrizePool = debugPrizePool;
+(window as any).distributePrizePool = distributePrizePool;
 
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
@@ -186,6 +192,14 @@ function AppContent() {
           <div className="flex justify-center">
             <Timer seconds={gameState.timeRemaining} />
           </div>
+        </div>
+
+        {/* Pool de Premios */}
+        <div className="max-w-md mx-auto mb-8">
+          <PrizePoolDisplay 
+            showDetailedBreakdown={true} 
+            showDebugControls={import.meta.env.DEV}
+          />
         </div>
 
         <WinnerAnnouncement 

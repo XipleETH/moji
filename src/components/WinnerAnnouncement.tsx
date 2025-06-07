@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Ticket } from '../types';
 import { Trophy, Award, Medal, Ticket as TicketIcon, X } from 'lucide-react';
 import { WinnerProfileModal } from './WinnerProfileModal';
+import { PrizePoolSummary } from './PrizePoolDisplay';
 
 interface WinnerAnnouncementProps {
   winningNumbers: string[];
@@ -148,6 +149,11 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
           ) : (
             <span className="text-gray-500 text-sm">Waiting for next draw...</span>
           )}
+        </div>
+        
+        {/* Pool Summary */}
+        <div className="flex justify-center mb-3">
+          <PrizePoolSummary className="text-sm" />
         </div>
       </div>
       

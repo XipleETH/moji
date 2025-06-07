@@ -7,4 +7,13 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Ignorar advertencias de módulos externos
+        if (warning.code === 'UNRESOLVED_IMPORT') return
+        warn(warning)
+      }
+    }
+  }
 });

@@ -16,6 +16,7 @@ import {
 import { GameResult, Ticket } from '../types';
 import { getCurrentUser } from './auth';
 import { useTokensForTicket, canUserBuyTicket, getCurrentGameDay } from './tokens';
+import { addTokensToPool } from './prizePools';
 
 const GAME_RESULTS_COLLECTION = 'game_results';
 const TICKETS_COLLECTION = 'player_tickets';
@@ -118,6 +119,19 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     console.log('[generateTicket] Intentando guardar en colección:', TICKETS_COLLECTION);
     const ticketRef = await addDoc(collection(db, TICKETS_COLLECTION), ticketData);
     console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
+    
+    // Agregar tokens a la pool de premios del día
+    try {
+      const poolSuccess = await addTokensToPool(user.id, user.walletAddress, 1, ticketRef.id);
+      if (poolSuccess) {
+        console.log(`[generateTicket] Token agregado exitosamente a la pool de premios para el ticket ${ticketRef.id}`);
+      } else {
+        console.warn(`[generateTicket] No se pudo agregar token a la pool de premios (posiblemente pool cerrada). Ticket: ${ticketRef.id}`);
+      }
+    } catch (poolError) {
+      console.error(`[generateTicket] Error agregando token a la pool de premios:`, poolError);
+      // No fallar la generación del ticket por error en la pool
+    }
     
     // Log de éxito
     console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);

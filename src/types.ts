@@ -102,6 +102,69 @@ export interface GameState {
   userTokens: number;      // Tokens disponibles del usuario actual
 }
 
+// Nuevos tipos para el sistema de pools de premios
+export interface PrizePool {
+  gameDay: string;
+  totalTokensCollected: number;
+  poolsDistributed: boolean;
+  distributionTimestamp?: number;
+  pools: {
+    firstPrize: number;        // 64% de tokens
+    firstPrizeReserve: number; // 16% de tokens
+    secondPrize: number;       // 8% de tokens  
+    secondPrizeReserve: number;// 2% de tokens
+    thirdPrize: number;        // 4% de tokens
+    thirdPrizeReserve: number; // 1% de tokens
+    development: number;       // 5% de tokens
+  };
+  reserves: {
+    firstPrizeActivated: boolean;
+    secondPrizeActivated: boolean;
+    thirdPrizeActivated: boolean;
+  };
+  lastUpdated: number;
+}
+
+export interface PrizeDistribution {
+  id: string;
+  gameDay: string;
+  prizeType: 'first' | 'second' | 'third' | 'free';
+  totalWinners: number;
+  totalPrizePool: number;
+  tokensPerWinner: number;
+  winners: {
+    userId: string;
+    walletAddress: string;
+    ticketId: string;
+    tokensAwarded: number;
+  }[];
+  reserveActivated: boolean;
+  reserveTokensDistributed: number;
+  distributionTimestamp: number;
+}
+
+export interface TicketPurchase {
+  id: string;
+  userId: string;
+  walletAddress: string;
+  gameDay: string;
+  tokensSpent: number;
+  ticketId: string;
+  timestamp: number;
+}
+
+export interface PoolTransaction {
+  id: string;
+  gameDay: string;
+  type: 'ticket_purchase' | 'pool_distribution' | 'prize_distribution' | 'reserve_activation';
+  amount: number;
+  fromPool?: string;
+  toPool?: string;
+  description: string;
+  timestamp: number;
+  metadata?: any;
+}
+
 // Nuevas interfaces para el sistema de tokens y premios
 
 export interface DailyTokens {
