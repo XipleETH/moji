@@ -154,11 +154,11 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
       {/* Prize Buttons */}
       {hasWinners && (
         <>
-          <div className="text-center mb-2">
-            <div className="text-xs text-gray-600 bg-gray-50 px-3 py-1 rounded-full inline-block">
-              Click to see winner profiles • Right-click for simple view
-            </div>
-          </div>
+                     <div className="text-center mb-2">
+             <div className="text-xs text-gray-600 bg-gray-50 px-3 py-1 rounded-full inline-block">
+               Click to see winner profiles with detailed stats • Right-click for simple view
+             </div>
+           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           {/* First Prize Button */}
           {firstPrize.length > 0 && (

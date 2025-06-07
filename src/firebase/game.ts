@@ -310,14 +310,35 @@ export const subscribeToCurrentGameState = (
   });
 };
 
-// Función para obtener estadísticas del usuario
+// Cache simple para estadísticas de usuarios
+const statisticsCache = new Map<string, {
+  data: any;
+  timestamp: number;
+  expiry: number;
+}>();
+
+const CACHE_DURATION = 60000; // 1 minuto
+
+// Función optimizada para obtener estadísticas del usuario
 export const getUserStatistics = async (userId: string) => {
   try {
-    // Obtener todos los tickets del usuario
+    // Verificar cache primero
+    const cached = statisticsCache.get(userId);
+    const now = Date.now();
+    
+    if (cached && now < cached.expiry) {
+      console.log(`[getUserStatistics] Usando datos en caché para usuario ${userId}`);
+      return cached.data;
+    }
+
+    console.log(`[getUserStatistics] Obteniendo estadísticas frescas para usuario ${userId}`);
+
+    // Obtener tickets del usuario (limitado a los últimos 100)
     const ticketsQuery = query(
       collection(db, TICKETS_COLLECTION),
       where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(100)
     );
     
     const ticketsSnapshot = await getDocs(ticketsQuery);
@@ -326,14 +347,17 @@ export const getUserStatistics = async (userId: string) => {
       ...doc.data()
     }));
 
-    // Obtener todos los resultados de juegos
+    // Obtener solo los resultados recientes (últimas 2 semanas)
+    const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
     const resultsQuery = query(
       collection(db, GAME_RESULTS_COLLECTION),
-      orderBy('timestamp', 'desc')
+      where('timestamp', '>=', Timestamp.fromMillis(twoWeeksAgo)),
+      orderBy('timestamp', 'desc'),
+      limit(50)
     );
     
     const resultsSnapshot = await getDocs(resultsQuery);
-    const allResults = resultsSnapshot.docs.map(doc => mapFirestoreGameResult(doc));
+    const recentResults = resultsSnapshot.docs.map(doc => mapFirestoreGameResult(doc));
 
     // Contar premios ganados
     let firstPrizeWins = 0;
@@ -341,7 +365,7 @@ export const getUserStatistics = async (userId: string) => {
     let thirdPrizeWins = 0;
     let freePrizeWins = 0;
 
-    allResults.forEach(result => {
+    recentResults.forEach(result => {
       // Verificar en cada categoría de premio
       if (result.firstPrize?.some(ticket => ticket.userId === userId)) {
         firstPrizeWins++;
@@ -357,7 +381,7 @@ export const getUserStatistics = async (userId: string) => {
       }
     });
 
-    return {
+    const statistics = {
       totalTickets: userTickets.length,
       freeTickets: userTickets.filter(ticket => ticket.isFreeTicket).length,
       paidTickets: userTickets.filter(ticket => !ticket.isFreeTicket).length,
@@ -369,6 +393,15 @@ export const getUserStatistics = async (userId: string) => {
       },
       totalWins: firstPrizeWins + secondPrizeWins + thirdPrizeWins + freePrizeWins
     };
+
+    // Guardar en caché
+    statisticsCache.set(userId, {
+      data: statistics,
+      timestamp: now,
+      expiry: now + CACHE_DURATION
+    });
+
+    return statistics;
   } catch (error) {
     console.error('Error getting user statistics:', error);
     throw error;

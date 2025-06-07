@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { X, Trophy, Award, Medal, Ticket as TicketIcon, Wallet, Coins, Calendar, User } from 'lucide-react';
 import { Ticket, WalletProvider } from '../types';
 import { useUserStatistics } from '../hooks/useUserStatistics';
@@ -127,14 +127,15 @@ interface WinnerCardProps {
   onToggleExpanded: () => void;
 }
 
-const WinnerCard: React.FC<WinnerCardProps> = ({
+const WinnerCard: React.FC<WinnerCardProps> = memo(({
   winner,
   prizeInfo,
   index,
   isExpanded,
   onToggleExpanded
 }) => {
-  const { statistics, loading } = useUserStatistics(winner.userId);
+  // Solo cargar estadísticas cuando esté expandido para mejorar rendimiento
+  const { statistics, loading } = useUserStatistics(isExpanded ? winner.userId : null);
 
   return (
     <div className={`border-2 ${prizeInfo.borderColor} rounded-lg transition-all duration-200 ${
@@ -223,7 +224,13 @@ const WinnerCard: React.FC<WinnerCardProps> = ({
                   <div className="text-xs text-gray-600">Total Wins</div>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="text-center py-3">
+                <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                  Click to load user statistics
+                </div>
+              </div>
+            )}
 
             {/* Winning Tickets */}
             <div>
@@ -250,9 +257,9 @@ const WinnerCard: React.FC<WinnerCardProps> = ({
       )}
     </div>
   );
-};
+});
 
-export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = ({
+export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = memo(({
   isOpen,
   onClose,
   prizeCategory,
@@ -260,6 +267,8 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = ({
   gameDate
 }) => {
   const [expandedWinner, setExpandedWinner] = useState<string | null>(null);
+  const [showAllWinners, setShowAllWinners] = useState(false);
+  const MAX_INITIAL_WINNERS = 10;
   
   if (!isOpen) return null;
 
@@ -291,6 +300,8 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = ({
   });
 
   const winnersList = Object.values(winnerGroups);
+  const displayedWinners = showAllWinners ? winnersList : winnersList.slice(0, MAX_INITIAL_WINNERS);
+  const hasMoreWinners = winnersList.length > MAX_INITIAL_WINNERS;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4">
@@ -339,20 +350,33 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = ({
         {/* Winners List */}
         <div className="p-6">
           {winnersList.length > 0 ? (
-            <div className="space-y-4">
-              {winnersList.map((winner, index) => (
-                <WinnerCard
-                  key={winner.userId}
-                  winner={winner}
-                  prizeInfo={prizeInfo}
-                  index={index + 1}
-                  isExpanded={expandedWinner === winner.userId}
-                  onToggleExpanded={() => 
-                    setExpandedWinner(expandedWinner === winner.userId ? null : winner.userId)
-                  }
-                />
-              ))}
-            </div>
+            <>
+              <div className="space-y-4">
+                {displayedWinners.map((winner, index) => (
+                  <WinnerCard
+                    key={winner.userId}
+                    winner={winner}
+                    prizeInfo={prizeInfo}
+                    index={index + 1}
+                    isExpanded={expandedWinner === winner.userId}
+                    onToggleExpanded={() => 
+                      setExpandedWinner(expandedWinner === winner.userId ? null : winner.userId)
+                    }
+                  />
+                ))}
+              </div>
+              
+              {hasMoreWinners && !showAllWinners && (
+                <div className="text-center mt-4">
+                  <button
+                    onClick={() => setShowAllWinners(true)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
+                  >
+                    Show {winnersList.length - MAX_INITIAL_WINNERS} more winners
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8 text-gray-500">
               No winners found for this prize category
@@ -362,4 +386,4 @@ export const WinnerProfileModal: React.FC<WinnerProfileModalProps> = ({
       </div>
     </div>
   );
-}; 
+}); 
