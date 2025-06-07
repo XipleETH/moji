@@ -66,6 +66,13 @@ export interface Ticket {
   gameDay: string;         // Día del juego (YYYY-MM-DD) - ticket solo válido para este día
   tokenCost: number;       // Costo en tokens (siempre 1 para este sistema)
   isActive: boolean;       // Si el ticket está activo para el sorteo
+  // Campos adicionales para mostrar perfil de usuario
+  username?: string;       // Nombre de usuario para mostrar
+  walletProvider?: WalletProvider; // Proveedor de wallet del usuario
+  chainId?: number;        // Red de blockchain
+  isFarcasterUser?: boolean; // Si es usuario de Farcaster
+  verifiedWallet?: boolean; // Si la wallet está verificada
+  connectedAt?: number;    // Cuándo se conectó el usuario
 }
 
 export interface GameResult {
