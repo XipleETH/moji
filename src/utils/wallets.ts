@@ -60,27 +60,62 @@ export const getWalletProvider = (walletId: WalletProvider): any => {
   
   if (!ethereum) return null;
   
+  console.log(`[getWalletProvider] Looking for ${walletId} provider...`);
+  console.log(`[getWalletProvider] ethereum object:`, ethereum);
+  
   switch (walletId) {
     case 'coinbase':
       // Si hay múltiples proveedores, buscar Coinbase Wallet específicamente
-      if (ethereum.providers) {
-        return ethereum.providers.find((provider: any) => provider.isCoinbaseWallet);
+      if (ethereum.providers && Array.isArray(ethereum.providers)) {
+        console.log(`[getWalletProvider] Multiple providers found, searching for Coinbase...`);
+        const coinbaseProvider = ethereum.providers.find((provider: any) => 
+          provider.isCoinbaseWallet || provider.isCoinbaseBrowser
+        );
+        if (coinbaseProvider) {
+          console.log(`[getWalletProvider] Found Coinbase provider:`, coinbaseProvider);
+          return coinbaseProvider;
+        }
       }
-      // Si es el único proveedor y es Coinbase Wallet
-      return ethereum.isCoinbaseWallet ? ethereum : null;
+      
+      // Si es el único proveedor, intentar usarlo si parece ser Coinbase
+      if (ethereum.isCoinbaseWallet || ethereum.isCoinbaseBrowser) {
+        console.log(`[getWalletProvider] Single Coinbase provider found`);
+        return ethereum;
+      }
+      
+      // Si no se detecta específicamente como Coinbase, intentar anyway
+      console.log(`[getWalletProvider] No specific Coinbase detection, trying generic ethereum...`);
+      return ethereum;
       
     case 'metamask':
       // Si hay múltiples proveedores, buscar MetaMask específicamente
-      if (ethereum.providers) {
-        return ethereum.providers.find((provider: any) => provider.isMetaMask && !provider.isCoinbaseWallet);
+      if (ethereum.providers && Array.isArray(ethereum.providers)) {
+        console.log(`[getWalletProvider] Multiple providers found, searching for MetaMask...`);
+        const metamaskProvider = ethereum.providers.find((provider: any) => 
+          provider.isMetaMask && !provider.isCoinbaseWallet
+        );
+        if (metamaskProvider) {
+          console.log(`[getWalletProvider] Found MetaMask provider:`, metamaskProvider);
+          return metamaskProvider;
+        }
       }
+      
       // Si es el único proveedor y es MetaMask
-      return (ethereum.isMetaMask && !ethereum.isCoinbaseWallet) ? ethereum : null;
+      if (ethereum.isMetaMask && !ethereum.isCoinbaseWallet) {
+        console.log(`[getWalletProvider] Single MetaMask provider found`);
+        return ethereum;
+      }
+      
+      // Si no se detecta específicamente como MetaMask, intentar anyway
+      console.log(`[getWalletProvider] No specific MetaMask detection, trying generic ethereum...`);
+      return ethereum;
       
     case 'injected':
+      console.log(`[getWalletProvider] Using generic injected provider`);
       return ethereum;
       
     default:
+      console.log(`[getWalletProvider] Unknown wallet type: ${walletId}`);
       return null;
   }
 };
@@ -100,47 +135,58 @@ export const getSupportedWallets = (): WalletInfo[] => {
   
   const wallets: WalletInfo[] = [];
   
-  // Coinbase Wallet
-  wallets.push({
-    id: 'coinbase',
-    name: 'Coinbase Wallet',
-    icon: '🟦',
-    description: 'Connect with Coinbase Wallet',
-    isAvailable: hasCoinbase,
-    isInstalled: hasCoinbase,
-    downloadUrl: 'https://www.coinbase.com/wallet'
-  });
-  
-  // MetaMask
-  wallets.push({
-    id: 'metamask',
-    name: 'MetaMask',
-    icon: '🦊',
-    description: 'Connect with MetaMask',
-    isAvailable: hasMetaMask,
-    isInstalled: hasMetaMask,
-    downloadUrl: 'https://metamask.io/download/'
-  });
-  
-  // Generic browser wallet (si hay ethereum pero no es específicamente Coinbase o MetaMask)
-  if (hasEthereum && !hasCoinbase && !hasMetaMask) {
+  // Si hay ethereum, mostrar todas las opciones y dejar que el usuario pruebe
+  if (hasEthereum) {
+    // Coinbase Wallet - Intentar siempre si hay ethereum
+    wallets.push({
+      id: 'coinbase',
+      name: 'Coinbase Wallet',
+      icon: '🟦',
+      description: 'Try Coinbase Wallet connection',
+      isAvailable: true, // Siempre true si hay ethereum
+      isInstalled: hasCoinbase,
+      downloadUrl: 'https://www.coinbase.com/wallet'
+    });
+    
+    // MetaMask - Intentar siempre si hay ethereum
+    wallets.push({
+      id: 'metamask',
+      name: 'MetaMask',
+      icon: '🦊',
+      description: 'Try MetaMask connection',
+      isAvailable: true, // Siempre true si hay ethereum
+      isInstalled: hasMetaMask,
+      downloadUrl: 'https://metamask.io/download/'
+    });
+    
+    // Generic wallet
     wallets.push({
       id: 'injected',
       name: 'Browser Wallet',
       icon: '🌐',
-      description: 'Connect with browser wallet',
+      description: 'Connect with any injected wallet',
       isAvailable: true,
     });
-  }
-  
-  // Si hay ethereum pero no se detectó ninguna wallet específica, mostrar opción genérica
-  if (hasEthereum && wallets.filter(w => w.isAvailable).length === 0) {
+  } else {
+    // No hay ethereum, mostrar opciones de descarga
     wallets.push({
-      id: 'injected',
-      name: 'Injected Wallet',
-      icon: '💼',
-      description: 'Connect with injected wallet',
-      isAvailable: true,
+      id: 'coinbase',
+      name: 'Coinbase Wallet',
+      icon: '🟦',
+      description: 'Download and install Coinbase Wallet',
+      isAvailable: false,
+      isInstalled: false,
+      downloadUrl: 'https://www.coinbase.com/wallet'
+    });
+    
+    wallets.push({
+      id: 'metamask',
+      name: 'MetaMask',
+      icon: '🦊',
+      description: 'Download and install MetaMask',
+      isAvailable: false,
+      isInstalled: false,
+      downloadUrl: 'https://metamask.io/download/'
     });
   }
   

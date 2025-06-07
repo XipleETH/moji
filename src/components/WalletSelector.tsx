@@ -31,9 +31,13 @@ export const WalletSelector: React.FC<WalletSelectorProps> = ({
   if (!isOpen) return null;
 
   const handleWalletClick = (wallet: WalletInfo) => {
+    console.log('[WalletSelector] Wallet clicked:', wallet);
+    
     if (wallet.isAvailable) {
+      console.log('[WalletSelector] Wallet is available, attempting connection...');
       onWalletSelect(wallet.id);
     } else {
+      console.log('[WalletSelector] Wallet not available, opening download link...');
       // Si no está disponible, abrir la URL de descarga
       if (wallet.downloadUrl) {
         window.open(wallet.downloadUrl, '_blank');
