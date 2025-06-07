@@ -36,5 +36,23 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true; // Permitir escritura para facilitar pruebas
     }
+    
+    // Daily tokens - Sistema de tokens diarios
+    match /daily_tokens/{tokenId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize transactions - Transacciones de premios
+    match /prize_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Token transactions - Historial de transacciones de tokens
+    match /token_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
   }
 }
