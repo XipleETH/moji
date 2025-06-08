@@ -121,15 +121,20 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
     
     // Agregar tokens a la pool de premios del día
+    console.log(`[generateTicket] 🎯 Intentando agregar token a la pool de premios...`);
+    console.log(`[generateTicket] Usuario:`, user.id);
+    console.log(`[generateTicket] Wallet:`, user.walletAddress);
+    console.log(`[generateTicket] Ticket ID:`, ticketRef.id);
+    
     try {
       const poolSuccess = await addTokensToPool(user.id, user.walletAddress, 1, ticketRef.id);
       if (poolSuccess) {
-        console.log(`[generateTicket] Token agregado exitosamente a la pool de premios para el ticket ${ticketRef.id}`);
+        console.log(`[generateTicket] ✅ Token agregado exitosamente a la pool de premios para el ticket ${ticketRef.id}`);
       } else {
-        console.warn(`[generateTicket] No se pudo agregar token a la pool de premios (posiblemente pool cerrada). Ticket: ${ticketRef.id}`);
+        console.error(`[generateTicket] ❌ No se pudo agregar token a la pool de premios. Ticket: ${ticketRef.id}`);
       }
     } catch (poolError) {
-      console.error(`[generateTicket] Error agregando token a la pool de premios:`, poolError);
+      console.error(`[generateTicket] 💥 Error crítico agregando token a la pool de premios:`, poolError);
       // No fallar la generación del ticket por error en la pool
     }
     

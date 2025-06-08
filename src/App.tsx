@@ -206,6 +206,8 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
     console.log('- Total tokens:', pool.totalTokensCollected);
     console.log('- Pool distribuida:', pool.poolsDistributed ? 'SÍ' : 'NO');
     console.log('- Puede agregar tokens:', !pool.poolsDistributed ? 'SÍ' : 'NO');
+    console.log('- Pools acumuladas:', pool.accumulatedFromPreviousDays);
+    console.log('- Pools finales:', pool.finalPools);
     
     if (pool.distributionTimestamp) {
       console.log('- Distribuida en:', new Date(pool.distributionTimestamp).toLocaleString());
@@ -214,6 +216,45 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
     return pool;
   } catch (error) {
     console.error('[getCurrentPoolState] Error:', error);
+  }
+};
+
+// Función global para verificar permisos de escritura en Firebase
+(window as any).testFirebaseWrite = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+    const { getCurrentGameDaySaoPaulo } = await import('./utils/timezone');
+    
+    const currentDay = getCurrentGameDaySaoPaulo();
+    console.log('🔥 Probando escritura en Firebase...');
+    
+    // Intentar escribir en la colección de test
+    const testRef = doc(db, 'test_collection', 'test_' + Date.now());
+    await setDoc(testRef, {
+      message: 'Test de escritura',
+      timestamp: serverTimestamp(),
+      currentDay: currentDay
+    });
+    
+    console.log('✅ Escritura en Firebase exitosa');
+    
+    // Intentar escribir directamente en prize_pools
+    const poolRef = doc(db, 'prize_pools', 'test_' + currentDay);
+    await setDoc(poolRef, {
+      gameDay: currentDay,
+      totalTokensCollected: 1,
+      poolsDistributed: false,
+      testEntry: true,
+      timestamp: serverTimestamp()
+    });
+    
+    console.log('✅ Escritura en prize_pools exitosa');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error en escritura de Firebase:', error);
+    return false;
   }
 };
 
@@ -475,6 +516,7 @@ function App() {
     console.log('- window.checkPoolsHealth() - Verificar salud de pools');
     console.log('- window.testPoolAccumulation() - Probar acumulación de pools');
     console.log('- window.simulateNoWinnersDay("2024-12-20") - Simular día sin ganadores');
+    console.log('- window.testFirebaseWrite() - Probar permisos de escritura en Firebase');
   }, []);
 
   return (

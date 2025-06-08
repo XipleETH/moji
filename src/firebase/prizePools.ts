@@ -187,8 +187,8 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
         lastUpdated: data.lastUpdated?.toMillis() || Date.now()
       };
     } else {
-      // Crear nueva pool del día con posible acumulación de días anteriores
-      const accumulatedPools = await getAccumulatedPools(currentDay);
+      // Crear nueva pool del día (temporalmente sin acumulación para debugging)
+      console.log(`[getDailyPrizePool] Creando nueva pool básica para ${currentDay}`);
       
       const newPool: PrizePool = {
         gameDay: currentDay,
@@ -208,11 +208,16 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
           secondPrizeActivated: false,
           thirdPrizeActivated: false
         },
-        accumulatedFromPreviousDays: accumulatedPools,
+        accumulatedFromPreviousDays: {
+          firstPrize: 0,
+          secondPrize: 0,
+          thirdPrize: 0,
+          totalDaysAccumulated: 0
+        },
         finalPools: {
-          firstPrize: accumulatedPools.firstPrize,
-          secondPrize: accumulatedPools.secondPrize,
-          thirdPrize: accumulatedPools.thirdPrize
+          firstPrize: 0,
+          secondPrize: 0,
+          thirdPrize: 0
         },
         lastUpdated: Date.now()
       };
@@ -237,29 +242,45 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
   const poolRef = doc(db, PRIZE_POOLS_COLLECTION, currentDay);
   
   try {
+    // Verificar si la pool existe antes de la transacción
+    const poolCheck = await getDoc(poolRef);
+    
+    if (!poolCheck.exists()) {
+      console.log(`[addTokensToPool] Pool no existe, creando nueva pool para ${currentDay}`);
+      // Crear la pool fuera de la transacción
+      await getDailyPrizePool(currentDay);
+      console.log(`[addTokensToPool] Pool creada fuera de transacción`);
+    }
+    
     return await runTransaction(db, async (transaction) => {
       const poolDoc = await transaction.get(poolRef);
       
-      let currentPool: PrizePool;
-      if (poolDoc.exists()) {
-        const data = poolDoc.data();
-        currentPool = {
-          gameDay: currentDay,
-          totalTokensCollected: data.totalTokensCollected || 0,
-          poolsDistributed: data.poolsDistributed || false,
-          distributionTimestamp: data.distributionTimestamp?.toMillis(),
-          pools: data.pools || {
-            firstPrize: 0, firstPrizeReserve: 0, secondPrize: 0,
-            secondPrizeReserve: 0, thirdPrize: 0, thirdPrizeReserve: 0, development: 0
-          },
-          reserves: data.reserves || {
-            firstPrizeActivated: false, secondPrizeActivated: false, thirdPrizeActivated: false
-          },
-          lastUpdated: data.lastUpdated?.toMillis() || Date.now()
-        };
-      } else {
-        currentPool = await getDailyPrizePool(currentDay);
+      if (!poolDoc.exists()) {
+        console.error(`[addTokensToPool] Pool aún no existe después de crearla`);
+        return false;
       }
+      
+      const data = poolDoc.data();
+      const currentPool: PrizePool = {
+        gameDay: currentDay,
+        totalTokensCollected: data.totalTokensCollected || 0,
+        poolsDistributed: data.poolsDistributed || false,
+        distributionTimestamp: data.distributionTimestamp?.toMillis(),
+        pools: data.pools || {
+          firstPrize: 0, firstPrizeReserve: 0, secondPrize: 0,
+          secondPrizeReserve: 0, thirdPrize: 0, thirdPrizeReserve: 0, development: 0
+        },
+        reserves: data.reserves || {
+          firstPrizeActivated: false, secondPrizeActivated: false, thirdPrizeActivated: false
+        },
+        accumulatedFromPreviousDays: data.accumulatedFromPreviousDays || {
+          firstPrize: 0, secondPrize: 0, thirdPrize: 0, totalDaysAccumulated: 0
+        },
+        finalPools: data.finalPools || {
+          firstPrize: 0, secondPrize: 0, thirdPrize: 0
+        },
+        lastUpdated: data.lastUpdated?.toMillis() || Date.now()
+      };
       
       // Verificar que la pool no esté cerrada (distribución ya realizada)
       if (currentPool.poolsDistributed) {
@@ -277,13 +298,18 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
       console.log(`[addTokensToPool] ✅ Pool activa del día ${currentDay}, agregando ${tokensSpent} tokens. Actual: ${currentPool.totalTokensCollected}`);
       
       // Actualizar pool con los nuevos tokens
+      const newTotal = currentPool.totalTokensCollected + tokensSpent;
       const updatedPool = {
         ...currentPool,
-        totalTokensCollected: currentPool.totalTokensCollected + tokensSpent,
+        totalTokensCollected: newTotal,
         lastUpdated: serverTimestamp()
       };
       
+      console.log(`[addTokensToPool] 🔄 Actualizando pool: ${currentPool.totalTokensCollected} + ${tokensSpent} = ${newTotal}`);
+      console.log(`[addTokensToPool] Pool a guardar:`, updatedPool);
+      
       transaction.set(poolRef, updatedPool);
+      console.log(`[addTokensToPool] ✅ Transaction.set ejecutado`);
       
       // Registrar la compra del ticket
       const purchaseRef = doc(collection(db, TICKET_PURCHASES_COLLECTION));
@@ -320,7 +346,8 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
         timestamp: serverTimestamp()
       });
       
-      console.log(`[addTokensToPool] ${tokensSpent} tokens agregados a la pool del día ${currentDay}. Total: ${updatedPool.totalTokensCollected}`);
+      console.log(`[addTokensToPool] ${tokensSpent} tokens agregados a la pool del día ${currentDay}. Total: ${newTotal}`);
+      console.log(`[addTokensToPool] 🎉 Transacción completada exitosamente`);
       return true;
     });
   } catch (error) {
