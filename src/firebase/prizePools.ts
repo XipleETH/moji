@@ -642,6 +642,7 @@ export const getPoolStatistics = async (gameDay?: string) => {
     const pool = await getDailyPrizePool(currentDay);
     
     // Obtener número de participantes únicos
+    // Requiere índice compuesto: ticket_purchases (gameDay ASC, timestamp DESC)
     const purchasesQuery = query(
       collection(db, TICKET_PURCHASES_COLLECTION),
       where('gameDay', '==', currentDay),
