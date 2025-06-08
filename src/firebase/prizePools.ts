@@ -158,7 +158,7 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
         gameDay: currentDay,
         totalTokensCollected: data.totalTokensCollected || 0,
         poolsDistributed: data.poolsDistributed || false,
-        distributionTimestamp: data.distributionTimestamp?.toMillis(),
+        ...(data.distributionTimestamp && { distributionTimestamp: data.distributionTimestamp.toMillis() }),
         pools: {
           firstPrize: data.pools?.firstPrize || 0,
           firstPrizeReserve: data.pools?.firstPrizeReserve || 0,
@@ -265,7 +265,7 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
         gameDay: currentDay,
         totalTokensCollected: data.totalTokensCollected || 0,
         poolsDistributed: data.poolsDistributed || false,
-        distributionTimestamp: data.distributionTimestamp?.toMillis(),
+        ...(data.distributionTimestamp && { distributionTimestamp: data.distributionTimestamp.toMillis() }),
         pools: data.pools || {
           firstPrize: 0, firstPrizeReserve: 0, secondPrize: 0,
           secondPrizeReserve: 0, thirdPrize: 0, thirdPrizeReserve: 0, development: 0
@@ -590,7 +590,7 @@ export const subscribeToPrizePool = (callback: (pool: PrizePool | null) => void)
         gameDay: currentDay,
         totalTokensCollected: data.totalTokensCollected || 0,
         poolsDistributed: data.poolsDistributed || false,
-        distributionTimestamp: data.distributionTimestamp?.toMillis(),
+        ...(data.distributionTimestamp && { distributionTimestamp: data.distributionTimestamp.toMillis() }),
         pools: {
           firstPrize: data.pools?.firstPrize || 0,
           firstPrizeReserve: data.pools?.firstPrizeReserve || 0,
