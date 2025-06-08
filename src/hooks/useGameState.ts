@@ -125,35 +125,24 @@ export function useGameState() {
     if (!numbers?.length) return;
     
     try {
-      // Crear un ticket temporal para mostrar inmediatamente
-      const tempTicket: Ticket = {
-        id: 'temp-' + crypto.randomUUID(),
-        numbers,
-        timestamp: Date.now(),
-        userId: 'temp'
-      };
+      console.log('[useGameState] Iniciando generación de ticket...');
       
-      // Actualizar el estado inmediatamente con el ticket temporal
-      setGameState(prev => ({
-        ...prev,
-        tickets: [...prev.tickets, tempTicket]
-      }));
-      
-      // Generar el ticket en Firebase
+      // No crear ticket temporal, directamente generar en Firebase
+      // y solo mostrar cuando esté confirmado
       const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
         return generateFirebaseTicket(numbers);
       });
       
       if (!ticket) {
-        // Si hay un error, eliminar el ticket temporal
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
-        }));
+        console.log('[useGameState] ❌ No se pudo generar el ticket');
+        // Opcional: mostrar notificación de error
+      } else {
+        console.log('[useGameState] ✅ Ticket generado exitosamente:', ticket.id);
+        // El ticket aparecerá automáticamente via suscripción
       }
       
     } catch (error) {
-      console.error('Error generating ticket:', error);
+      console.error('[useGameState] Error generating ticket:', error);
     }
   }, []);
 

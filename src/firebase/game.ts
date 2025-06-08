@@ -11,7 +11,8 @@ import {
   serverTimestamp,
   where,
   Timestamp,
-  getDocs
+  getDocs,
+  runTransaction
 } from 'firebase/firestore';
 import { GameResult, Ticket } from '../types';
 import { getCurrentUser } from './auth';
@@ -54,7 +55,7 @@ const mapFirestoreTicket = (doc: any): Ticket => {
   };
 };
 
-// Generar un ticket
+// Generar un ticket (mejorado para evitar condiciones de carrera)
 export const generateTicket = async (numbers: string[]): Promise<Ticket | null> => {
   try {
     console.log('[generateTicket] Iniciando generación de ticket con números:', numbers);
@@ -62,111 +63,131 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     const user = await getCurrentUser();
     console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Wallet: ${user.walletAddress}` : 'No hay usuario');
     
-    // Verificar que el usuario tenga una billetera (no requiere Farcaster específicamente)
+    // Verificar que el usuario tenga una billetera
     if (!user || !user.walletAddress) {
       console.error('[generateTicket] Error: Usuario no tiene wallet conectada');
       return null;
     }
     
-    // Verificar si el usuario puede comprar un ticket (tiene tokens suficientes)
-    const { canBuy, reason, tokensAvailable } = await canUserBuyTicket(user.id);
-    if (!canBuy) {
-      console.error(`[generateTicket] Error: Usuario no puede comprar ticket - ${reason}. Tokens disponibles: ${tokensAvailable}`);
-      return null;
-    }
-    
-    // Usar tokens para el ticket
-    const tokenUsed = await useTokensForTicket(user.id, 1);
-    if (!tokenUsed) {
-      console.error('[generateTicket] Error: No se pudieron usar los tokens');
-      return null;
-    }
-    
-    console.log('[generateTicket] Tokens utilizados exitosamente, creando ticket...');
-    
     const currentGameDay = getCurrentGameDay();
     
-    // Generar un hash único para el ticket (simulado)
-    const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-    
-    // Incluir información del usuario en el ticket
-    const ticketData = {
-      numbers,
-      timestamp: serverTimestamp(),
-      userId: user.id,
-      username: user.username,
-      walletAddress: user.walletAddress,
-      fid: user.fid || 0, // Puede ser 0 si no es usuario de Farcaster
-      isFarcasterUser: user.isFarcasterUser || false,
-      verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
-      chainId: user.chainId || 8453, // Base por defecto
-      walletProvider: user.walletProvider || 'injected', // Proveedor de wallet utilizado
-      ticketHash: uniqueHash,
-      // Nuevos campos para el sistema de tokens y días
-      gameDay: currentGameDay,
-      tokenCost: 1,
-      isActive: true
-    };
-    
-    console.log('[generateTicket] Datos del ticket preparados:', {
-      userId: ticketData.userId,
-      username: ticketData.username,
-      walletAddress: ticketData.walletAddress,
-      numbersCount: ticketData.numbers.length,
-      collection: TICKETS_COLLECTION
+    // Usar una transacción para garantizar atomicidad
+    return await runTransaction(db, async (transaction) => {
+      // 1. Verificar tokens disponibles dentro de la transacción
+      const tokensRef = doc(db, 'daily_tokens', `${user.id}_${currentGameDay}`);
+      const tokensDoc = await transaction.get(tokensRef);
+      
+      let currentTokens = { tokensAvailable: 10, tokensUsed: 0 };
+      if (tokensDoc.exists()) {
+        currentTokens = tokensDoc.data() as any;
+      }
+      
+      // Verificar si tiene tokens suficientes
+      if (currentTokens.tokensAvailable < 1) {
+        console.error(`[generateTicket] Error: Usuario no tiene tokens suficientes. Disponibles: ${currentTokens.tokensAvailable}`);
+        throw new Error('Insufficient tokens');
+      }
+      
+      // 2. Crear el ticket
+      const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      const ticketRef = doc(collection(db, TICKETS_COLLECTION));
+      
+      const ticketData = {
+        numbers,
+        timestamp: serverTimestamp(),
+        userId: user.id,
+        username: user.username,
+        walletAddress: user.walletAddress,
+        fid: user.fid || 0,
+        isFarcasterUser: user.isFarcasterUser || false,
+        verifiedWallet: user.verifiedWallet || true,
+        chainId: user.chainId || 8453,
+        walletProvider: user.walletProvider || 'injected',
+        ticketHash: uniqueHash,
+        gameDay: currentGameDay,
+        tokenCost: 1,
+        isActive: true
+      };
+      
+      // 3. Actualizar tokens dentro de la transacción
+      const newTokenData = {
+        userId: user.id,
+        date: currentGameDay,
+        tokensAvailable: currentTokens.tokensAvailable - 1,
+        tokensUsed: (currentTokens.tokensUsed || 0) + 1,
+        lastUpdated: serverTimestamp()
+      };
+      
+      // 4. Crear purchase record
+      const purchaseRef = doc(collection(db, 'ticket_purchases'));
+      const purchaseData = {
+        id: purchaseRef.id,
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        gameDay: currentGameDay,
+        tokensSpent: 1,
+        ticketId: ticketRef.id,
+        timestamp: serverTimestamp()
+      };
+      
+      // 5. Ejecutar todas las operaciones en la transacción
+      transaction.set(ticketRef, ticketData);
+      
+      if (tokensDoc.exists()) {
+        transaction.update(tokensRef, newTokenData);
+      } else {
+        transaction.set(tokensRef, newTokenData);
+      }
+      
+      transaction.set(purchaseRef, purchaseData);
+      
+      console.log(`[generateTicket] ✅ Transacción preparada - Ticket: ${ticketRef.id}, Tokens restantes: ${newTokenData.tokensAvailable}`);
+      
+      // Devolver el ticket creado
+      const newTicket: Ticket = {
+        id: ticketRef.id,
+        numbers,
+        timestamp: Date.now(),
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        fid: user.fid,
+        gameDay: currentGameDay,
+        tokenCost: 1,
+        isActive: true
+      };
+      
+      return newTicket;
+    }).then(async (ticket) => {
+      // Agregar a la pool después de que se confirme la transacción principal
+      if (ticket) {
+        await addTicketToPool(user.id, user.walletAddress, ticket.id);
+      }
+      return ticket;
     });
     
-    console.log('[generateTicket] Intentando guardar en colección:', TICKETS_COLLECTION);
-    const ticketRef = await addDoc(collection(db, TICKETS_COLLECTION), ticketData);
-    console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
-    
-    // Agregar tokens a la pool de premios del día
-    console.log(`[generateTicket] 🎯 Intentando agregar token a la pool de premios...`);
-    console.log(`[generateTicket] Usuario:`, user.id);
-    console.log(`[generateTicket] Wallet:`, user.walletAddress);
-    console.log(`[generateTicket] Ticket ID:`, ticketRef.id);
-    
-    try {
-      const poolSuccess = await addTokensToPool(user.id, user.walletAddress, 1, ticketRef.id);
-      if (poolSuccess) {
-        console.log(`[generateTicket] ✅ Token agregado exitosamente a la pool de premios para el ticket ${ticketRef.id}`);
-      } else {
-        console.error(`[generateTicket] ❌ No se pudo agregar token a la pool de premios. Ticket: ${ticketRef.id}`);
-      }
-    } catch (poolError) {
-      console.error(`[generateTicket] 💥 Error crítico agregando token a la pool de premios:`, poolError);
-      // No fallar la generación del ticket por error en la pool
-    }
-    
-    // Log de éxito
-    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);
-    
-    // Devolver el ticket creado
-    const newTicket: Ticket = {
-      id: ticketRef.id,
-      numbers,
-      timestamp: Date.now(),
-      userId: user.id,
-      walletAddress: user.walletAddress,
-      fid: user.fid,
-      gameDay: currentGameDay,
-      tokenCost: 1,
-      isActive: true
-    };
-    
-    console.log('[generateTicket] Ticket devuelto:', newTicket);
-    return newTicket;
   } catch (error) {
-    console.error('[generateTicket] Error generating ticket:', error);
+    console.error('[generateTicket] Error en transacción:', error);
     
-    // Información adicional de debugging
-    if (error instanceof Error) {
-      console.error('[generateTicket] Error name:', error.name);
-      console.error('[generateTicket] Error message:', error.message);
-      console.error('[generateTicket] Error stack:', error.stack);
+    if (error instanceof Error && error.message === 'Insufficient tokens') {
+      console.error('[generateTicket] Usuario sin tokens suficientes');
     }
     
     return null;
+  }
+};
+
+// Función auxiliar para agregar tokens a la pool después de crear el ticket
+const addTicketToPool = async (userId: string, walletAddress: string, ticketId: string) => {
+  try {
+    console.log(`[addTicketToPool] Agregando ticket ${ticketId} a la pool de premios...`);
+    const poolSuccess = await addTokensToPool(userId, walletAddress, 1, ticketId);
+    if (poolSuccess) {
+      console.log(`[addTicketToPool] ✅ Token agregado exitosamente a la pool para el ticket ${ticketId}`);
+    } else {
+      console.log(`[addTicketToPool] ⚠️ No se pudo agregar token a la pool para el ticket ${ticketId}`);
+    }
+  } catch (error) {
+    console.error(`[addTicketToPool] Error agregando token a la pool:`, error);
   }
 };
 
@@ -257,60 +278,73 @@ export const subscribeToGameResults = (
 // Suscribirse a los tickets del usuario actual (solo del día actual)
 export const subscribeToUserTickets = (
   callback: (tickets: Ticket[]) => void
-) => {
-  try {
-    // Primero obtenemos el usuario actual como promesa
-    getCurrentUser().then(user => {
-      if (!user) {
-        callback([]);
-        return () => {};
-      }
-      
-      const currentGameDay = getCurrentGameDay();
-      
-      const ticketsQuery = query(
-        collection(db, TICKETS_COLLECTION),
-        where('userId', '==', user.id),
-        where('gameDay', '==', currentGameDay),
-        where('isActive', '==', true),
-        orderBy('timestamp', 'desc')
-      );
-      
-      return onSnapshot(ticketsQuery, (snapshot) => {
-        try {
-          const tickets = snapshot.docs.map(doc => {
-            try {
-              return mapFirestoreTicket(doc);
-            } catch (error) {
-              console.error('Error mapping ticket document:', error, doc.id);
-              return null;
-            }
-          }).filter(ticket => ticket !== null) as Ticket[];
-          
-          callback(tickets);
-        } catch (error) {
-          console.error('Error processing tickets snapshot:', error);
-          callback([]);
-        }
-      }, (error) => {
-        console.error('Error in subscribeToUserTickets:', error);
-        callback([]);
-      });
-    }).catch(error => {
-      console.error('Error getting current user:', error);
+): (() => void) => {
+  console.log('[subscribeToUserTickets] Iniciando suscripción a tickets del usuario');
+  
+  let unsubscribeFirestore: (() => void) | null = null;
+  
+  // Obtener usuario y configurar suscripción
+  getCurrentUser().then(user => {
+    if (!user) {
+      console.log('[subscribeToUserTickets] No hay usuario conectado');
       callback([]);
-      return () => {};
-    });
+      return;
+    }
     
-    // Devolver una función de unsubscribe temporal
-    return () => {
-      // Esta función será reemplazada cuando se resuelva la promesa
-    };
-  } catch (error) {
-    console.error('Error setting up user tickets subscription:', error);
+    console.log(`[subscribeToUserTickets] Usuario conectado: ${user.id}`);
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[subscribeToUserTickets] Buscando tickets del día: ${currentGameDay}`);
+    
+    const ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', user.id),
+      where('gameDay', '==', currentGameDay),
+      where('isActive', '==', true),
+      orderBy('timestamp', 'desc')
+    );
+    
+    unsubscribeFirestore = onSnapshot(ticketsQuery, (snapshot) => {
+      try {
+        console.log(`[subscribeToUserTickets] Snapshot recibido con ${snapshot.docs.length} documentos`);
+        
+        const tickets = snapshot.docs.map(doc => {
+          try {
+            const ticket = mapFirestoreTicket(doc);
+            console.log(`[subscribeToUserTickets] Ticket mapeado:`, {
+              id: ticket.id,
+              gameDay: ticket.gameDay,
+              isActive: ticket.isActive,
+              numbers: ticket.numbers
+            });
+            return ticket;
+          } catch (error) {
+            console.error('[subscribeToUserTickets] Error mapping ticket document:', error, doc.id);
+            return null;
+          }
+        }).filter(ticket => ticket !== null) as Ticket[];
+        
+        console.log(`[subscribeToUserTickets] Total de tickets válidos: ${tickets.length}`);
+        callback(tickets);
+      } catch (error) {
+        console.error('[subscribeToUserTickets] Error processing tickets snapshot:', error);
+        callback([]);
+      }
+    }, (error) => {
+      console.error('[subscribeToUserTickets] Error en suscripción:', error);
+      callback([]);
+    });
+  }).catch(error => {
+    console.error('[subscribeToUserTickets] Error obteniendo usuario:', error);
     callback([]);
-    return () => {}; // Unsubscribe no-op
-  }
+  });
+  
+  // Devolver función de unsubscribe
+  return () => {
+    console.log('[subscribeToUserTickets] Desuscribiendo...');
+    if (unsubscribeFirestore) {
+      unsubscribeFirestore();
+    }
+  };
 };
 
 // Suscribirse al estado actual del juego
