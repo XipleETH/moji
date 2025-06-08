@@ -425,4 +425,128 @@ export const getUserStatistics = async (userId: string) => {
     console.error('Error getting user statistics:', error);
     throw error;
   }
+};
+
+// Nueva función: Obtener historial completo de tickets del usuario organizados por días
+export interface TicketsByDay {
+  [gameDay: string]: Ticket[];
+}
+
+export const getUserTicketHistory = async (userId?: string, limitDays: number = 30): Promise<TicketsByDay> => {
+  try {
+    const user = userId ? { id: userId } : await getCurrentUser();
+    if (!user) {
+      console.warn('[getUserTicketHistory] No user provided');
+      return {};
+    }
+
+    console.log(`[getUserTicketHistory] Obteniendo historial de tickets para usuario: ${user.id}`);
+
+    // Calcular fecha límite (últimos X días)
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - limitDays);
+    const limitTimestamp = Timestamp.fromDate(limitDate);
+
+    // Consulta para obtener todos los tickets del usuario en el período
+    const ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', user.id),
+      where('timestamp', '>=', limitTimestamp),
+      orderBy('timestamp', 'desc'),
+      limit(500) // Limitar a 500 tickets máximo para rendimiento
+    );
+
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => mapFirestoreTicket(doc));
+
+    // Organizar tickets por día
+    const ticketsByDay: TicketsByDay = {};
+    
+    allTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay;
+      if (!ticketsByDay[gameDay]) {
+        ticketsByDay[gameDay] = [];
+      }
+      ticketsByDay[gameDay].push(ticket);
+    });
+
+    // Ordenar tickets dentro de cada día por timestamp descendente
+    Object.keys(ticketsByDay).forEach(day => {
+      ticketsByDay[day].sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    console.log(`[getUserTicketHistory] Historial obtenido: ${allTickets.length} tickets en ${Object.keys(ticketsByDay).length} días`);
+    
+    return ticketsByDay;
+  } catch (error) {
+    console.error('[getUserTicketHistory] Error obteniendo historial:', error);
+    return {};
+  }
+};
+
+// Nueva función: Suscribirse a todo el historial de tickets del usuario
+export const subscribeToUserTicketHistory = (
+  callback: (ticketsByDay: TicketsByDay) => void,
+  limitDays: number = 30
+) => {
+  try {
+    getCurrentUser().then(user => {
+      if (!user) {
+        callback({});
+        return () => {};
+      }
+
+      // Calcular fecha límite
+      const limitDate = new Date();
+      limitDate.setDate(limitDate.getDate() - limitDays);
+      const limitTimestamp = Timestamp.fromDate(limitDate);
+
+      const ticketsQuery = query(
+        collection(db, TICKETS_COLLECTION),
+        where('userId', '==', user.id),
+        where('timestamp', '>=', limitTimestamp),
+        orderBy('timestamp', 'desc'),
+        limit(500)
+      );
+
+      return onSnapshot(ticketsQuery, (snapshot) => {
+        try {
+          const allTickets = snapshot.docs.map(doc => mapFirestoreTicket(doc));
+          
+          // Organizar por días
+          const ticketsByDay: TicketsByDay = {};
+          allTickets.forEach(ticket => {
+            const gameDay = ticket.gameDay;
+            if (!ticketsByDay[gameDay]) {
+              ticketsByDay[gameDay] = [];
+            }
+            ticketsByDay[gameDay].push(ticket);
+          });
+
+          // Ordenar dentro de cada día
+          Object.keys(ticketsByDay).forEach(day => {
+            ticketsByDay[day].sort((a, b) => b.timestamp - a.timestamp);
+          });
+
+          callback(ticketsByDay);
+        } catch (error) {
+          console.error('Error processing ticket history snapshot:', error);
+          callback({});
+        }
+      }, (error) => {
+        console.error('Error in subscribeToUserTicketHistory:', error);
+        callback({});
+      });
+    }).catch(error => {
+      console.error('Error getting current user for ticket history:', error);
+      callback({});
+      return () => {};
+    });
+
+    return () => {};
+  } catch (error) {
+    console.error('Error setting up user ticket history subscription:', error);
+    callback({});
+    return () => {};
+  }
 }; 

@@ -6,13 +6,15 @@ import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
 import { WalletProvider } from './contexts/WalletContext';
-import { Trophy, UserCircle, Zap, Terminal, WalletIcon } from 'lucide-react';
+import { Trophy, UserCircle, Zap, Terminal, WalletIcon, Ticket as TicketIcon, History } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useMiniKit, useNotification, useViewProfile } from '@coinbase/onchainkit/minikit';
 import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
 import { useWallet } from './contexts/WalletContext';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
+import { TicketHistoryModal } from './components/TicketHistoryModal';
+import { TicketHistoryModal } from './components/TicketHistoryModal';
 import { WalletInfo } from './components/WalletInfo';
 import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
 import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
@@ -266,6 +268,7 @@ function AppContent() {
   const { user: authUser, isLoading, isFarcasterAvailable, signIn } = useAuth();
   const { user: walletUser, isConnected: isWalletConnected } = useWallet();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
+  const [showTicketHistory, setShowTicketHistory] = useState(false);
   const hasTriedSignIn = useRef(false);
   
   // Usar wallet user si está disponible, sino usar auth user
@@ -430,19 +433,44 @@ function AppContent() {
           tokensUsed={10 - gameState.userTokens}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {gameState.tickets.map(ticket => (
-            <TicketComponent
-              key={ticket.id}
-              ticket={ticket}
-              isWinner={
-                gameState.lastResults?.firstPrize?.some(t => t.id === ticket.id) ? 'first' :
-                gameState.lastResults?.secondPrize?.some(t => t.id === ticket.id) ? 'second' :
-                gameState.lastResults?.thirdPrize?.some(t => t.id === ticket.id) ? 'third' : 
-                gameState.lastResults?.freePrize?.some(t => t.id === ticket.id) ? 'free' : null
-              }
-            />
-          ))}
+        {/* Tickets de hoy con botón de historial */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <TicketIcon className="mr-2" size={24} />
+              Mis Tickets de Hoy ({gameState.tickets.length})
+            </h2>
+            <button
+              onClick={() => setShowTicketHistory(true)}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <History size={16} />
+              Ver Historial
+            </button>
+          </div>
+          
+          {gameState.tickets.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {gameState.tickets.map(ticket => (
+                <TicketComponent
+                  key={ticket.id}
+                  ticket={ticket}
+                  isWinner={
+                    gameState.lastResults?.firstPrize?.some(t => t.id === ticket.id) ? 'first' :
+                    gameState.lastResults?.secondPrize?.some(t => t.id === ticket.id) ? 'second' :
+                    gameState.lastResults?.thirdPrize?.some(t => t.id === ticket.id) ? 'third' : 
+                    gameState.lastResults?.freePrize?.some(t => t.id === ticket.id) ? 'free' : null
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-white/10 rounded-lg">
+              <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
+              <p className="text-white/70">No has comprado tickets hoy</p>
+              <p className="text-white/50 text-sm mt-2">¡Genera tu primer ticket arriba!</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 space-y-6">
@@ -502,6 +530,11 @@ function AppContent() {
           )}
         </div>
       </div>
+
+      {/* Modal del Historial de Tickets */}
+      {showTicketHistory && (
+        <TicketHistoryModal onClose={() => setShowTicketHistory(false)} />
+      )}
     </div>
   );
 }
