@@ -25,11 +25,36 @@ export function useGameState() {
     console.log('[useGameState] Inicializando suscripciones...');
     
     // Suscribirse a los tickets del usuario (solo del día actual)
-    const unsubscribeTickets = subscribeToUserTickets((tickets) => {
-      setGameState(prev => ({
-        ...prev,
-        tickets
-      }));
+    const unsubscribeTickets = subscribeToUserTickets((ticketsFromFirebase) => {
+      setGameState(prev => {
+        // Separar tickets temporales de los reales
+        const tempTickets = prev.tickets.filter(t => t.id.startsWith('temp-'));
+        const realTickets = prev.tickets.filter(t => !t.id.startsWith('temp-'));
+        
+        // Combinar tickets de Firebase con los temporales
+        // Evitar duplicados usando el timestamp como identificador adicional
+        const allTickets = [...ticketsFromFirebase];
+        
+        // Agregar tickets temporales que no tengan un equivalente real
+        tempTickets.forEach(tempTicket => {
+          const hasRealEquivalent = ticketsFromFirebase.some(realTicket => 
+            Math.abs(realTicket.timestamp - tempTicket.timestamp) < 5000 // 5 segundos de diferencia
+          );
+          if (!hasRealEquivalent) {
+            allTickets.push(tempTicket);
+          }
+        });
+        
+        // Ordenar por timestamp (más reciente primero)
+        allTickets.sort((a, b) => b.timestamp - a.timestamp);
+        
+        console.log(`[useGameState] Tickets actualizados: ${allTickets.length} total (${ticketsFromFirebase.length} reales, ${tempTickets.length} temporales)`);
+        
+        return {
+          ...prev,
+          tickets: allTickets
+        };
+      });
     });
 
     // Suscribirse al estado del juego para obtener los números ganadores actuales
@@ -127,22 +152,53 @@ export function useGameState() {
     try {
       console.log('[useGameState] Iniciando generación de ticket...');
       
-      // No crear ticket temporal, directamente generar en Firebase
-      // y solo mostrar cuando esté confirmado
+      // 1. Crear ticket temporal para mostrar inmediatamente
+      const tempTicket: Ticket = {
+        id: 'temp-' + crypto.randomUUID(),
+        numbers,
+        timestamp: Date.now(),
+        userId: 'temp',
+        gameDay: getCurrentGameDay(),
+        tokenCost: 1,
+        isActive: true
+      };
+      
+      // 2. Mostrar ticket temporal inmediatamente
+      setGameState(prev => ({
+        ...prev,
+        tickets: [...prev.tickets, tempTicket]
+      }));
+      
+      // 3. Generar el ticket real en Firebase
       const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
         return generateFirebaseTicket(numbers);
       });
       
       if (!ticket) {
-        console.log('[useGameState] ❌ No se pudo generar el ticket');
-        // Opcional: mostrar notificación de error
+        console.log('[useGameState] ❌ No se pudo generar el ticket, removiendo temporal');
+        // Remover ticket temporal si falla
+        setGameState(prev => ({
+          ...prev,
+          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
+        }));
       } else {
         console.log('[useGameState] ✅ Ticket generado exitosamente:', ticket.id);
-        // El ticket aparecerá automáticamente via suscripción
+        // Reemplazar ticket temporal con el real
+        setGameState(prev => ({
+          ...prev,
+          tickets: prev.tickets.map(t => 
+            t.id === tempTicket.id ? ticket : t
+          )
+        }));
       }
       
     } catch (error) {
       console.error('[useGameState] Error generating ticket:', error);
+      // Limpiar cualquier ticket temporal que pudiera haber quedado
+      setGameState(prev => ({
+        ...prev,
+        tickets: prev.tickets.filter(t => !t.id.startsWith('temp-'))
+      }));
     }
   }, []);
 

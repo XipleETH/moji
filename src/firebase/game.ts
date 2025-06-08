@@ -160,7 +160,10 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     }).then(async (ticket) => {
       // Agregar a la pool después de que se confirme la transacción principal
       if (ticket) {
-        await addTicketToPool(user.id, user.walletAddress, ticket.id);
+        // Hacerlo en background para evitar bloqueos
+        setTimeout(() => {
+          addTicketToPool(user.id, user.walletAddress, ticket.id);
+        }, 100);
       }
       return ticket;
     });
@@ -180,6 +183,10 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
 const addTicketToPool = async (userId: string, walletAddress: string, ticketId: string) => {
   try {
     console.log(`[addTicketToPool] Agregando ticket ${ticketId} a la pool de premios...`);
+    
+    // Pequeño delay para evitar condiciones de carrera
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     const poolSuccess = await addTokensToPool(userId, walletAddress, 1, ticketId);
     if (poolSuccess) {
       console.log(`[addTicketToPool] ✅ Token agregado exitosamente a la pool para el ticket ${ticketId}`);
@@ -188,6 +195,15 @@ const addTicketToPool = async (userId: string, walletAddress: string, ticketId: 
     }
   } catch (error) {
     console.error(`[addTicketToPool] Error agregando token a la pool:`, error);
+    // Intentar de nuevo una vez después de un delay
+    try {
+      console.log(`[addTicketToPool] Reintentando para el ticket ${ticketId}...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await addTokensToPool(userId, walletAddress, 1, ticketId);
+      console.log(`[addTicketToPool] ✅ Reintento exitoso para el ticket ${ticketId}`);
+    } catch (retryError) {
+      console.error(`[addTicketToPool] Reintento falló para el ticket ${ticketId}:`, retryError);
+    }
   }
 };
 
