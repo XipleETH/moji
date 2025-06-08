@@ -80,7 +80,17 @@ export const PrizePoolDisplay: React.FC<PrizePoolDisplayProps> = ({
           <div className="text-2xl font-bold text-yellow-400">
             {pool.totalTokensCollected.toLocaleString()}
           </div>
-          <div className="text-xs text-gray-300">Tokens Acumulados</div>
+          <div className="text-xs text-gray-300">Tokens del Día</div>
+          {pool.accumulatedFromPreviousDays.totalDaysAccumulated > 0 && (
+            <div className="mt-1">
+              <div className="text-lg font-semibold text-orange-400">
+                +{(pool.accumulatedFromPreviousDays.firstPrize + pool.accumulatedFromPreviousDays.secondPrize + pool.accumulatedFromPreviousDays.thirdPrize).toLocaleString()}
+              </div>
+              <div className="text-xs text-orange-300">
+                Acumulado {pool.accumulatedFromPreviousDays.totalDaysAccumulated} día{pool.accumulatedFromPreviousDays.totalDaysAccumulated > 1 ? 's' : ''}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -126,7 +136,38 @@ export const PrizePoolDisplay: React.FC<PrizePoolDisplayProps> = ({
       {showDetailedBreakdown && pool.poolsDistributed && (
         <div className="space-y-2">
           <div className="text-sm font-semibold text-gray-300 mb-3">Distribución por Premios:</div>
-          {Object.entries(pool.pools).map(([poolType, amount]) => (
+          
+          {/* Premios principales con pools finales */}
+          {['firstPrize', 'secondPrize', 'thirdPrize'].map((prizeType) => {
+            const basePrize = pool.pools[prizeType as keyof typeof pool.pools] || 0;
+            const accumulatedPrize = pool.accumulatedFromPreviousDays[prizeType as keyof typeof pool.accumulatedFromPreviousDays] || 0;
+            const finalPrize = pool.finalPools[prizeType as keyof typeof pool.finalPools] || 0;
+            
+            return (
+              <div key={prizeType} className="py-2 px-3 bg-white/10 rounded">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm">{getPoolDisplayName(prizeType as keyof typeof pool.pools)}</span>
+                    <span className="text-xs text-gray-400">
+                      ({formatPoolPercentage(prizeType as keyof typeof pool.pools)})
+                    </span>
+                  </div>
+                  <div className="text-sm font-medium">
+                    {finalPrize.toLocaleString()} tokens
+                  </div>
+                </div>
+                {accumulatedPrize > 0 && (
+                  <div className="text-xs text-orange-300 mt-1 flex justify-between">
+                    <span>• Del día: {basePrize.toLocaleString()}</span>
+                    <span>• Acumulado: {accumulatedPrize.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          
+          {/* Otras pools que no se acumulan */}
+          {Object.entries(pool.pools).filter(([poolType]) => !['firstPrize', 'secondPrize', 'thirdPrize'].includes(poolType)).map(([poolType, amount]) => (
             <div key={poolType} className="flex justify-between items-center py-2 px-3 bg-white/10 rounded">
               <div className="flex items-center space-x-2">
                 <span className="text-sm">{getPoolDisplayName(poolType as keyof typeof pool.pools)}</span>

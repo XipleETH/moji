@@ -36,6 +36,114 @@ export const POOL_DISTRIBUTION_PERCENTAGES = {
   development: 0.05        // 5%
 };
 
+// Función para obtener pools acumuladas de días anteriores sin ganadores
+export const getAccumulatedPools = async (currentGameDay: string) => {
+  try {
+    console.log(`[getAccumulatedPools] Buscando pools acumuladas antes del día ${currentGameDay}`);
+    
+    // Buscar el último día con resultados para ver qué pools no tuvieron ganadores
+    const gameResultsQuery = query(
+      collection(db, 'game_results'),
+      orderBy('gameDay', 'desc'),
+      limit(10) // Últimos 10 días para evitar buscar infinitamente
+    );
+    
+    const gameResultsSnapshot = await getDocs(gameResultsQuery);
+    
+    let accumulatedFirstPrize = 0;
+    let accumulatedSecondPrize = 0;
+    let accumulatedThirdPrize = 0;
+    let totalDaysAccumulated = 0;
+    let lastAccumulationDate: string | undefined;
+    
+    for (const gameResultDoc of gameResultsSnapshot.docs) {
+      const gameResult = gameResultDoc.data();
+      const resultGameDay = gameResult.gameDay;
+      
+      // Solo considerar días anteriores al día actual
+      if (resultGameDay >= currentGameDay) continue;
+      
+      console.log(`[getAccumulatedPools] Revisando resultados del día ${resultGameDay}`);
+      
+      // Obtener la pool de ese día
+      const poolDoc = await getDoc(doc(db, PRIZE_POOLS_COLLECTION, resultGameDay));
+      
+      if (!poolDoc.exists() || !poolDoc.data().poolsDistributed) {
+        console.log(`[getAccumulatedPools] Pool del día ${resultGameDay} no distribuida, saltando`);
+        continue;
+      }
+      
+      const poolData = poolDoc.data();
+      
+      // Verificar qué premios no tuvieron ganadores
+      const hasFirstPrizeWinners = gameResult.firstPrize && gameResult.firstPrize.length > 0;
+      const hasSecondPrizeWinners = gameResult.secondPrize && gameResult.secondPrize.length > 0;
+      const hasThirdPrizeWinners = gameResult.thirdPrize && gameResult.thirdPrize.length > 0;
+      
+      // Acumular pools sin ganadores
+      if (!hasFirstPrizeWinners && poolData.pools.firstPrize > 0) {
+        accumulatedFirstPrize += poolData.pools.firstPrize;
+        if (poolData.reserves.firstPrizeActivated) {
+          accumulatedFirstPrize += poolData.pools.firstPrizeReserve;
+        }
+        console.log(`[getAccumulatedPools] Acumulando primer premio del día ${resultGameDay}: ${poolData.pools.firstPrize} tokens`);
+      }
+      
+      if (!hasSecondPrizeWinners && poolData.pools.secondPrize > 0) {
+        accumulatedSecondPrize += poolData.pools.secondPrize;
+        if (poolData.reserves.secondPrizeActivated) {
+          accumulatedSecondPrize += poolData.pools.secondPrizeReserve;
+        }
+        console.log(`[getAccumulatedPools] Acumulando segundo premio del día ${resultGameDay}: ${poolData.pools.secondPrize} tokens`);
+      }
+      
+      if (!hasThirdPrizeWinners && poolData.pools.thirdPrize > 0) {
+        accumulatedThirdPrize += poolData.pools.thirdPrize;
+        if (poolData.reserves.thirdPrizeActivated) {
+          accumulatedThirdPrize += poolData.pools.thirdPrizeReserve;
+        }
+        console.log(`[getAccumulatedPools] Acumulando tercer premio del día ${resultGameDay}: ${poolData.pools.thirdPrize} tokens`);
+      }
+      
+      // Si encontramos alguna acumulación, contar el día
+      if (!hasFirstPrizeWinners || !hasSecondPrizeWinners || !hasThirdPrizeWinners) {
+        totalDaysAccumulated++;
+        lastAccumulationDate = resultGameDay;
+      }
+      
+      // Si todos los premios tuvieron ganadores, podemos parar de buscar hacia atrás
+      if (hasFirstPrizeWinners && hasSecondPrizeWinners && hasThirdPrizeWinners) {
+        console.log(`[getAccumulatedPools] Todos los premios tuvieron ganadores el día ${resultGameDay}, deteniendo búsqueda`);
+        break;
+      }
+    }
+    
+    const result = {
+      firstPrize: accumulatedFirstPrize,
+      secondPrize: accumulatedSecondPrize,
+      thirdPrize: accumulatedThirdPrize,
+      totalDaysAccumulated,
+      lastAccumulationDate
+    };
+    
+    if (totalDaysAccumulated > 0) {
+      console.log(`[getAccumulatedPools] ✨ Pools acumuladas encontradas:`, result);
+    } else {
+      console.log(`[getAccumulatedPools] No hay pools para acumular`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('[getAccumulatedPools] Error obteniendo pools acumuladas:', error);
+    return {
+      firstPrize: 0,
+      secondPrize: 0,
+      thirdPrize: 0,
+      totalDaysAccumulated: 0
+    };
+  }
+};
+
 // Obtener o crear la pool de premios del día
 export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> => {
   const currentDay = gameDay || getCurrentGameDaySaoPaulo();
@@ -65,10 +173,23 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
           secondPrizeActivated: data.reserves?.secondPrizeActivated || false,
           thirdPrizeActivated: data.reserves?.thirdPrizeActivated || false
         },
+        accumulatedFromPreviousDays: data.accumulatedFromPreviousDays || {
+          firstPrize: 0,
+          secondPrize: 0,
+          thirdPrize: 0,
+          totalDaysAccumulated: 0
+        },
+        finalPools: data.finalPools || {
+          firstPrize: data.pools?.firstPrize || 0,
+          secondPrize: data.pools?.secondPrize || 0,
+          thirdPrize: data.pools?.thirdPrize || 0
+        },
         lastUpdated: data.lastUpdated?.toMillis() || Date.now()
       };
     } else {
-      // Crear nueva pool del día
+      // Crear nueva pool del día con posible acumulación de días anteriores
+      const accumulatedPools = await getAccumulatedPools(currentDay);
+      
       const newPool: PrizePool = {
         gameDay: currentDay,
         totalTokensCollected: 0,
@@ -86,6 +207,12 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
           firstPrizeActivated: false,
           secondPrizeActivated: false,
           thirdPrizeActivated: false
+        },
+        accumulatedFromPreviousDays: accumulatedPools,
+        finalPools: {
+          firstPrize: accumulatedPools.firstPrize,
+          secondPrize: accumulatedPools.secondPrize,
+          thirdPrize: accumulatedPools.thirdPrize
         },
         lastUpdated: Date.now()
       };
@@ -136,9 +263,18 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
       
       // Verificar que la pool no esté cerrada (distribución ya realizada)
       if (currentPool.poolsDistributed) {
-        console.log(`[addTokensToPool] Pool del día ${currentDay} ya está cerrada para nuevas compras`);
+        console.log(`[addTokensToPool] 🔒 Pool del día ${currentDay} ya está cerrada para nuevas compras`);
+        console.log(`[addTokensToPool] Estado de la pool:`, {
+          gameDay: currentPool.gameDay,
+          totalTokensCollected: currentPool.totalTokensCollected,
+          poolsDistributed: currentPool.poolsDistributed,
+          distributionTimestamp: currentPool.distributionTimestamp ? new Date(currentPool.distributionTimestamp).toISOString() : null,
+          lastUpdated: new Date(currentPool.lastUpdated).toISOString()
+        });
         return false;
       }
+      
+      console.log(`[addTokensToPool] ✅ Pool activa del día ${currentDay}, agregando ${tokensSpent} tokens. Actual: ${currentPool.totalTokensCollected}`);
       
       // Actualizar pool con los nuevos tokens
       const updatedPool = {
@@ -221,7 +357,7 @@ export const distributePrizePool = async (gameDay?: string): Promise<boolean> =>
         return true;
       }
       
-      // Calcular distribución
+      // Calcular distribución base del día
       const distributedPools = {
         firstPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.firstPrize),
         firstPrizeReserve: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.firstPrizeReserve),
@@ -232,10 +368,31 @@ export const distributePrizePool = async (gameDay?: string): Promise<boolean> =>
         development: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.development)
       };
       
+      // Obtener pools acumuladas
+      const accumulatedPools = poolData.accumulatedFromPreviousDays || {
+        firstPrize: 0,
+        secondPrize: 0,
+        thirdPrize: 0,
+        totalDaysAccumulated: 0
+      };
+      
+      // Calcular pools finales (distribución del día + acumuladas)
+      const finalPools = {
+        firstPrize: distributedPools.firstPrize + accumulatedPools.firstPrize,
+        secondPrize: distributedPools.secondPrize + accumulatedPools.secondPrize,
+        thirdPrize: distributedPools.thirdPrize + accumulatedPools.thirdPrize
+      };
+      
+      console.log(`[distributePrizePool] Distribución calculada para ${currentDay}:`);
+      console.log(`- Base del día:`, distributedPools);
+      console.log(`- Acumulado:`, accumulatedPools);
+      console.log(`- Final:`, finalPools);
+      
       // Actualizar pool con distribución
       const updatedPool = {
         ...poolData,
         pools: distributedPools,
+        finalPools: finalPools,
         poolsDistributed: true,
         distributionTimestamp: serverTimestamp(),
         lastUpdated: serverTimestamp()
@@ -306,7 +463,8 @@ export const distributePrizesToWinners = async (
         throw new Error(`Pool del día ${gameDay} aún no está distribuida`);
       }
       
-      const prizePoolAmount = poolData.pools[prizeType] || 0;
+      // Usar las pools finales que incluyen acumulación de días anteriores
+      const prizePoolAmount = poolData.finalPools ? poolData.finalPools[prizeType] : (poolData.pools[prizeType] || 0);
       const reservePoolAmount = poolData.pools[`${prizeType}Reserve`] || 0;
       
       if (prizePoolAmount === 0) {
@@ -419,6 +577,17 @@ export const subscribeToPrizePool = (callback: (pool: PrizePool | null) => void)
           firstPrizeActivated: data.reserves?.firstPrizeActivated || false,
           secondPrizeActivated: data.reserves?.secondPrizeActivated || false,
           thirdPrizeActivated: data.reserves?.thirdPrizeActivated || false
+        },
+        accumulatedFromPreviousDays: data.accumulatedFromPreviousDays || {
+          firstPrize: 0,
+          secondPrize: 0,
+          thirdPrize: 0,
+          totalDaysAccumulated: 0
+        },
+        finalPools: data.finalPools || {
+          firstPrize: data.pools?.firstPrize || 0,
+          secondPrize: data.pools?.secondPrize || 0,
+          thirdPrize: data.pools?.thirdPrize || 0
         },
         lastUpdated: data.lastUpdated?.toMillis() || Date.now()
       };

@@ -37,23 +37,23 @@ export const usePrizePool = () => {
           const poolStats = await getPoolStatistics(pool.gameDay);
           
           if (poolStats) {
-            // Calcular tiempo hasta distribución (10 minutos antes del sorteo)
-            const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
-            const timeUntilDistribution = timeUntilDraw > 10 * 60 * 1000 ? timeUntilDraw - 10 * 60 * 1000 : null;
+            // Calcular tiempo hasta distribución (5 minutos antes del sorteo)
+            const timeUntilDrawSeconds = getTimeUntilNextDrawSaoPaulo(); // En segundos
+            const timeUntilDistributionMs = timeUntilDrawSeconds > 5 * 60 ? (timeUntilDrawSeconds - 5 * 60) * 1000 : null;
             
-            // Puede distribuir si faltan menos de 10 minutos y aún no se ha distribuido
-            const canDistribute = timeUntilDraw <= 10 * 60 * 1000 && !pool.poolsDistributed;
+            // Puede distribuir si faltan menos de 5 minutos y aún no se ha distribuido
+            const canDistribute = timeUntilDrawSeconds <= 5 * 60 && !pool.poolsDistributed;
             
-            setStats({
-              pool,
-              totalParticipants: poolStats.totalParticipants,
-              totalTicketsSold: poolStats.totalTicketsSold,
-              averageTokensPerParticipant: poolStats.averageTokensPerParticipant,
-              timeUntilDistribution,
-              canDistribute,
-              isLoading: false,
-              error: null
-            });
+                          setStats({
+                pool,
+                totalParticipants: poolStats.totalParticipants,
+                totalTicketsSold: poolStats.totalTicketsSold,
+                averageTokensPerParticipant: poolStats.averageTokensPerParticipant,
+                timeUntilDistribution: timeUntilDistributionMs,
+                canDistribute,
+                isLoading: false,
+                error: null
+              });
           } else {
             // Si no hay stats pero sí hay pool, usar valores básicos
             setStats(prev => ({
@@ -84,13 +84,13 @@ export const usePrizePool = () => {
 
     // Actualizar tiempo hasta distribución cada minuto
     const updateTimer = setInterval(() => {
-      const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
-      const timeUntilDistribution = timeUntilDraw > 10 * 60 * 1000 ? timeUntilDraw - 10 * 60 * 1000 : null;
-      const canDistribute = timeUntilDraw <= 10 * 60 * 1000 && stats.pool && !stats.pool.poolsDistributed;
+      const timeUntilDrawSeconds = getTimeUntilNextDrawSaoPaulo(); // En segundos
+      const timeUntilDistributionMs = timeUntilDrawSeconds > 5 * 60 ? (timeUntilDrawSeconds - 5 * 60) * 1000 : null;
+      const canDistribute = timeUntilDrawSeconds <= 5 * 60 && stats.pool && !stats.pool.poolsDistributed;
       
       setStats(prev => ({
         ...prev,
-        timeUntilDistribution,
+        timeUntilDistribution: timeUntilDistributionMs,
         canDistribute: canDistribute || false
       }));
     }, 60000); // Cada minuto

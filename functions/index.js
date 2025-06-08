@@ -83,24 +83,60 @@ const checkWin = (ticketNumbers, winningNumbers) => {
   };
 };
 
-// Función para distribuir premios automáticamente
+// Función para distribuir premios automáticamente usando pools dinámicas
 const distributePrizes = async (results, gameDay, processId) => {
-  const prizeAmounts = {
-    firstPrize: 1000,
-    secondPrize: 500,
-    thirdPrize: 100,
-    freePrize: 0 // Free tickets no dan tokens, solo ticket gratis
-  };
-  
   const prizeTransactions = [];
   
+  // Obtener las pools finales del día (incluye acumulación)
+  const poolRef = db.collection('prize_pools').doc(gameDay);
+  const poolDoc = await poolRef.get();
+  
+  if (!poolDoc.exists() || !poolDoc.data().poolsDistributed) {
+    logger.warn(`[${processId}] Pool del día ${gameDay} no existe o no está distribuida. Usando valores por defecto.`);
+    
+    // Fallback a valores fijos si no hay pool
+    const prizeAmounts = {
+      firstPrize: 1000,
+      secondPrize: 500,
+      thirdPrize: 100,
+      freePrize: 0
+    };
+    
+    return await distributePrizesWithFixedAmounts(results, gameDay, processId, prizeAmounts);
+  }
+  
+  const poolData = poolDoc.data();
+  const finalPools = poolData.finalPools || poolData.pools;
+  
+  logger.info(`[${processId}] Distribuyendo premios usando pools finales:`, finalPools);
+  
   for (const [prizeType, winners] of Object.entries(results)) {
-    const amount = prizeAmounts[prizeType];
+    if (winners.length === 0) continue;
+    
+    // Determinar el monto total de la pool para este tipo de premio
+    let totalPoolAmount = 0;
+    
+    if (prizeType === 'firstPrize') {
+      totalPoolAmount = finalPools.firstPrize || 0;
+    } else if (prizeType === 'secondPrize') {
+      totalPoolAmount = finalPools.secondPrize || 0;
+    } else if (prizeType === 'thirdPrize') {
+      totalPoolAmount = finalPools.thirdPrize || 0;
+    } else if (prizeType === 'freePrize') {
+      totalPoolAmount = 0; // Free tickets no dan tokens
+    }
+    
+    // Calcular tokens por ganador
+    const tokensPerWinner = winners.length > 0 && totalPoolAmount > 0 
+      ? Math.floor(totalPoolAmount / winners.length) 
+      : 0;
+    
+    logger.info(`[${processId}] ${prizeType}: ${winners.length} ganadores, ${totalPoolAmount} tokens total, ${tokensPerWinner} tokens por ganador`);
     
     for (const ticket of winners) {
       if (ticket.userId && ticket.userId !== 'anonymous' && ticket.userId !== 'temp') {
         try {
-          if (amount > 0) {
+          if (tokensPerWinner > 0) {
             // Crear transacción de premio
             const transactionId = `${processId}_${prizeType}_${ticket.userId}_${Date.now()}`;
             
@@ -109,17 +145,19 @@ const distributePrizes = async (results, gameDay, processId) => {
               userId: ticket.userId,
               walletAddress: ticket.walletAddress || 'unknown',
               prizeType: prizeType.replace('Prize', ''),
-              amount: amount,
+              amount: tokensPerWinner,
               status: 'completed',
               timestamp: FieldValue.serverTimestamp(),
               gameDay: gameDay,
-              ticketId: ticket.id
+              ticketId: ticket.id,
+              totalPoolAmount: totalPoolAmount,
+              totalWinners: winners.length
             };
             
             await db.collection(PRIZE_TRANSACTIONS_COLLECTION).doc(transactionId).set(prizeTransaction);
             prizeTransactions.push(prizeTransaction);
             
-            logger.info(`[${processId}] Premio de ${amount} tokens registrado para usuario ${ticket.userId} (${prizeType})`);
+            logger.info(`[${processId}] Premio de ${tokensPerWinner} tokens registrado para usuario ${ticket.userId} (${prizeType})`);
           } else if (prizeType === 'freePrize') {
             // Generar ticket gratis
             const freeTicketNumbers = generateRandomEmojis(4);
@@ -140,6 +178,63 @@ const distributePrizes = async (results, gameDay, processId) => {
           }
         } catch (error) {
           logger.error(`[${processId}] Error distribuyendo premio para usuario ${ticket.userId}:`, error);
+        }
+      }
+    }
+  }
+  
+  return prizeTransactions;
+};
+
+// Función fallback para distribuir premios con montos fijos
+const distributePrizesWithFixedAmounts = async (results, gameDay, processId, prizeAmounts) => {
+  const prizeTransactions = [];
+  
+  for (const [prizeType, winners] of Object.entries(results)) {
+    const amount = prizeAmounts[prizeType];
+    
+    for (const ticket of winners) {
+      if (ticket.userId && ticket.userId !== 'anonymous' && ticket.userId !== 'temp') {
+        try {
+          if (amount > 0) {
+            const transactionId = `${processId}_${prizeType}_${ticket.userId}_${Date.now()}`;
+            
+            const prizeTransaction = {
+              id: transactionId,
+              userId: ticket.userId,
+              walletAddress: ticket.walletAddress || 'unknown',
+              prizeType: prizeType.replace('Prize', ''),
+              amount: amount,
+              status: 'completed',
+              timestamp: FieldValue.serverTimestamp(),
+              gameDay: gameDay,
+              ticketId: ticket.id,
+              isFixedAmount: true
+            };
+            
+            await db.collection(PRIZE_TRANSACTIONS_COLLECTION).doc(transactionId).set(prizeTransaction);
+            prizeTransactions.push(prizeTransaction);
+            
+            logger.info(`[${processId}] Premio fijo de ${amount} tokens registrado para usuario ${ticket.userId} (${prizeType})`);
+          } else if (prizeType === 'freePrize') {
+            const freeTicketNumbers = generateRandomEmojis(4);
+            
+            await db.collection(TICKETS_COLLECTION).add({
+              numbers: freeTicketNumbers,
+              timestamp: FieldValue.serverTimestamp(),
+              userId: ticket.userId,
+              walletAddress: ticket.walletAddress,
+              gameDay: gameDay,
+              tokenCost: 0,
+              isActive: true,
+              isFreeTicket: true,
+              wonFrom: ticket.id
+            });
+            
+            logger.info(`[${processId}] Ticket gratis generado para usuario ${ticket.userId}`);
+          }
+        } catch (error) {
+          logger.error(`[${processId}] Error distribuyendo premio fijo para usuario ${ticket.userId}:`, error);
         }
       }
     }

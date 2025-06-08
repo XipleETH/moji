@@ -122,6 +122,19 @@ export interface PrizePool {
     secondPrizeActivated: boolean;
     thirdPrizeActivated: boolean;
   };
+  // Nuevos campos para acumulación de pools no ganadas
+  accumulatedFromPreviousDays: {
+    firstPrize: number;        // Tokens acumulados de días sin ganadores de 1er premio
+    secondPrize: number;       // Tokens acumulados de días sin ganadores de 2do premio
+    thirdPrize: number;        // Tokens acumulados de días sin ganadores de 3er premio
+    totalDaysAccumulated: number; // Cantidad de días acumulados
+    lastAccumulationDate?: string; // Último día de acumulación
+  };
+  finalPools: {
+    firstPrize: number;        // Pool final (distribuida + acumulada)
+    secondPrize: number;       // Pool final (distribuida + acumulada)
+    thirdPrize: number;        // Pool final (distribuida + acumulada)
+  };
   lastUpdated: number;
 }
 
@@ -156,7 +169,7 @@ export interface TicketPurchase {
 export interface PoolTransaction {
   id: string;
   gameDay: string;
-  type: 'ticket_purchase' | 'pool_distribution' | 'prize_distribution' | 'reserve_activation';
+  type: 'ticket_purchase' | 'pool_distribution' | 'prize_distribution' | 'reserve_activation' | 'pool_accumulation';
   amount: number;
   fromPool?: string;
   toPool?: string;

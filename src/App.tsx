@@ -70,6 +70,153 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 (window as any).initializeDailyPool = initializeDailyPool;
 (window as any).checkPoolsHealth = checkPoolsHealth;
 
+// Función global para probar la acumulación de pools
+(window as any).testPoolAccumulation = async () => {
+  try {
+    const { getAccumulatedPools } = await import('./firebase/prizePools');
+    const { getCurrentGameDaySaoPaulo } = await import('./utils/timezone');
+    
+    const currentDay = getCurrentGameDaySaoPaulo();
+    console.log('📊 Probando acumulación de pools para el día:', currentDay);
+    
+    const accumulatedPools = await getAccumulatedPools(currentDay);
+    console.log('✨ Pools acumuladas encontradas:', accumulatedPools);
+    
+    return accumulatedPools;
+  } catch (error) {
+    console.error('[testPoolAccumulation] Error:', error);
+  }
+};
+
+// Función global para simular un día sin ganadores (solo para testing)
+(window as any).simulateNoWinnersDay = async (gameDay) => {
+  if (!gameDay) {
+    console.error('[simulateNoWinnersDay] Debes especificar un día (YYYY-MM-DD)');
+    return;
+  }
+  
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+    
+    console.log('🎭 Simulando día sin ganadores para:', gameDay);
+    
+    // Crear resultado sin ganadores
+    const gameResult = {
+      id: `sim-${gameDay}`,
+      gameDay: gameDay,
+      timestamp: serverTimestamp(),
+      winningNumbers: ['🎲', '🎯', '🎪'],
+      firstPrize: [],
+      secondPrize: [],
+      thirdPrize: [],
+      freePrize: [],
+      prizesDistributed: true,
+      prizeTransactions: []
+    };
+    
+    await setDoc(doc(db, 'game_results', `sim-${gameDay}`), gameResult);
+    
+    // Crear pool distribuida para ese día
+    const prizePool = {
+      gameDay: gameDay,
+      totalTokensCollected: 100,
+      poolsDistributed: true,
+      pools: {
+        firstPrize: 64,
+        firstPrizeReserve: 16,
+        secondPrize: 8,
+        secondPrizeReserve: 2,
+        thirdPrize: 4,
+        thirdPrizeReserve: 1,
+        development: 5
+      },
+      finalPools: {
+        firstPrize: 64,
+        secondPrize: 8,
+        thirdPrize: 4
+      },
+      reserves: {
+        firstPrizeActivated: false,
+        secondPrizeActivated: false,
+        thirdPrizeActivated: false
+      },
+      accumulatedFromPreviousDays: {
+        firstPrize: 0,
+        secondPrize: 0,
+        thirdPrize: 0,
+        totalDaysAccumulated: 0
+      },
+      lastUpdated: serverTimestamp()
+    };
+    
+    await setDoc(doc(db, 'prize_pools', gameDay), prizePool);
+    
+    console.log('✅ Día sin ganadores simulado exitosamente');
+    console.log('- Resultado del juego creado sin ganadores');
+    console.log('- Pool distribuida creada con tokens que deberían acumularse');
+    
+    return { gameResult, prizePool };
+  } catch (error) {
+    console.error('[simulateNoWinnersDay] Error:', error);
+  }
+};
+
+// Función global para forzar actualización de pool
+(window as any).forcePoolUpdate = async () => {
+  try {
+    const { addTokensToPool } = await import('./firebase/prizePools');
+    const { getCurrentUser } = await import('./firebase/auth');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[forcePoolUpdate] No hay usuario conectado');
+      return;
+    }
+    
+    console.log('[forcePoolUpdate] Forzando actualización de pool con 1 token...');
+    const result = await addTokensToPool(user.id, user.walletAddress, 1, 'debug-ticket-' + Date.now());
+    console.log('[forcePoolUpdate] Resultado:', result);
+    
+    return result;
+  } catch (error) {
+    console.error('[forcePoolUpdate] Error:', error);
+  }
+};
+
+// Función global para ver estado actual de pool
+(window as any).getCurrentPoolState = async () => {
+  try {
+    const { getDailyPrizePool } = await import('./firebase/prizePools');
+    const { getCurrentGameDaySaoPaulo, getTimeUntilNextDrawSaoPaulo } = await import('./utils/timezone');
+    
+    const currentDay = getCurrentGameDaySaoPaulo();
+    const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
+    const timeUntilDistribution = timeUntilDraw > 5 * 60 ? (timeUntilDraw - 5 * 60) : 0;
+    
+    console.log('🕐 Información de tiempo:');
+    console.log('- Día actual (SP):', currentDay);
+    console.log('- Tiempo hasta sorteo:', Math.floor(timeUntilDraw / 3600) + 'h ' + Math.floor((timeUntilDraw % 3600) / 60) + 'm ' + (timeUntilDraw % 60) + 's');
+    console.log('- Tiempo hasta distribución:', timeUntilDistribution > 0 ? Math.floor(timeUntilDistribution / 3600) + 'h ' + Math.floor((timeUntilDistribution % 3600) / 60) + 'm ' + (timeUntilDistribution % 60) + 's' : 'Pool cerrada para distribución');
+    console.log('- Pool debe estar cerrada:', timeUntilDraw <= 5 * 60 ? 'SÍ' : 'NO');
+    
+    const pool = await getDailyPrizePool(currentDay);
+    
+    console.log('🏆 Estado de la pool:');
+    console.log('- Total tokens:', pool.totalTokensCollected);
+    console.log('- Pool distribuida:', pool.poolsDistributed ? 'SÍ' : 'NO');
+    console.log('- Puede agregar tokens:', !pool.poolsDistributed ? 'SÍ' : 'NO');
+    
+    if (pool.distributionTimestamp) {
+      console.log('- Distribuida en:', new Date(pool.distributionTimestamp).toLocaleString());
+    }
+    
+    return pool;
+  } catch (error) {
+    console.error('[getCurrentPoolState] Error:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
@@ -323,6 +470,11 @@ function App() {
     console.log('[App] Funciones de debug agregadas a window:');
     console.log('- window.debugTokens() - Ver estado actual de tokens');
     console.log('- window.resetTokens() - Resetear tokens del usuario actual');
+    console.log('- window.getCurrentPoolState() - Ver estado actual de la pool');
+    console.log('- window.forcePoolUpdate() - Forzar actualización de pool');
+    console.log('- window.checkPoolsHealth() - Verificar salud de pools');
+    console.log('- window.testPoolAccumulation() - Probar acumulación de pools');
+    console.log('- window.simulateNoWinnersDay("2024-12-20") - Simular día sin ganadores');
   }, []);
 
   return (

@@ -133,47 +133,8 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
       const currentGameDay = getCurrentGameDaySaoPaulo();
       
-      // Distribuir 10 minutos antes del sorteo (600 segundos)
-      if (timeUntilDraw <= 600 && timeUntilDraw > 590 && !poolDistributionRef.current) {
-        try {
-          console.log(`[useRealTimeTimer] [Pool] Iniciando distribución automática de pool para el día ${currentGameDay}`);
-          poolDistributionRef.current = true;
-          
-          // Verificar si la pool existe y aún no está distribuida
-          const currentPool = await getDailyPrizePool(currentGameDay);
-          
-          if (currentPool && !currentPool.poolsDistributed && currentPool.totalTokensCollected > 0) {
-            const distributionSuccess = await distributePrizePool(currentGameDay);
-            
-            if (distributionSuccess) {
-              console.log(`[useRealTimeTimer] [Pool] ✅ Pool distribuida exitosamente: ${currentPool.totalTokensCollected} tokens`);
-            } else {
-              console.error(`[useRealTimeTimer] [Pool] ❌ Error distribuyendo pool del día ${currentGameDay}`);
-            }
-          } else {
-            console.log(`[useRealTimeTimer] [Pool] ℹ️ Pool del día ${currentGameDay} ya distribuida o sin tokens`);
-          }
-        } catch (error) {
-          console.error(`[useRealTimeTimer] [Pool] Error en distribución automática:`, error);
-        }
-      }
-      
-      // Resetear flag de distribución cuando empieza un nuevo día
-      if (timeUntilDraw > 23 * 60 * 60) { // Más de 23 horas = nuevo día
-        if (poolDistributionRef.current) {
-          console.log(`[useRealTimeTimer] [Pool] Nuevo día detectado, reseteando flag de distribución`);
-          poolDistributionRef.current = false;
-        }
-      }
-    }, 60000); // Cada minuto
-
-    // Temporizador para distribución automática de pools (cada minuto)
-    poolCheckTimerRef.current = setInterval(async () => {
-      const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
-      const currentGameDay = getCurrentGameDaySaoPaulo();
-      
-      // Distribuir 10 minutos antes del sorteo (600 segundos)
-      if (timeUntilDraw <= 600 && timeUntilDraw > 590 && !poolDistributionRef.current) {
+      // Distribuir 5 minutos antes del sorteo (300 segundos)
+      if (timeUntilDraw <= 300 && timeUntilDraw > 290 && !poolDistributionRef.current) {
         try {
           console.log(`[useRealTimeTimer] [Pool] Iniciando distribución automática de pool para el día ${currentGameDay}`);
           poolDistributionRef.current = true;
