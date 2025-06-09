@@ -407,6 +407,55 @@ const checkUserTicketsFunction = async () => {
   return 'Debug info mostrado en consola';
 };
 
+// Función simple para calcular tiempo hasta medianoche (sin imports)
+(window as any).simpleTimerCheck = () => {
+  try {
+    const now = new Date();
+    
+    // Calcular medianoche local
+    const localMidnight = new Date(now);
+    localMidnight.setDate(localMidnight.getDate() + 1);
+    localMidnight.setHours(0, 0, 0, 0);
+    const localSeconds = Math.floor((localMidnight.getTime() - now.getTime()) / 1000);
+    
+    // Calcular medianoche São Paulo aproximada (UTC-3)
+    const saoPauloOffset = -3;
+    const utcNow = new Date(now.getTime());
+    const saoPauloNow = new Date(utcNow.getTime() + (saoPauloOffset * 60 * 60 * 1000));
+    
+    const saoPauloMidnight = new Date(saoPauloNow);
+    saoPauloMidnight.setUTCDate(saoPauloMidnight.getUTCDate() + 1);
+    saoPauloMidnight.setUTCHours(0, 0, 0, 0);
+    
+    const saoPauloMidnightUTC = new Date(saoPauloMidnight.getTime() - (saoPauloOffset * 60 * 60 * 1000));
+    const saoPauloSeconds = Math.floor((saoPauloMidnightUTC.getTime() - now.getTime()) / 1000);
+    
+    console.log('⏰ Cálculos de timer:');
+    console.log('- Hora actual (local):', now.toLocaleString());
+    console.log('- Hora actual (UTC):', now.toISOString());
+    console.log('- Aprox. SP:', new Date(now.getTime() + (saoPauloOffset * 60 * 60 * 1000)).toISOString());
+    console.log('- Medianoche local en:', localSeconds, 'segundos');
+    console.log('- Medianoche SP en:', saoPauloSeconds, 'segundos');
+    console.log('- Diferencia:', Math.abs(localSeconds - saoPauloSeconds), 'segundos');
+    
+    return {
+      local: {
+        seconds: localSeconds,
+        formatted: Math.floor(localSeconds / 3600) + 'h ' + Math.floor((localSeconds % 3600) / 60) + 'm ' + (localSeconds % 60) + 's'
+      },
+      saoPaulo: {
+        seconds: saoPauloSeconds,
+        formatted: Math.floor(saoPauloSeconds / 3600) + 'h ' + Math.floor((saoPauloSeconds % 3600) / 60) + 'm ' + (saoPauloSeconds % 60) + 's'
+      },
+      difference: Math.abs(localSeconds - saoPauloSeconds)
+    };
+    
+  } catch (error) {
+    console.error('[simpleTimerCheck] Error:', error);
+    return { error: error.message };
+  }
+};
+
 // Función para verificar estado del sorteo
 (window as any).checkDrawStatus = async () => {
   try {
@@ -481,9 +530,9 @@ const checkUserTicketsFunction = async () => {
 };
 
 // Función para verificar el estado del timer
-(window as any).checkTimerStatus = () => {
+(window as any).checkTimerStatus = async () => {
   try {
-    const { getTimeUntilNextDrawSaoPaulo } = require('./utils/timezone');
+    const { getTimeUntilNextDrawSaoPaulo } = await import('./utils/timezone');
     const timeUntil = getTimeUntilNextDrawSaoPaulo();
     
     console.log('[checkTimerStatus] ⏰ Estado del timer:');
@@ -519,7 +568,7 @@ const checkUserTicketsFunction = async () => {
 };
 
 // Función para diagnosticar el timer en detalle
-(window as any).diagnoseTimer = () => {
+(window as any).diagnoseTimer = async () => {
   try {
     const { 
       getCurrentDateSaoPaulo, 
@@ -528,7 +577,7 @@ const checkUserTicketsFunction = async () => {
       getSaoPauloOffset,
       formatTimeSaoPaulo,
       getCurrentGameDaySaoPaulo
-    } = require('./utils/timezone');
+    } = await import('./utils/timezone');
     
     const now = new Date();
     const saoPauloNow = getCurrentDateSaoPaulo();
@@ -890,6 +939,7 @@ function App() {
     console.log('- window.triggerDraw() - Triggear sorteo manualmente');
     console.log('- window.checkTimerStatus() - Verificar estado del timer');
     console.log('- window.diagnoseTimer() - Diagnosticar el timer en detalle');
+    console.log('- window.simpleTimerCheck() - Cálculo simple del timer');
   }, []);
 
   return (
