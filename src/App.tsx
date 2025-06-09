@@ -407,6 +407,117 @@ const checkUserTicketsFunction = async () => {
   return 'Debug info mostrado en consola';
 };
 
+// Función para verificar estado del sorteo
+(window as any).checkDrawStatus = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { collection, query, where, orderBy, limit, getDocs, doc, getDoc } = await import('firebase/firestore');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[checkDrawStatus] 🔍 Verificando estado del sorteo para el día: ${currentGameDay}`);
+    
+    // Verificar si ya hay resultado para hoy
+    const resultQuery = query(
+      collection(db, 'game_results'),
+      where('gameDay', '==', currentGameDay),
+      limit(1)
+    );
+    
+    const resultSnapshot = await getDocs(resultQuery);
+    
+    if (resultSnapshot.size > 0) {
+      const result = resultSnapshot.docs[0].data();
+      console.log(`[checkDrawStatus] ✅ Resultado ya existe para ${currentGameDay}:`, {
+        id: resultSnapshot.docs[0].id,
+        winningNumbers: result.winningNumbers,
+        timestamp: result.timestamp?.toDate?.() || 'No timestamp'
+      });
+      return { status: 'completed', result: result };
+    }
+    
+    // Verificar control de sorteo
+    const drawControlRef = doc(db, 'draw_control', currentGameDay);
+    const drawControlDoc = await getDoc(drawControlRef);
+    
+    if (drawControlDoc.exists()) {
+      const controlData = drawControlDoc.data();
+      console.log(`[checkDrawStatus] 📊 Control de sorteo encontrado:`, {
+        inProgress: controlData.inProgress,
+        completed: controlData.completed,
+        startedAt: controlData.startedAt,
+        processId: controlData.processId
+      });
+      return { status: 'in_progress', control: controlData };
+    }
+    
+    console.log(`[checkDrawStatus] ❌ No hay resultado ni control para ${currentGameDay}`);
+    return { status: 'pending', gameDay: currentGameDay };
+    
+  } catch (error) {
+    console.error('[checkDrawStatus] Error:', error);
+    return { status: 'error', error };
+  }
+};
+
+// Función para triggear sorteo manualmente
+(window as any).triggerDraw = async () => {
+  try {
+    const { functions } = await import('./firebase/config');
+    const { httpsCallable } = await import('firebase/functions');
+    
+    console.log('[triggerDraw] 🎲 Triggereando sorteo manual...');
+    
+    const triggerGameDraw = httpsCallable(functions, 'triggerGameDraw');
+    const result = await triggerGameDraw();
+    
+    console.log('[triggerDraw] ✅ Sorteo triggereado exitosamente:', result.data);
+    return result.data;
+    
+  } catch (error) {
+    console.error('[triggerDraw] ❌ Error triggereando sorteo:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para verificar el estado del timer
+(window as any).checkTimerStatus = () => {
+  try {
+    const { getTimeUntilNextDrawSaoPaulo } = require('./utils/timezone');
+    const timeUntil = getTimeUntilNextDrawSaoPaulo();
+    
+    console.log('[checkTimerStatus] ⏰ Estado del timer:');
+    console.log('- Segundos hasta próximo sorteo:', timeUntil);
+    console.log('- Tiempo formateado:', Math.floor(timeUntil / 3600) + 'h ' + Math.floor((timeUntil % 3600) / 60) + 'm ' + (timeUntil % 60) + 's');
+    console.log('- Medianoche pasada:', timeUntil <= 0 ? 'SÍ' : 'NO');
+    
+    return {
+      secondsUntilDraw: timeUntil,
+      midnightPassed: timeUntil <= 0,
+      formatted: Math.floor(timeUntil / 3600) + 'h ' + Math.floor((timeUntil % 3600) / 60) + 'm ' + (timeUntil % 60) + 's'
+    };
+    
+  } catch (error) {
+    console.error('[checkTimerStatus] Error:', error);
+    
+    // Fallback manual
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    const timeUntil = Math.floor((tomorrow.getTime() - now.getTime()) / 1000);
+    
+    console.log('[checkTimerStatus] ⏰ Fallback - Segundos hasta medianoche local:', timeUntil);
+    
+    return {
+      secondsUntilDraw: timeUntil,
+      midnightPassed: timeUntil <= 0,
+      fallback: true
+    };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
@@ -716,6 +827,9 @@ function App() {
     console.log('- window.checkUserTickets() - Consultar tickets manualmente');
     console.log('- window.getCurrentPoolState() - Ver estado actual de la pool');
     console.log('- window.debugInfo() - Info rápida de debug');
+    console.log('- window.checkDrawStatus() - Verificar estado del sorteo');
+    console.log('- window.triggerDraw() - Triggear sorteo manualmente');
+    console.log('- window.checkTimerStatus() - Verificar estado del timer');
   }, []);
 
   return (
