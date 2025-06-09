@@ -25,10 +25,25 @@ const PRIZE_TRANSACTIONS_COLLECTION = 'prize_transactions';
 const DRAW_INTERVAL_MS = 86400000; // 24 horas
 const INITIAL_DAILY_TOKENS = 10;
 
-// Función para obtener la fecha del día actual en formato YYYY-MM-DD
+// Función para obtener la fecha del día actual en formato YYYY-MM-DD usando timezone de São Paulo
 const getCurrentGameDay = () => {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Convertir a timezone de São Paulo (UTC-3 en horario estándar, UTC-2 en horario de verano)
+  const saoPauloOffset = -3; // UTC-3 en horario estándar
+  const saoPauloTime = new Date(now.getTime() + (saoPauloOffset * 60 * 60 * 1000));
+  
+  // Ajustar por horario de verano si es necesario (octubre a febrero)
+  const month = saoPauloTime.getUTCMonth();
+  const isDaylightSaving = month >= 9 || month <= 1; // Oct-Feb
+  if (isDaylightSaving) {
+    saoPauloTime.setUTCHours(saoPauloTime.getUTCHours() + 1); // UTC-2
+  }
+  
+  const year = saoPauloTime.getUTCFullYear();
+  const monthStr = String(saoPauloTime.getUTCMonth() + 1).padStart(2, '0');
+  const dayStr = String(saoPauloTime.getUTCDate()).padStart(2, '0');
+  
+  return `${year}-${monthStr}-${dayStr}`;
 };
 
 // Función para generar emojis aleatorios

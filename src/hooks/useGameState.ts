@@ -26,10 +26,22 @@ export function useGameState() {
     
     // Suscribirse a los tickets del usuario (solo del día actual)
     const unsubscribeTickets = subscribeToUserTickets((ticketsFromFirebase) => {
+      console.log(`[useGameState] 🎫 Tickets recibidos de Firebase: ${ticketsFromFirebase.length}`);
+      ticketsFromFirebase.forEach((ticket, index) => {
+        console.log(`[useGameState] 🎫 Ticket ${index + 1}:`, {
+          id: ticket.id,
+          gameDay: ticket.gameDay,
+          timestamp: new Date(ticket.timestamp).toLocaleString(),
+          numbers: ticket.numbers
+        });
+      });
+      
       setGameState(prev => {
         // Separar tickets temporales de los reales
         const tempTickets = prev.tickets.filter(t => t.id.startsWith('temp-'));
         const realTickets = prev.tickets.filter(t => !t.id.startsWith('temp-'));
+        
+        console.log(`[useGameState] 🔄 Estado actual: ${tempTickets.length} temporales, ${realTickets.length} reales, ${ticketsFromFirebase.length} nuevos de Firebase`);
         
         // Combinar tickets de Firebase con los temporales
         // Evitar duplicados usando el timestamp como identificador adicional
@@ -41,14 +53,17 @@ export function useGameState() {
             Math.abs(realTicket.timestamp - tempTicket.timestamp) < 5000 // 5 segundos de diferencia
           );
           if (!hasRealEquivalent) {
+            console.log(`[useGameState] ⏳ Manteniendo ticket temporal: ${tempTicket.id}`);
             allTickets.push(tempTicket);
+          } else {
+            console.log(`[useGameState] ✅ Ticket temporal ${tempTicket.id} ya tiene equivalente real`);
           }
         });
         
         // Ordenar por timestamp (más reciente primero)
         allTickets.sort((a, b) => b.timestamp - a.timestamp);
         
-        console.log(`[useGameState] Tickets actualizados: ${allTickets.length} total (${ticketsFromFirebase.length} reales, ${tempTickets.length} temporales)`);
+        console.log(`[useGameState] 📊 Tickets finales: ${allTickets.length} total (${ticketsFromFirebase.length} reales, ${tempTickets.length} temporales mantenidos)`);
         
         return {
           ...prev,

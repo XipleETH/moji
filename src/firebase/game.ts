@@ -295,21 +295,21 @@ export const subscribeToGameResults = (
 export const subscribeToUserTickets = (
   callback: (tickets: Ticket[]) => void
 ): (() => void) => {
-  console.log('[subscribeToUserTickets] Iniciando suscripción a tickets del usuario');
+  console.log('[subscribeToUserTickets] 🚀 Iniciando suscripción a tickets del usuario');
   
   let unsubscribeFirestore: (() => void) | null = null;
   
   // Obtener usuario y configurar suscripción
   getCurrentUser().then(user => {
     if (!user) {
-      console.log('[subscribeToUserTickets] No hay usuario conectado');
+      console.log('[subscribeToUserTickets] ❌ No hay usuario conectado');
       callback([]);
       return;
     }
     
-    console.log(`[subscribeToUserTickets] Usuario conectado: ${user.id}`);
+    console.log(`[subscribeToUserTickets] ✅ Usuario conectado: ${user.id}`);
     const currentGameDay = getCurrentGameDay();
-    console.log(`[subscribeToUserTickets] Buscando tickets del día: ${currentGameDay}`);
+    console.log(`[subscribeToUserTickets] 📅 Buscando tickets del día: ${currentGameDay}`);
     
     const ticketsQuery = query(
       collection(db, TICKETS_COLLECTION),
@@ -319,44 +319,60 @@ export const subscribeToUserTickets = (
       orderBy('timestamp', 'desc')
     );
     
-    unsubscribeFirestore = onSnapshot(ticketsQuery, (snapshot) => {
-      try {
-        console.log(`[subscribeToUserTickets] Snapshot recibido con ${snapshot.docs.length} documentos`);
-        
-        const tickets = snapshot.docs.map(doc => {
-          try {
+    console.log(`[subscribeToUserTickets] 🔍 Query configurada para user: ${user.id}, gameDay: ${currentGameDay}`);
+    
+    unsubscribeFirestore = onSnapshot(
+      ticketsQuery,
+      (snapshot) => {
+        try {
+          console.log(`[subscribeToUserTickets] 📥 Snapshot recibido: ${snapshot.size} documentos`);
+          
+          const tickets = snapshot.docs.map(doc => {
             const ticket = mapFirestoreTicket(doc);
-            console.log(`[subscribeToUserTickets] Ticket mapeado:`, {
+            console.log(`[subscribeToUserTickets] 🎫 Ticket procesado:`, {
               id: ticket.id,
               gameDay: ticket.gameDay,
-              isActive: ticket.isActive,
-              numbers: ticket.numbers
+              timestamp: new Date(ticket.timestamp).toLocaleString(),
+              userId: ticket.userId,
+              numbers: ticket.numbers.length
             });
             return ticket;
-          } catch (error) {
-            console.error('[subscribeToUserTickets] Error mapping ticket document:', error, doc.id);
-            return null;
-          }
-        }).filter(ticket => ticket !== null) as Ticket[];
-        
-        console.log(`[subscribeToUserTickets] Total de tickets válidos: ${tickets.length}`);
-        callback(tickets);
-      } catch (error) {
-        console.error('[subscribeToUserTickets] Error processing tickets snapshot:', error);
+          });
+          
+          console.log(`[subscribeToUserTickets] 📊 Total tickets del día actual: ${tickets.length}`);
+          
+          // Verificar si algún ticket tiene una fecha diferente
+          tickets.forEach(ticket => {
+            if (ticket.gameDay !== currentGameDay) {
+              console.warn(`[subscribeToUserTickets] ⚠️ Ticket con gameDay diferente encontrado:`, {
+                ticketGameDay: ticket.gameDay,
+                currentGameDay: currentGameDay,
+                ticketId: ticket.id
+              });
+            }
+          });
+          
+          callback(tickets);
+        } catch (error) {
+          console.error('[subscribeToUserTickets] ❌ Error procesando snapshot:', error);
+          callback([]);
+        }
+      },
+      (error) => {
+        console.error('[subscribeToUserTickets] ❌ Error en la suscripción:', error);
         callback([]);
       }
-    }, (error) => {
-      console.error('[subscribeToUserTickets] Error en suscripción:', error);
-      callback([]);
-    });
+    );
+    
+    console.log('[subscribeToUserTickets] 🔄 Suscripción configurada exitosamente');
   }).catch(error => {
-    console.error('[subscribeToUserTickets] Error obteniendo usuario:', error);
+    console.error('[subscribeToUserTickets] ❌ Error obteniendo usuario actual:', error);
     callback([]);
   });
   
-  // Devolver función de unsubscribe
+  // Función de limpieza
   return () => {
-    console.log('[subscribeToUserTickets] Desuscribiendo...');
+    console.log('[subscribeToUserTickets] 🧹 Limpiando suscripción');
     if (unsubscribeFirestore) {
       unsubscribeFirestore();
     }

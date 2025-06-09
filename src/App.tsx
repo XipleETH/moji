@@ -276,6 +276,19 @@ function AppContent() {
   
   // Para evitar renderizado constante
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Debug logging para tickets
+  useEffect(() => {
+    console.log(`[App] 📊 Estado de tickets actualizado: ${gameState.tickets.length} tickets`);
+    gameState.tickets.forEach((ticket, index) => {
+      console.log(`[App] 🎫 Ticket ${index + 1}:`, {
+        id: ticket.id,
+        gameDay: ticket.gameDay,
+        timestamp: new Date(ticket.timestamp).toLocaleString(),
+        isTemp: ticket.id.startsWith('temp-')
+      });
+    });
+  }, [gameState.tickets]);
 
   // Inicializar Firebase y SDK una sola vez
   useEffect(() => {
@@ -448,6 +461,8 @@ function AppContent() {
               Ver Historial
             </button>
           </div>
+          
+
           
           {gameState.tickets.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
