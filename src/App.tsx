@@ -305,7 +305,7 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 };
 
 // Función global para consultar tickets manualmente
-(window as any).checkUserTickets = async () => {
+const checkUserTicketsFunction = async () => {
   try {
     const { getCurrentUser } = await import('./firebase/auth');
     const { db } = await import('./firebase/config');
@@ -381,6 +381,30 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
   } catch (error) {
     console.error('[checkUserTickets] Error:', error);
   }
+};
+
+// Registrar función globalmente
+(window as any).checkUserTickets = checkUserTicketsFunction;
+
+// Función simple para debug inmediato
+(window as any).debugInfo = () => {
+  console.log('🚀 Debug Info:');
+  console.log('- Función checkUserTickets disponible:', typeof (window as any).checkUserTickets);
+  console.log('- Función debugTimezone disponible:', typeof (window as any).debugTimezone);
+  
+  // Mostrar información de autenticación
+  getCurrentUser().then(user => {
+    console.log('- Usuario actual:', user ? `${user.id} (${user.walletAddress})` : 'No conectado');
+  }).catch(err => {
+    console.log('- Error obteniendo usuario:', err);
+  });
+  
+  // Mostrar gameDay actual
+  import('./firebase/tokens').then(({ getCurrentGameDay }) => {
+    console.log('- GameDay actual:', getCurrentGameDay());
+  });
+  
+  return 'Debug info mostrado en consola';
 };
 
 function AppContent() {
@@ -691,6 +715,7 @@ function App() {
     console.log('- window.debugTimezone() - Verificar zona horaria');
     console.log('- window.checkUserTickets() - Consultar tickets manualmente');
     console.log('- window.getCurrentPoolState() - Ver estado actual de la pool');
+    console.log('- window.debugInfo() - Info rápida de debug');
   }, []);
 
   return (
