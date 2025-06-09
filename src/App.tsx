@@ -260,6 +260,50 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
   }
 };
 
+// Función global para debuggear zona horaria
+(window as any).debugTimezone = () => {
+  try {
+    const now = new Date();
+    const utc = new Date(now.getTime());
+    
+    // Simular cálculo del backend
+    const saoPauloOffset = -3;
+    const saoPauloTime = new Date(now.getTime() + (saoPauloOffset * 60 * 60 * 1000));
+    const month = saoPauloTime.getUTCMonth();
+    const isDaylightSaving = month >= 9 || month <= 1;
+    if (isDaylightSaving) {
+      saoPauloTime.setUTCHours(saoPauloTime.getUTCHours() + 1);
+    }
+    
+    const backendGameDay = `${saoPauloTime.getUTCFullYear()}-${String(saoPauloTime.getUTCMonth() + 1).padStart(2, '0')}-${String(saoPauloTime.getUTCDate()).padStart(2, '0')}`;
+    
+    console.log('🕐 Debug Timezone:');
+    console.log('- Hora local del navegador:', now.toLocaleString());
+    console.log('- UTC:', utc.toISOString());
+    console.log('- São Paulo calculado (backend):', saoPauloTime.toISOString());
+    console.log('- GameDay del backend:', backendGameDay);
+    console.log('- En horario de verano:', isDaylightSaving ? 'SÍ' : 'NO');
+    console.log('- Mes actual (0-11):', month);
+    
+    // Importar función del frontend
+    import('./firebase/tokens').then(({ getCurrentGameDay }) => {
+      const frontendGameDay = getCurrentGameDay();
+      console.log('- GameDay del frontend:', frontendGameDay);
+      console.log('- ¿Coinciden?', backendGameDay === frontendGameDay ? '✅ SÍ' : '❌ NO');
+    });
+    
+    return {
+      local: now.toLocaleString(),
+      utc: utc.toISOString(),
+      saoPaulo: saoPauloTime.toISOString(),
+      backendGameDay,
+      isDaylightSaving
+    };
+  } catch (error) {
+    console.error('[debugTimezone] Error:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
@@ -565,6 +609,8 @@ function App() {
     console.log('- window.testPoolAccumulation() - Probar acumulación de pools');
     console.log('- window.simulateNoWinnersDay("2024-12-20") - Simular día sin ganadores');
     console.log('- window.testFirebaseWrite() - Probar permisos de escritura en Firebase');
+    console.log('- window.debugTimezone() - Verificar zona horaria');
+    console.log('- window.getCurrentPoolState() - Ver estado actual de la pool');
   }, []);
 
   return (
