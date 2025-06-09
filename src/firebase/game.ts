@@ -77,7 +77,7 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
       const tokensRef = doc(db, 'daily_tokens', `${user.id}_${currentGameDay}`);
       const tokensDoc = await transaction.get(tokensRef);
       
-      let currentTokens = { tokensAvailable: 10, tokensUsed: 0 };
+      let currentTokens = { tokensAvailable: 1000, tokensUsed: 0 }; // Para pruebas masivas
       if (tokensDoc.exists()) {
         currentTokens = tokensDoc.data() as any;
       }

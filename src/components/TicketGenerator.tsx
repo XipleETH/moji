@@ -151,7 +151,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         <TokenDisplay 
           tokensAvailable={userTokens}
           tokensUsed={tokensUsed}
-          totalDailyTokens={10}
+          totalDailyTokens={1000}
         />
 
         {/* Queue Status */}

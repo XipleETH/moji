@@ -23,7 +23,7 @@ const GAME_RESULTS_COLLECTION = 'game_results';
 const DAILY_TOKENS_COLLECTION = 'daily_tokens';
 const PRIZE_TRANSACTIONS_COLLECTION = 'prize_transactions';
 const DRAW_INTERVAL_MS = 86400000; // 24 horas
-const INITIAL_DAILY_TOKENS = 10;
+const INITIAL_DAILY_TOKENS = 1000; // Para pruebas masivas
 
 // Función para obtener la fecha del día actual en formato YYYY-MM-DD usando timezone de São Paulo
 const getCurrentGameDay = () => {

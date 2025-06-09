@@ -20,7 +20,7 @@ import { getCurrentGameDaySaoPaulo } from '../utils/timezone';
 
 const DAILY_TOKENS_COLLECTION = 'daily_tokens';
 const TOKEN_TRANSACTIONS_COLLECTION = 'token_transactions';
-const INITIAL_DAILY_TOKENS = 10;
+const INITIAL_DAILY_TOKENS = 1000; // Para pruebas masivas
 
 // Obtener la fecha actual en formato YYYY-MM-DD usando timezone de São Paulo
 export const getCurrentGameDay = (): string => {

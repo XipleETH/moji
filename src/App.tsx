@@ -626,6 +626,28 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para resetear tokens del usuario actual (para pruebas masivas)
+(window as any).resetMyTokens = async () => {
+  try {
+    const { getCurrentUser } = await import('./firebase/auth');
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      console.log('❌ No hay usuario conectado');
+      return;
+    }
+    
+    const { resetUserTokens } = await import('./firebase/tokens');
+    await resetUserTokens(user.id);
+    console.log('✅ Tokens reseteados exitosamente a 1000');
+    
+    // Recargar página para actualizar la UI
+    window.location.reload();
+  } catch (error) {
+    console.error('❌ Error reseteando tokens:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -809,7 +831,7 @@ function AppContent() {
           ticketCount={gameState.tickets.length}
           maxTickets={999}
           userTokens={gameState.userTokens}
-          tokensUsed={10 - gameState.userTokens}
+          tokensUsed={1000 - gameState.userTokens}
           queueStatus={queueStatus}
           rateLimitStatus={rateLimitStatus}
         />
@@ -942,6 +964,7 @@ function App() {
     console.log('- window.checkTimerStatus() - Verificar estado del timer');
     console.log('- window.diagnoseTimer() - Diagnosticar el timer en detalle');
     console.log('- window.simpleTimerCheck() - Cálculo simple del timer');
+    console.log('- window.resetMyTokens() - Resetear mis tokens a 1000 para pruebas');
   }, []);
 
   return (
