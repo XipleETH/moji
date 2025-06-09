@@ -135,33 +135,51 @@ export const getCurrentGameDaySaoPaulo = (): string => {
 
 // Función para calcular el tiempo restante hasta la medianoche de São Paulo
 export const getTimeUntilNextDrawSaoPaulo = (): number => {
-  const now = new Date();
-  const nextMidnight = getNextMidnightSaoPaulo();
-  
-  const timeDiff = nextMidnight.getTime() - now.getTime();
-  const secondsUntil = Math.floor(timeDiff / 1000);
-  
-  // Si el resultado es negativo o muy grande (más de 25 horas), recalcular
-  if (secondsUntil < 0 || secondsUntil > 25 * 60 * 60) {
-    console.warn('[getTimeUntilNextDrawSaoPaulo] Tiempo calculado fuera de rango:', secondsUntil, 'segundos. Recalculando...');
+  try {
+    const now = new Date();
     
-    // Recalcular forzando el día siguiente
-    const saoPauloNow = getCurrentDateSaoPaulo();
-    const tomorrowMidnight = new Date(saoPauloNow);
-    tomorrowMidnight.setDate(saoPauloNow.getDate() + 1);
-    tomorrowMidnight.setHours(0, 0, 0, 0);
+    // Usar cálculo simplificado que funciona correctamente
+    // São Paulo está en UTC-3 (horario estándar) durante junio
+    const saoPauloOffset = -3;
+    const saoPauloNow = new Date(now.getTime() + (saoPauloOffset * 60 * 60 * 1000));
     
-    const saoPauloOffset = getSaoPauloOffset();
-    const utcMidnight = new Date(tomorrowMidnight.getTime() - (saoPauloOffset * 60 * 60 * 1000));
+    const saoPauloMidnight = new Date(saoPauloNow);
+    saoPauloMidnight.setUTCDate(saoPauloMidnight.getUTCDate() + 1);
+    saoPauloMidnight.setUTCHours(0, 0, 0, 0);
     
-    const correctedDiff = utcMidnight.getTime() - now.getTime();
-    const correctedSeconds = Math.max(0, Math.floor(correctedDiff / 1000));
+    const saoPauloMidnightUTC = new Date(saoPauloMidnight.getTime() - (saoPauloOffset * 60 * 60 * 1000));
+    const secondsUntil = Math.floor((saoPauloMidnightUTC.getTime() - now.getTime()) / 1000);
     
-    console.log('[getTimeUntilNextDrawSaoPaulo] Tiempo corregido:', correctedSeconds, 'segundos');
-    return correctedSeconds;
+    // Validar que el resultado esté en rango razonable (0-24 horas)
+    if (secondsUntil < 0 || secondsUntil > 24 * 60 * 60) {
+      console.warn('[getTimeUntilNextDrawSaoPaulo] Resultado fuera de rango:', secondsUntil, 'usando fallback');
+      
+      // Fallback: calcular medianoche local + diferencia de timezone
+      const localMidnight = new Date(now);
+      localMidnight.setDate(localMidnight.getDate() + 1);
+      localMidnight.setHours(0, 0, 0, 0);
+      
+      const localSeconds = Math.floor((localMidnight.getTime() - now.getTime()) / 1000);
+      // Ajustar por diferencia de timezone (tu zona - São Paulo)
+      const timezoneOffset = now.getTimezoneOffset() / 60; // Tu offset en horas
+      const adjustment = (timezoneOffset - saoPauloOffset) * 3600; // Diferencia en segundos
+      
+      return Math.max(0, localSeconds - adjustment);
+    }
+    
+    return Math.max(0, secondsUntil);
+    
+  } catch (error) {
+    console.error('[getTimeUntilNextDrawSaoPaulo] Error:', error);
+    
+    // Fallback simple
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    return Math.max(0, Math.floor((tomorrow.getTime() - now.getTime()) / 1000));
   }
-  
-  return Math.max(0, secondsUntil);
 };
 
 // Función para formatear tiempo en timezone de São Paulo
