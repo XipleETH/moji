@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { GameState, Ticket, GameResult, DailyTokens } from '../types';
 import { useRealTimeTimer } from './useRealTimeTimer';
 import { useWallet } from '../contexts/WalletContext';
+import { useRateLimit } from './useRateLimit';
+import { useTicketQueue } from './useTicketQueue';
 import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
 import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
 import { subscribeToUserTokens, getCurrentGameDay } from '../firebase/tokens';
@@ -21,6 +23,24 @@ export function useGameState() {
   const [userTokens, setUserTokens] = useState<DailyTokens | null>(null);
   const processedResultsRef = useRef<Set<string>>(new Set());
   const lastProcessedMinuteRef = useRef<string>('');
+
+  // Rate limiting: máximo 20 tickets por minuto, mínimo 2 segundos entre tickets
+  const rateLimit = useRateLimit({
+    maxRequests: 20,
+    windowMs: 60000, // 1 minuto
+    cooldownMs: 2000 // 2 segundos entre tickets
+  });
+
+  // Función para procesar un ticket individual
+  const processTicketInternal = useCallback(async (numbers: string[]) => {
+    const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
+      return generateFirebaseTicket(numbers);
+    });
+    return ticket;
+  }, []);
+
+  // Cola de tickets para procesar uno a la vez
+  const ticketQueue = useTicketQueue(processTicketInternal);
 
   // Suscribirse a los tickets del usuario, al estado del juego y a los tokens
   useEffect(() => {
@@ -187,19 +207,31 @@ export function useGameState() {
     requestManualGameDraw();
   }, []);
 
-  // Función para generar un nuevo ticket (sin límites)
+  // Función para generar un nuevo ticket (con rate limiting y cola)
   const generateTicket = useCallback(async (numbers: string[]) => {
-    if (!numbers?.length) return;
+    if (!numbers?.length) {
+      console.warn('[useGameState] ⚠️ No se proporcionaron números para el ticket');
+      return;
+    }
+
+    // Verificar rate limiting
+    if (!rateLimit.checkRateLimit()) {
+      console.warn(`[useGameState] ⏳ Rate limit excedido. Espera ${rateLimit.remainingTime} segundos`);
+      return {
+        error: `Demasiado rápido! Espera ${rateLimit.remainingTime} segundos`,
+        remainingTime: rateLimit.remainingTime
+      };
+    }
     
     try {
-      console.log('[useGameState] Iniciando generación de ticket...');
+      console.log('[useGameState] 🎫 Iniciando generación de ticket...');
       
       // 1. Crear ticket temporal para mostrar inmediatamente
       const tempTicket: Ticket = {
         id: 'temp-' + crypto.randomUUID(),
         numbers,
         timestamp: Date.now(),
-        userId: 'temp',
+        userId: user?.id || 'temp',
         gameDay: getCurrentGameDay(),
         tokenCost: 1,
         isActive: true
@@ -208,41 +240,27 @@ export function useGameState() {
       // 2. Mostrar ticket temporal inmediatamente
       setGameState(prev => ({
         ...prev,
-        tickets: [...prev.tickets, tempTicket]
+        tickets: [tempTicket, ...prev.tickets] // Agregar al inicio para mejor UX
       }));
       
-      // 3. Generar el ticket real en Firebase
-      const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
-        return generateFirebaseTicket(numbers);
-      });
+      // 3. Agregar a la cola para procesamiento
+      const queueId = ticketQueue.addToQueue(numbers);
+      console.log(`[useGameState] 📋 Ticket agregado a cola: ${queueId}`);
       
-      if (!ticket) {
-        console.log('[useGameState] ❌ No se pudo generar el ticket, removiendo temporal');
-        // Remover ticket temporal si falla
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
-        }));
-      } else {
-        console.log('[useGameState] ✅ Ticket generado exitosamente:', ticket.id);
-        // Reemplazar ticket temporal con el real
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.map(t => 
-            t.id === tempTicket.id ? ticket : t
-          )
-        }));
-      }
+      return {
+        tempTicket,
+        queueId,
+        success: true
+      };
       
     } catch (error) {
-      console.error('[useGameState] Error generating ticket:', error);
-      // Limpiar cualquier ticket temporal que pudiera haber quedado
-      setGameState(prev => ({
-        ...prev,
-        tickets: prev.tickets.filter(t => !t.id.startsWith('temp-'))
-      }));
+      console.error('[useGameState] ❌ Error en generación de ticket:', error);
+      return {
+        error: 'Error generando ticket. Inténtalo de nuevo.',
+        details: error
+      };
     }
-  }, []);
+  }, [rateLimit, ticketQueue, user?.id]);
 
   return {
     gameState: {
@@ -250,6 +268,12 @@ export function useGameState() {
       timeRemaining
     },
     generateTicket,
-    forceGameDraw
+    forceGameDraw,
+    // Información adicional para debugging y UI
+    queueStatus: ticketQueue.status,
+    rateLimitStatus: {
+      isBlocked: rateLimit.isBlocked,
+      remainingTime: rateLimit.remainingTime
+    }
   };
 }

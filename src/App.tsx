@@ -627,7 +627,7 @@ const checkUserTicketsFunction = async () => {
 };
 
 function AppContent() {
-  const { gameState, generateTicket, forceGameDraw } = useGameState();
+  const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
@@ -810,6 +810,8 @@ function AppContent() {
           maxTickets={999}
           userTokens={gameState.userTokens}
           tokensUsed={10 - gameState.userTokens}
+          queueStatus={queueStatus}
+          rateLimitStatus={rateLimitStatus}
         />
 
         {/* Tickets de hoy con botón de historial */}

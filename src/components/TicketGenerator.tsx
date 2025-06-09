@@ -12,6 +12,17 @@ interface TicketGeneratorProps {
   maxTickets: number;
   userTokens: number;
   tokensUsed?: number;
+  queueStatus?: {
+    isProcessing: boolean;
+    queueLength: number;
+    currentTicket: any;
+    totalProcessed: number;
+    errors: number;
+  };
+  rateLimitStatus?: {
+    isBlocked: boolean;
+    remainingTime: number;
+  };
 }
 
 export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
@@ -20,7 +31,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   ticketCount,
   maxTickets,
   userTokens,
-  tokensUsed = 0
+  tokensUsed = 0,
+  queueStatus,
+  rateLimitStatus
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
@@ -54,10 +67,15 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
     console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user, 'tokens:', userTokens);
     
+    // Verificar rate limiting
+    if (rateLimitStatus?.isBlocked) {
+      console.warn('[TicketGenerator] Rate limited, remaining time:', rateLimitStatus.remainingTime);
+      return;
+    }
+    
     // Verificar si hay tokens suficientes
     if (userTokens < 1) {
       console.log('[TicketGenerator] Insufficient tokens');
-      // TODO: Mostrar mensaje de tokens insuficientes
       return;
     }
     
@@ -71,10 +89,14 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     
     // Si hay wallet y tokens, generar ticket
     console.log('[TicketGenerator] Wallet connected and tokens available, generating ticket');
-    onGenerateTicket(numbers);
-    setSelectedEmojis([]); // Reset selection after generating ticket
-    setPendingTicket(null);
-    setShowWalletPrompt(false);
+    const result = await onGenerateTicket(numbers);
+    
+    // Solo limpiar si la generación fue exitosa
+    if (!result || !result.error) {
+      setSelectedEmojis([]); // Reset selection after generating ticket
+      setPendingTicket(null);
+      setShowWalletPrompt(false);
+    }
   };
 
   const handleWalletConnect = async () => {
@@ -118,8 +140,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     setPendingTicket(null);
   };
 
-  const canGenerateTicket = userTokens >= 1 && !disabled;
+  const canGenerateTicket = userTokens >= 1 && !disabled && !rateLimitStatus?.isBlocked;
   const isOutOfTokens = userTokens === 0;
+  const isRateLimited = rateLimitStatus?.isBlocked || false;
 
   return (
     <div className="mb-8 space-y-4">
@@ -130,6 +153,39 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           tokensUsed={tokensUsed}
           totalDailyTokens={10}
         />
+
+        {/* Queue Status */}
+        {queueStatus && (queueStatus.isProcessing || queueStatus.queueLength > 0) && (
+          <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-blue-200">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium">
+                {queueStatus.isProcessing ? 'Procesando ticket...' : `${queueStatus.queueLength} tickets en cola`}
+              </span>
+            </div>
+            {queueStatus.totalProcessed > 0 && (
+              <div className="text-xs text-blue-300 mt-1">
+                ✅ {queueStatus.totalProcessed} procesados
+                {queueStatus.errors > 0 && ` • ❌ ${queueStatus.errors} errores`}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rate Limit Warning */}
+        {isRateLimited && rateLimitStatus && (
+          <div className="bg-orange-500/20 border border-orange-500 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-orange-200">
+              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+              <span className="text-sm font-medium">
+                Muy rápido! Espera {rateLimitStatus.remainingTime} segundos
+              </span>
+            </div>
+            <div className="text-xs text-orange-300 mt-1">
+              Espera 2 segundos entre tickets para evitar errores
+            </div>
+          </div>
+        )}
         
         <EmojiGrid
           selectedEmojis={selectedEmojis}
@@ -148,7 +204,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                      ${canGenerateTicket ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-500 text-gray-300'}`}
           >
             <CheckCircle size={20} />
-            {isOutOfTokens ? 'No Tokens Available' : 'Confirm Ticket (1 Token)'}
+            {isOutOfTokens ? 'No Tokens Available' : 
+             isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
+             'Confirm Ticket (1 Token)'}
           </button>
         )}
         
@@ -160,7 +218,9 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
                    ${canGenerateTicket ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-gray-500 text-gray-300'}`}
         >
           <Coins size={20} />
-          {isOutOfTokens ? 'No Tokens Available' : 'Generate Random Ticket (1 Token)'}
+          {isOutOfTokens ? 'No Tokens Available' : 
+           isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
+           'Generate Random Ticket (1 Token)'}
         </button>
 
         {/* Prompt de conexión de wallet */}
