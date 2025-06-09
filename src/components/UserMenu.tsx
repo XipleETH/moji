@@ -54,11 +54,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   {user.walletProvider === 'injected' && 'Browser Wallet'}
                 </div>
               )}
-              {user.chainId && (
+            {user.chainId && (
                 <div className="text-xs text-white/70">
-                  Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
-                </div>
-              )}
+                Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
+              </div>
+            )}
             </div>
           </div>
         </div>

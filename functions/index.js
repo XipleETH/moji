@@ -106,7 +106,7 @@ const distributePrizes = async (results, gameDay, processId) => {
   const poolRef = db.collection('prize_pools').doc(gameDay);
   const poolDoc = await poolRef.get();
   
-  if (!poolDoc.exists() || !poolDoc.data().poolsDistributed) {
+  if (!poolDoc.exists || !poolDoc.data()?.poolsDistributed) {
     logger.warn(`[${processId}] Pool del día ${gameDay} no existe o no está distribuida. Usando valores por defecto.`);
     
     // Fallback a valores fijos si no hay pool

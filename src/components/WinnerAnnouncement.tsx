@@ -165,7 +165,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                Click to see winner profiles with detailed stats • Right-click for simple view
              </div>
            </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           {/* First Prize Button */}
           {firstPrize.length > 0 && (
             <button

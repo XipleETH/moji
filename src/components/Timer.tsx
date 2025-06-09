@@ -13,7 +13,7 @@ export const Timer: React.FC<TimerProps> = ({ seconds }) => {
   return (
     <div className="text-center">
       <div className="text-4xl font-bold text-white p-4 rounded-xl bg-purple-600/80 backdrop-blur-sm shadow-lg mb-2">
-        {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:{String(remainingSeconds).padStart(2, '0')}
+      {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:{String(remainingSeconds).padStart(2, '0')}
       </div>
       <div className="text-white/70 text-sm">
         🇧🇷 Next draw at midnight São Paulo time
