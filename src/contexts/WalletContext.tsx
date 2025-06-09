@@ -88,6 +88,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         timestamp: Date.now()
       }));
       
+      // Inicializar tokens automáticamente después de conectar
+      try {
+        console.log('[WalletContext] Inicializando tokens para nuevo usuario...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens inicializados exitosamente');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens:', tokenError);
+        // No fallar la conexión por esto, solo loggear
+      }
+      
       console.log(`[WalletContext] ${walletId} connection successful!`);
       
     } catch (err) {
@@ -141,6 +152,26 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       console.log('[WalletContext] Connection restored:', walletUser);
       setUser(walletUser);
       
+      // Inicializar tokens para usuario restaurado
+      try {
+        console.log('[WalletContext] Inicializando tokens para usuario restaurado...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens de usuario restaurado inicializados');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens de usuario restaurado:', tokenError);
+      }
+      
+      // Inicializar tokens para usuario restaurado
+      try {
+        console.log('[WalletContext] Inicializando tokens para usuario restaurado...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens de usuario restaurado inicializados');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens de usuario restaurado:', tokenError);
+      }
+      
     } catch (error) {
       console.error('[WalletContext] Error checking existing connection:', error);
       localStorage.removeItem('walletAuth');
@@ -175,6 +206,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           walletProvider: user.walletProvider,
           timestamp: Date.now()
         }));
+        
+        // Inicializar tokens para la nueva cuenta
+        try {
+          console.log('[WalletContext] Inicializando tokens para cuenta cambiada...');
+          const { getUserDailyTokens } = await import('../firebase/tokens');
+          await getUserDailyTokens(walletUser.id);
+          console.log('[WalletContext] Tokens para nueva cuenta inicializados');
+        } catch (tokenError) {
+          console.warn('[WalletContext] Error inicializando tokens para nueva cuenta:', tokenError);
+        }
       }
     };
 

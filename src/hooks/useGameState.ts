@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { GameState, Ticket, GameResult, DailyTokens } from '../types';
 import { useRealTimeTimer } from './useRealTimeTimer';
+import { useWallet } from '../contexts/WalletContext';
 import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
 import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
 import { subscribeToUserTokens, getCurrentGameDay } from '../firebase/tokens';
@@ -15,6 +16,7 @@ const initialGameState: GameState = {
 };
 
 export function useGameState() {
+  const { user } = useWallet();
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [userTokens, setUserTokens] = useState<DailyTokens | null>(null);
   const processedResultsRef = useRef<Set<string>>(new Set());
@@ -24,6 +26,20 @@ export function useGameState() {
   useEffect(() => {
     console.log('[useGameState] 🚀 Inicializando suscripciones...');
     console.log('[useGameState] 📅 GameDay actual:', getCurrentGameDay());
+    console.log('[useGameState] 👤 Usuario conectado:', user?.id || 'Sin usuario');
+    
+    // Solo suscribirse si hay un usuario
+    if (!user?.id) {
+      console.log('[useGameState] ⏸️ No hay usuario, esperando conexión de billetera...');
+      // Limpiar datos del usuario cuando no hay usuario conectado
+      setUserTokens(null);
+      setGameState(prev => ({
+        ...prev,
+        tickets: [],
+        userTokens: 0
+      }));
+      return;
+    }
     
     // Suscribirse a los tickets del usuario (solo del día actual)
     const unsubscribeTickets = subscribeToUserTickets((ticketsFromFirebase) => {
@@ -101,11 +117,12 @@ export function useGameState() {
 
     return () => {
       console.log('[useGameState] 🧹 Limpiando suscripciones de tickets, estado del juego y tokens');
-      unsubscribeTickets();
-      unsubscribeState();
-      unsubscribeTokens();
+      // Solo limpiar si las funciones existen (cuando hay usuario)
+      if (typeof unsubscribeTickets === 'function') unsubscribeTickets();
+      if (typeof unsubscribeState === 'function') unsubscribeState();
+      if (typeof unsubscribeTokens === 'function') unsubscribeTokens();
     };
-  }, []);
+  }, [user?.id]); // Re-suscribir cuando cambie el usuario
 
   // Función para obtener la clave de día de un timestamp
   const getDayKey = (timestamp: number): string => {
