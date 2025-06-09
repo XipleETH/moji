@@ -304,6 +304,85 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
   }
 };
 
+// Función global para consultar tickets manualmente
+(window as any).checkUserTickets = async () => {
+  try {
+    const { getCurrentUser } = await import('./firebase/auth');
+    const { db } = await import('./firebase/config');
+    const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[checkUserTickets] ❌ No hay usuario conectado');
+      return;
+    }
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[checkUserTickets] 🔍 Buscando tickets para usuario ${user.id} en día ${currentGameDay}`);
+    
+    // Consulta directa a Firebase
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('userId', '==', user.id),
+      where('gameDay', '==', currentGameDay),
+      where('isActive', '==', true),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const snapshot = await getDocs(ticketsQuery);
+    
+    console.log(`[checkUserTickets] 📊 Resultados encontrados: ${snapshot.size} tickets`);
+    
+    if (snapshot.size === 0) {
+      // Buscar sin filtro de gameDay para ver si hay tickets de otros días
+      console.log('[checkUserTickets] 🔍 Buscando tickets de cualquier día...');
+      
+      const allTicketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('userId', '==', user.id),
+        where('isActive', '==', true),
+        orderBy('timestamp', 'desc')
+      );
+      
+      const allSnapshot = await getDocs(allTicketsQuery);
+      console.log(`[checkUserTickets] 📊 Total tickets del usuario (todos los días): ${allSnapshot.size}`);
+      
+      allSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`[checkUserTickets] 🎫 Ticket ${index + 1}:`, {
+          id: doc.id,
+          gameDay: data.gameDay,
+          timestamp: new Date(data.timestamp?.toMillis() || 0).toLocaleString(),
+          userId: data.userId,
+          isActive: data.isActive,
+          numbers: data.numbers?.length || 0
+        });
+      });
+    } else {
+      snapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`[checkUserTickets] 🎫 Ticket del día actual ${index + 1}:`, {
+          id: doc.id,
+          gameDay: data.gameDay,
+          timestamp: new Date(data.timestamp?.toMillis() || 0).toLocaleString(),
+          userId: data.userId,
+          isActive: data.isActive,
+          numbers: data.numbers
+        });
+      });
+    }
+    
+    return {
+      user: user.id,
+      currentGameDay,
+      todayTickets: snapshot.size
+    };
+  } catch (error) {
+    console.error('[checkUserTickets] Error:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw } = useGameState();
   const { context } = useMiniKit();
@@ -610,6 +689,7 @@ function App() {
     console.log('- window.simulateNoWinnersDay("2024-12-20") - Simular día sin ganadores');
     console.log('- window.testFirebaseWrite() - Probar permisos de escritura en Firebase');
     console.log('- window.debugTimezone() - Verificar zona horaria');
+    console.log('- window.checkUserTickets() - Consultar tickets manualmente');
     console.log('- window.getCurrentPoolState() - Ver estado actual de la pool');
   }, []);
 

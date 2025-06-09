@@ -22,19 +22,29 @@ export function useGameState() {
 
   // Suscribirse a los tickets del usuario, al estado del juego y a los tokens
   useEffect(() => {
-    console.log('[useGameState] Inicializando suscripciones...');
+    console.log('[useGameState] 🚀 Inicializando suscripciones...');
+    console.log('[useGameState] 📅 GameDay actual:', getCurrentGameDay());
     
     // Suscribirse a los tickets del usuario (solo del día actual)
     const unsubscribeTickets = subscribeToUserTickets((ticketsFromFirebase) => {
       console.log(`[useGameState] 🎫 Tickets recibidos de Firebase: ${ticketsFromFirebase.length}`);
-      ticketsFromFirebase.forEach((ticket, index) => {
-        console.log(`[useGameState] 🎫 Ticket ${index + 1}:`, {
-          id: ticket.id,
-          gameDay: ticket.gameDay,
-          timestamp: new Date(ticket.timestamp).toLocaleString(),
-          numbers: ticket.numbers
+      
+      // Log detallado de cada ticket recibido
+      if (ticketsFromFirebase.length === 0) {
+        console.log(`[useGameState] ❌ No se recibieron tickets de Firebase para el día ${getCurrentGameDay()}`);
+        console.log('[useGameState] 🔍 Esto podría indicar un problema en la consulta o que realmente no hay tickets');
+      } else {
+        ticketsFromFirebase.forEach((ticket, index) => {
+          console.log(`[useGameState] 🎫 Ticket ${index + 1}:`, {
+            id: ticket.id,
+            gameDay: ticket.gameDay,
+            timestamp: new Date(ticket.timestamp).toLocaleString(),
+            numbers: ticket.numbers,
+            userId: ticket.userId,
+            isActive: ticket.isActive
+          });
         });
-      });
+      }
       
       setGameState(prev => {
         // Separar tickets temporales de los reales
@@ -90,7 +100,7 @@ export function useGameState() {
     });
 
     return () => {
-      console.log('[useGameState] Limpiando suscripciones de tickets, estado del juego y tokens');
+      console.log('[useGameState] 🧹 Limpiando suscripciones de tickets, estado del juego y tokens');
       unsubscribeTickets();
       unsubscribeState();
       unsubscribeTokens();
