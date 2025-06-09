@@ -418,12 +418,12 @@ export const getUserStatistics = async (userId: string) => {
 
     console.log(`[getUserStatistics] Obteniendo estadísticas frescas para usuario ${userId}`);
 
-    // Obtener tickets del usuario (limitado a los últimos 100)
+    // Obtener tickets del usuario (limitado a los últimos 1000 para mejor rendimiento)
     const ticketsQuery = query(
       collection(db, TICKETS_COLLECTION),
       where('userId', '==', userId),
       orderBy('timestamp', 'desc'),
-      limit(100)
+      limit(1000)
     );
     
     const ticketsSnapshot = await getDocs(ticketsQuery);
