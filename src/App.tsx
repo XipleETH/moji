@@ -304,7 +304,7 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
   }
 };
 
-// Función global para consultar tickets manualmente
+// Función para consultar tickets manualmente
 const checkUserTicketsFunction = async () => {
   try {
     const { getCurrentUser } = await import('./firebase/auth');
@@ -515,6 +515,65 @@ const checkUserTicketsFunction = async () => {
       midnightPassed: timeUntil <= 0,
       fallback: true
     };
+  }
+};
+
+// Función para diagnosticar el timer en detalle
+(window as any).diagnoseTimer = () => {
+  try {
+    const { 
+      getCurrentDateSaoPaulo, 
+      getNextMidnightSaoPaulo, 
+      getTimeUntilNextDrawSaoPaulo,
+      getSaoPauloOffset,
+      formatTimeSaoPaulo,
+      getCurrentGameDaySaoPaulo
+    } = require('./utils/timezone');
+    
+    const now = new Date();
+    const saoPauloNow = getCurrentDateSaoPaulo();
+    const nextMidnight = getNextMidnightSaoPaulo();
+    const timeUntil = getTimeUntilNextDrawSaoPaulo();
+    const offset = getSaoPauloOffset();
+    const gameDay = getCurrentGameDaySaoPaulo();
+    
+    console.log('🔍 Diagnóstico completo del timer:');
+    console.table({
+      'Hora local (navegador)': now.toLocaleString(),
+      'Hora São Paulo': formatTimeSaoPaulo(now),
+      'Game Day (SP)': gameDay,
+      'Offset SP (horas)': offset,
+      'Próxima medianoche (UTC)': nextMidnight.toISOString(),
+      'Próxima medianoche (SP)': formatTimeSaoPaulo(nextMidnight),
+      'Segundos hasta sorteo': timeUntil,
+      'Tiempo formateado': Math.floor(timeUntil / 3600) + 'h ' + Math.floor((timeUntil % 3600) / 60) + 'm ' + (timeUntil % 60) + 's',
+      'Estado': timeUntil <= 0 ? '🔴 Medianoche pasada' : '🟢 Contando'
+    });
+    
+    // Verificar consistencia
+    const timeDiff = nextMidnight.getTime() - now.getTime();
+    const manualCalculation = Math.floor(timeDiff / 1000);
+    
+    if (Math.abs(timeUntil - manualCalculation) > 1) {
+      console.warn('⚠️ Inconsistencia detectada:');
+      console.log('- Función getTimeUntilNextDrawSaoPaulo():', timeUntil);
+      console.log('- Cálculo manual:', manualCalculation);
+      console.log('- Diferencia:', Math.abs(timeUntil - manualCalculation), 'segundos');
+    }
+    
+    return {
+      now: now.toISOString(),
+      saoPauloNow: saoPauloNow.toISOString(),
+      nextMidnight: nextMidnight.toISOString(),
+      timeUntil,
+      offset,
+      gameDay,
+      isConsistent: Math.abs(timeUntil - manualCalculation) <= 1
+    };
+    
+  } catch (error) {
+    console.error('[diagnoseTimer] Error:', error);
+    return { error: error.message };
   }
 };
 
@@ -830,6 +889,7 @@ function App() {
     console.log('- window.checkDrawStatus() - Verificar estado del sorteo');
     console.log('- window.triggerDraw() - Triggear sorteo manualmente');
     console.log('- window.checkTimerStatus() - Verificar estado del timer');
+    console.log('- window.diagnoseTimer() - Diagnosticar el timer en detalle');
   }, []);
 
   return (

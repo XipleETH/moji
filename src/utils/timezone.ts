@@ -30,18 +30,58 @@ export const getCurrentDateSaoPaulo = (): Date => {
 
 // Función para obtener la medianoche del siguiente día en São Paulo
 export const getNextMidnightSaoPaulo = (): Date => {
-  const saoPauloNow = getCurrentDateSaoPaulo();
+  const now = new Date();
   
-  // Obtener la medianoche del siguiente día
-  const nextMidnight = new Date(saoPauloNow);
-  nextMidnight.setDate(saoPauloNow.getDate() + 1);
-  nextMidnight.setHours(0, 0, 0, 0);
+  // Crear fecha en timezone de São Paulo
+  const saoPauloFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SAO_PAULO_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  const parts = saoPauloFormatter.formatToParts(now);
+  const currentSaoPauloYear = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+  const currentSaoPauloMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0') - 1;
+  const currentSaoPauloDay = parseInt(parts.find(p => p.type === 'day')?.value || '0');
+  const currentSaoPauloHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+  const currentSaoPauloMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+  const currentSaoPauloSecond = parseInt(parts.find(p => p.type === 'second')?.value || '0');
   
-  // Convertir de vuelta a UTC/timestamp para uso con Firebase
+  // Crear medianoche del día siguiente en São Paulo
+  let targetDay = currentSaoPauloDay + 1;
+  let targetMonth = currentSaoPauloMonth;
+  let targetYear = currentSaoPauloYear;
+  
+  // Si ya pasó medianoche (o estamos muy cerca), calcular la próxima medianoche
+  if (currentSaoPauloHour === 0 && currentSaoPauloMinute === 0 && currentSaoPauloSecond < 5) {
+    // Si estamos en los primeros 5 segundos de medianoche, la próxima medianoche es mañana
+    targetDay = currentSaoPauloDay + 1;
+  }
+  
+  // Manejar cambio de mes/año
+  const tempDate = new Date(targetYear, targetMonth, targetDay);
+  if (tempDate.getMonth() !== targetMonth) {
+    targetMonth++;
+    targetDay = 1;
+    if (targetMonth > 11) {
+      targetMonth = 0;
+      targetYear++;
+    }
+  }
+  
+  // Crear la fecha objetivo en São Paulo (medianoche)
+  const nextMidnightSP = new Date(targetYear, targetMonth, targetDay, 0, 0, 0, 0);
+  
+  // Convertir a UTC usando el offset de São Paulo
   const saoPauloOffset = getSaoPauloOffset();
-  const utcMidnight = new Date(nextMidnight.getTime() + (saoPauloOffset * 60 * 60 * 1000));
+  const nextMidnightUTC = new Date(nextMidnightSP.getTime() - (saoPauloOffset * 60 * 60 * 1000));
   
-  return utcMidnight;
+  return nextMidnightUTC;
 };
 
 // Función para obtener el offset de São Paulo en horas (considerando DST)
@@ -99,7 +139,29 @@ export const getTimeUntilNextDrawSaoPaulo = (): number => {
   const nextMidnight = getNextMidnightSaoPaulo();
   
   const timeDiff = nextMidnight.getTime() - now.getTime();
-  return Math.max(0, Math.floor(timeDiff / 1000)); // En segundos
+  const secondsUntil = Math.floor(timeDiff / 1000);
+  
+  // Si el resultado es negativo o muy grande (más de 25 horas), recalcular
+  if (secondsUntil < 0 || secondsUntil > 25 * 60 * 60) {
+    console.warn('[getTimeUntilNextDrawSaoPaulo] Tiempo calculado fuera de rango:', secondsUntil, 'segundos. Recalculando...');
+    
+    // Recalcular forzando el día siguiente
+    const saoPauloNow = getCurrentDateSaoPaulo();
+    const tomorrowMidnight = new Date(saoPauloNow);
+    tomorrowMidnight.setDate(saoPauloNow.getDate() + 1);
+    tomorrowMidnight.setHours(0, 0, 0, 0);
+    
+    const saoPauloOffset = getSaoPauloOffset();
+    const utcMidnight = new Date(tomorrowMidnight.getTime() - (saoPauloOffset * 60 * 60 * 1000));
+    
+    const correctedDiff = utcMidnight.getTime() - now.getTime();
+    const correctedSeconds = Math.max(0, Math.floor(correctedDiff / 1000));
+    
+    console.log('[getTimeUntilNextDrawSaoPaulo] Tiempo corregido:', correctedSeconds, 'segundos');
+    return correctedSeconds;
+  }
+  
+  return Math.max(0, secondsUntil);
 };
 
 // Función para formatear tiempo en timezone de São Paulo

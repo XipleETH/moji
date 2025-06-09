@@ -125,7 +125,22 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
     fallbackTimerRef.current = setInterval(() => {
       const preciseSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
       console.log(`[useRealTimeTimer] [Fallback] Recálculo preciso: ${preciseSaoPauloTime}s`);
-      setTimeRemaining(preciseSaoPauloTime);
+      
+      setTimeRemaining(prev => {
+        // Si hay una gran diferencia, usar el cálculo preciso
+        if (Math.abs(preciseSaoPauloTime - prev) > 60) {
+          console.log(`[useRealTimeTimer] [Fallback] Gran diferencia detectada: ${prev}s → ${preciseSaoPauloTime}s`);
+          return preciseSaoPauloTime;
+        }
+        
+        // Si el timer llegó a 0 pero el cálculo preciso dice que hay tiempo, reiniciar
+        if (prev <= 0 && preciseSaoPauloTime > 3600) {
+          console.log(`[useRealTimeTimer] [Fallback] Timer reiniciado: ${prev}s → ${preciseSaoPauloTime}s`);
+          return preciseSaoPauloTime;
+        }
+        
+        return preciseSaoPauloTime;
+      });
     }, 30000);
 
     // Temporizador para distribución automática de pools (cada minuto)
