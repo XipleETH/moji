@@ -38,6 +38,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
+  const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   const { user, isConnected, connect, isConnecting } = useWallet();
 
   // Reset selected emojis when ticket count changes to 0
@@ -123,10 +124,20 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     setSelectedEmojis(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleRandomGenerate = () => {
+  const handleRandomGenerate = async () => {
     if (disabled || userTokens < 1) return;
-    const randomEmojis = generateRandomEmojis(4);
-    handleGenerateTicket(randomEmojis);
+    
+    setIsGeneratingRandom(true);
+    
+    try {
+      const randomEmojis = generateRandomEmojis(4);
+      await handleGenerateTicket(randomEmojis);
+    } finally {
+      // Mantener el efecto visual por un momento antes de resetear
+      setTimeout(() => {
+        setIsGeneratingRandom(false);
+      }, 500);
+    }
   };
 
   const handleConfirmSelectedTicket = () => {
@@ -212,13 +223,19 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         
         <button
           onClick={handleRandomGenerate}
-          disabled={!canGenerateTicket}
-          className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105 
+          disabled={!canGenerateTicket || isGeneratingRandom}
+          className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
                    disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
-                   ${canGenerateTicket ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-gray-500 text-gray-300'}`}
+                   ${isGeneratingRandom 
+                     ? 'bg-purple-600 scale-95 shadow-2xl animate-pulse ring-4 ring-purple-400/50' 
+                     : canGenerateTicket 
+                       ? 'bg-blue-500 hover:bg-blue-600 hover:scale-105 hover:shadow-xl active:scale-95 active:shadow-inner text-white' 
+                       : 'bg-gray-500 text-gray-300'
+                   }`}
         >
-          <Coins size={20} />
-          {isOutOfTokens ? 'No Tokens Available' : 
+          <Coins size={20} className={isGeneratingRandom ? 'animate-spin' : ''} />
+          {isGeneratingRandom ? 'Generando...' :
+           isOutOfTokens ? 'No Tokens Available' : 
            isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
            'Generate Random Ticket (1 Token)'}
         </button>
