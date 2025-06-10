@@ -672,13 +672,12 @@ const checkUserTicketsFunction = async () => {
     const winningNumbers = gameStateDoc.data().winningNumbers;
     console.log(`[debugWinners] 🎯 Números ganadores:`, winningNumbers);
     
-    // 2. Obtener todos los tickets del día
+    // 2. Obtener todos los tickets del día (sin orderBy para evitar el índice)
     const ticketsQuery = query(
       collection(db, 'player_tickets'),
       where('gameDay', '==', currentGameDay),
       where('isActive', '==', true),
-      orderBy('timestamp', 'desc'),
-      limit(100) // Limitar para debug
+      limit(500) // Aumentar límite para debug
     );
     
     const ticketsSnapshot = await getDocs(ticketsQuery);
@@ -774,9 +773,223 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función simple para verificar tickets sin usar índices complejos
+(window as any).simpleDebugWinners = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, getDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[simpleDebugWinners] 🔍 Verificando día: ${currentGameDay}`);
+    
+    // 1. Obtener números ganadores
+    const gameStateRef = doc(db, 'game_state', 'current_game_state');
+    const gameStateDoc = await getDoc(gameStateRef);
+    
+    if (!gameStateDoc.exists()) {
+      console.log('[simpleDebugWinners] ❌ No hay estado de juego');
+      return;
+    }
+    
+    const winningNumbers = gameStateDoc.data().winningNumbers;
+    console.log(`[simpleDebugWinners] 🎯 Números ganadores:`, winningNumbers);
+    
+    // 2. Obtener tickets solo por gameDay
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', currentGameDay)
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // 3. Filtrar tickets activos manualmente
+    const activeTickets = allTickets.filter(ticket => ticket.isActive === true);
+    
+    console.log(`[simpleDebugWinners] 📊 Estadísticas:`);
+    console.log(`- Total tickets del día: ${allTickets.length}`);
+    console.log(`- Tickets activos: ${activeTickets.length}`);
+    console.log(`- Tickets inactivos: ${allTickets.length - activeTickets.length}`);
+    
+    if (activeTickets.length === 0) {
+      console.log('[simpleDebugWinners] ⚠️ No hay tickets activos para verificar');
+      return;
+    }
+    
+    // 4. Verificar ganadores con una muestra de tickets
+    const sampleSize = Math.min(activeTickets.length, 50);
+    const sampleTickets = activeTickets.slice(0, sampleSize);
+    
+    const results = {
+      firstPrize: 0,
+      secondPrize: 0,
+      thirdPrize: 0,
+      freePrize: 0,
+      noWin: 0
+    };
+    
+    console.log(`[simpleDebugWinners] 🎫 Verificando muestra de ${sampleSize} tickets:`);
+    
+    sampleTickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) {
+        console.log(`⚠️ Ticket ${ticket.id.substring(0, 8)} sin números válidos`);
+        return;
+      }
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      if (index < 5) { // Mostrar detalles de los primeros 5
+        console.log(`Ticket ${index + 1}: ${ticket.numbers.join('')} vs ${winningNumbers.join('')} = `, winStatus);
+      }
+      
+      if (winStatus.firstPrize) results.firstPrize++;
+      else if (winStatus.secondPrize) results.secondPrize++;
+      else if (winStatus.thirdPrize) results.thirdPrize++;
+      else if (winStatus.freePrize) results.freePrize++;
+      else results.noWin++;
+    });
+    
+    console.log(`[simpleDebugWinners] 📊 Resultados en muestra de ${sampleSize} tickets:`);
+    console.log(`- Primer premio: ${results.firstPrize}`);
+    console.log(`- Segundo premio: ${results.secondPrize}`);
+    console.log(`- Tercer premio: ${results.thirdPrize}`);
+    console.log(`- Ticket gratis: ${results.freePrize}`);
+    console.log(`- Sin premio: ${results.noWin}`);
+    
+    // 5. Proyección a todos los tickets
+    const totalActiveTickets = activeTickets.length;
+    if (sampleSize < totalActiveTickets) {
+      const factor = totalActiveTickets / sampleSize;
+      console.log(`[simpleDebugWinners] 📈 Proyección estimada para ${totalActiveTickets} tickets:`);
+      console.log(`- Primer premio: ~${Math.round(results.firstPrize * factor)}`);
+      console.log(`- Segundo premio: ~${Math.round(results.secondPrize * factor)}`);
+      console.log(`- Tercer premio: ~${Math.round(results.thirdPrize * factor)}`);
+      console.log(`- Ticket gratis: ~${Math.round(results.freePrize * factor)}`);
+    }
+    
+    return { results, totalActiveTickets, sampleSize };
+    
+  } catch (error) {
+    console.error('[simpleDebugWinners] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función simple para verificar tickets sin usar índices complejos
+(window as any).simpleDebugWinners = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, getDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[simpleDebugWinners] 🔍 Verificando día: ${currentGameDay}`);
+    
+    // 1. Obtener números ganadores
+    const gameStateRef = doc(db, 'game_state', 'current_game_state');
+    const gameStateDoc = await getDoc(gameStateRef);
+    
+    if (!gameStateDoc.exists()) {
+      console.log('[simpleDebugWinners] ❌ No hay estado de juego');
+      return;
+    }
+    
+    const winningNumbers = gameStateDoc.data().winningNumbers;
+    console.log(`[simpleDebugWinners] 🎯 Números ganadores:`, winningNumbers);
+    
+    // 2. Obtener tickets solo por gameDay
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', currentGameDay)
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // 3. Filtrar tickets activos manualmente
+    const activeTickets = allTickets.filter(ticket => ticket.isActive === true);
+    
+    console.log(`[simpleDebugWinners] 📊 Estadísticas:`);
+    console.log(`- Total tickets del día: ${allTickets.length}`);
+    console.log(`- Tickets activos: ${activeTickets.length}`);
+    console.log(`- Tickets inactivos: ${allTickets.length - activeTickets.length}`);
+    
+    if (activeTickets.length === 0) {
+      console.log('[simpleDebugWinners] ⚠️ No hay tickets activos para verificar');
+      return;
+    }
+    
+    // 4. Verificar ganadores con una muestra de tickets
+    const sampleSize = Math.min(activeTickets.length, 50);
+    const sampleTickets = activeTickets.slice(0, sampleSize);
+    
+    const results = {
+      firstPrize: 0,
+      secondPrize: 0,
+      thirdPrize: 0,
+      freePrize: 0,
+      noWin: 0
+    };
+    
+    console.log(`[simpleDebugWinners] 🎫 Verificando muestra de ${sampleSize} tickets:`);
+    
+    sampleTickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) {
+        console.log(`⚠️ Ticket ${ticket.id.substring(0, 8)} sin números válidos`);
+        return;
+      }
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      if (index < 5) { // Mostrar detalles de los primeros 5
+        console.log(`Ticket ${index + 1}: ${ticket.numbers.join('')} vs ${winningNumbers.join('')} = `, winStatus);
+      }
+      
+      if (winStatus.firstPrize) results.firstPrize++;
+      else if (winStatus.secondPrize) results.secondPrize++;
+      else if (winStatus.thirdPrize) results.thirdPrize++;
+      else if (winStatus.freePrize) results.freePrize++;
+      else results.noWin++;
+    });
+    
+    console.log(`[simpleDebugWinners] 📊 Resultados en muestra de ${sampleSize} tickets:`);
+    console.log(`- Primer premio: ${results.firstPrize}`);
+    console.log(`- Segundo premio: ${results.secondPrize}`);
+    console.log(`- Tercer premio: ${results.thirdPrize}`);
+    console.log(`- Ticket gratis: ${results.freePrize}`);
+    console.log(`- Sin premio: ${results.noWin}`);
+    
+    // 5. Proyección a todos los tickets
+    const totalActiveTickets = activeTickets.length;
+    if (sampleSize < totalActiveTickets) {
+      const factor = totalActiveTickets / sampleSize;
+      console.log(`[simpleDebugWinners] 📈 Proyección estimada para ${totalActiveTickets} tickets:`);
+      console.log(`- Primer premio: ~${Math.round(results.firstPrize * factor)}`);
+      console.log(`- Segundo premio: ~${Math.round(results.secondPrize * factor)}`);
+      console.log(`- Tercer premio: ~${Math.round(results.thirdPrize * factor)}`);
+      console.log(`- Ticket gratis: ~${Math.round(results.freePrize * factor)}`);
+    }
+    
+    return { results, totalActiveTickets, sampleSize };
+    
+  } catch (error) {
+    console.error('[simpleDebugWinners] ❌ Error:', error);
+    return null;
+  }
+};
+
 // Función para revisar manualmente la lógica de verificación
-(window as any).testWinLogic = () => {
-  const { checkWin } = require('./utils/gameLogic');
+(window as any).testWinLogic = async () => {
+  const { checkWin } = await import('./utils/gameLogic');
   
   console.log('[testWinLogic] 🧪 Probando lógica de verificación de premios...');
   
@@ -1143,9 +1356,10 @@ function App() {
     console.log('- window.checkTimerStatus() - Verificar estado del timer');
     console.log('- window.diagnoseTimer() - Diagnosticar el timer en detalle');
     console.log('- window.simpleTimerCheck() - Cálculo simple del timer');
-    console.log('- window.resetMyTokens() - Resetear mis tokens a 1000 para pruebas');
-    console.log('- window.debugWinners() - Revisar ganadores manualmente');
-    console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
+          console.log('- window.resetMyTokens() - Resetear mis tokens a 1000 para pruebas');
+      console.log('- window.debugWinners() - Revisar ganadores manualmente (requiere índice)');
+      console.log('- window.simpleDebugWinners() - Verificación simple de ganadores');
+      console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
 
   return (
