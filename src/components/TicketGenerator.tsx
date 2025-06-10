@@ -130,7 +130,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     setIsGeneratingRandom(true);
     
     try {
-      const randomEmojis = generateRandomEmojis(4);
+    const randomEmojis = generateRandomEmojis(4);
       await handleGenerateTicket(randomEmojis);
     } finally {
       // Mantener el efecto visual por un momento antes de resetear

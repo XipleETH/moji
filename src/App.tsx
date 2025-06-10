@@ -648,6 +648,185 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Debug functions para desarrollador
+// Función para revisar manualmente los ganadores
+(window as any).debugWinners = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, getDoc, query, collection, where, getDocs, orderBy, limit } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[debugWinners] 🔍 Verificando ganadores para el día: ${currentGameDay}`);
+    
+    // 1. Obtener números ganadores actuales
+    const gameStateRef = doc(db, 'game_state', 'current_game_state');
+    const gameStateDoc = await getDoc(gameStateRef);
+    
+    if (!gameStateDoc.exists()) {
+      console.log('[debugWinners] ❌ No hay estado de juego');
+      return;
+    }
+    
+    const winningNumbers = gameStateDoc.data().winningNumbers;
+    console.log(`[debugWinners] 🎯 Números ganadores:`, winningNumbers);
+    
+    // 2. Obtener todos los tickets del día
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', currentGameDay),
+      where('isActive', '==', true),
+      orderBy('timestamp', 'desc'),
+      limit(100) // Limitar para debug
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const tickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[debugWinners] 🎫 Encontrados ${tickets.length} tickets para el día ${currentGameDay}`);
+    
+    if (tickets.length === 0) {
+      console.log('[debugWinners] ⚠️ No hay tickets para verificar');
+      return;
+    }
+    
+    // 3. Verificar cada ticket
+    const results = {
+      firstPrize: [],
+      secondPrize: [],
+      thirdPrize: [],
+      freePrize: [],
+      noWin: []
+    };
+    
+    tickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) {
+        console.log(`[debugWinners] ⚠️ Ticket ${ticket.id} sin números válidos:`, ticket.numbers);
+        return;
+      }
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      console.log(`[debugWinners] Ticket ${index + 1}/${tickets.length}:`, {
+        id: ticket.id.substring(0, 8),
+        numbers: ticket.numbers,
+        winningNumbers: winningNumbers,
+        winStatus: winStatus,
+        gameDay: ticket.gameDay
+      });
+      
+      if (winStatus.firstPrize) results.firstPrize.push(ticket);
+      else if (winStatus.secondPrize) results.secondPrize.push(ticket);
+      else if (winStatus.thirdPrize) results.thirdPrize.push(ticket);
+      else if (winStatus.freePrize) results.freePrize.push(ticket);
+      else results.noWin.push(ticket);
+    });
+    
+    // 4. Mostrar resultados
+    console.log('[debugWinners] 📊 Resultados de verificación:');
+    console.log(`- Primer premio: ${results.firstPrize.length} ganadores`);
+    console.log(`- Segundo premio: ${results.secondPrize.length} ganadores`);
+    console.log(`- Tercer premio: ${results.thirdPrize.length} ganadores`);
+    console.log(`- Ticket gratis: ${results.freePrize.length} ganadores`);
+    console.log(`- Sin premio: ${results.noWin.length} tickets`);
+    
+    // 5. Verificar algunos ejemplos de tickets que no ganaron
+    if (results.noWin.length > 0) {
+      console.log('[debugWinners] 🔍 Ejemplos de tickets sin premio:');
+      results.noWin.slice(0, 5).forEach((ticket, i) => {
+        const winStatus = checkWin(ticket.numbers, winningNumbers);
+        console.log(`Ejemplo ${i + 1}:`, {
+          ticketNumbers: ticket.numbers,
+          winningNumbers: winningNumbers,
+          detailedCheck: winStatus
+        });
+      });
+    }
+    
+    // 6. Verificar si hay algún resultado guardado
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('dayKey', '==', currentGameDay),
+      limit(1)
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    if (!resultsSnapshot.empty) {
+      const savedResult = resultsSnapshot.docs[0].data();
+      console.log('[debugWinners] 💾 Resultado guardado en la base de datos:');
+      console.log(`- Primer premio: ${savedResult.firstPrize?.length || 0} ganadores`);
+      console.log(`- Segundo premio: ${savedResult.secondPrize?.length || 0} ganadores`);
+      console.log(`- Tercer premio: ${savedResult.thirdPrize?.length || 0} ganadores`);
+      console.log(`- Ticket gratis: ${savedResult.freePrize?.length || 0} ganadores`);
+    } else {
+      console.log('[debugWinners] ❌ No hay resultado guardado para este día');
+    }
+    
+    return results;
+    
+  } catch (error) {
+    console.error('[debugWinners] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para revisar manualmente la lógica de verificación
+(window as any).testWinLogic = () => {
+  const { checkWin } = require('./utils/gameLogic');
+  
+  console.log('[testWinLogic] 🧪 Probando lógica de verificación de premios...');
+  
+  const testCases = [
+    {
+      name: 'Primer premio (4 exactos)',
+      ticket: ['🌟', '🎈', '🎨', '🌈'],
+      winning: ['🌟', '🎈', '🎨', '🌈'],
+      expected: { firstPrize: true, secondPrize: false, thirdPrize: false, freePrize: false }
+    },
+    {
+      name: 'Segundo premio (4 cualquier orden)',
+      ticket: ['🌈', '🎨', '🎈', '🌟'],
+      winning: ['🌟', '🎈', '🎨', '🌈'],
+      expected: { firstPrize: false, secondPrize: true, thirdPrize: false, freePrize: false }
+    },
+    {
+      name: 'Tercer premio (3 exactos)',
+      ticket: ['🌟', '🎈', '🎨', '🦄'],
+      winning: ['🌟', '🎈', '🎨', '🌈'],
+      expected: { firstPrize: false, secondPrize: false, thirdPrize: true, freePrize: false }
+    },
+    {
+      name: 'Ticket gratis (3 cualquier orden)',
+      ticket: ['🌈', '🦄', '🎈', '🌟'],
+      winning: ['🌟', '🎈', '🎨', '🌈'],
+      expected: { firstPrize: false, secondPrize: false, thirdPrize: false, freePrize: true }
+    },
+    {
+      name: 'Sin premio',
+      ticket: ['🦄', '🍭', '🎪', '🎠'],
+      winning: ['🌟', '🎈', '🎨', '🌈'],
+      expected: { firstPrize: false, secondPrize: false, thirdPrize: false, freePrize: false }
+    }
+  ];
+  
+  testCases.forEach(test => {
+    const result = checkWin(test.ticket, test.winning);
+    const passed = JSON.stringify(result) === JSON.stringify(test.expected);
+    
+    console.log(`${passed ? '✅' : '❌'} ${test.name}:`, {
+      ticket: test.ticket,
+      winning: test.winning,
+      result: result,
+      expected: test.expected,
+      passed: passed
+    });
+  });
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -965,6 +1144,8 @@ function App() {
     console.log('- window.diagnoseTimer() - Diagnosticar el timer en detalle');
     console.log('- window.simpleTimerCheck() - Cálculo simple del timer');
     console.log('- window.resetMyTokens() - Resetear mis tokens a 1000 para pruebas');
+    console.log('- window.debugWinners() - Revisar ganadores manualmente');
+    console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
 
   return (
