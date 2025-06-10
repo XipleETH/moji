@@ -65,7 +65,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     }
   }, [isConnected, user?.walletAddress, showWalletPrompt, pendingTicket, onGenerateTicket]);
 
-  const handleGenerateTicket = async (numbers: string[]) => {
+  const handleGenerateTicket = async (numbers: string[], fromConfirmButton = false) => {
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
     console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user, 'tokens:', userTokens);
     
@@ -93,12 +93,16 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     console.log('[TicketGenerator] Wallet connected and tokens available, generating ticket');
     const result = await onGenerateTicket(numbers);
     
-    // Solo limpiar si la generación fue exitosa
+    // Solo limpiar si la generación fue exitosa Y no viene del botón de confirmación
     if (!result || !result.error) {
-      setSelectedEmojis([]); // Reset selection after generating ticket
+      if (!fromConfirmButton) {
+        setSelectedEmojis([]); // Reset selection after generating ticket
+      }
       setPendingTicket(null);
       setShowWalletPrompt(false);
     }
+    
+    return result;
   };
 
   const handleWalletConnect = async () => {
@@ -143,15 +147,17 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleConfirmSelectedTicket = async () => {
-    if (selectedEmojis.length === 4 && !isAnyButtonProcessing) {
+    if (selectedEmojis.length === 4 && !isConfirmingTicket) {
       setIsConfirmingTicket(true);
       
       try {
-        await handleGenerateTicket(selectedEmojis);
+        await handleGenerateTicket(selectedEmojis, true); // fromConfirmButton = true
       } finally {
         // Mantener el efecto visual por un momento antes de resetear
         setTimeout(() => {
           setIsConfirmingTicket(false);
+          // Limpiar los emojis después de la animación
+          setSelectedEmojis([]);
         }, 500);
       }
     }
@@ -218,7 +224,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         />
         
         {/* Botón de confirmación para emojis seleccionados */}
-        {selectedEmojis.length === 4 && (
+        {(selectedEmojis.length === 4 || isConfirmingTicket) && (
           <button
             onClick={handleConfirmSelectedTicket}
             disabled={!canGenerateTicket || isAnyButtonProcessing}
