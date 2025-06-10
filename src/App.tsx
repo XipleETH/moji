@@ -987,6 +987,227 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para investigar qué gameDays tienen tickets
+(window as any).investigateGameDays = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, getDocs, orderBy, limit } = await import('firebase/firestore');
+    const { getCurrentGameDay } = await import('./firebase/tokens');
+    
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[investigateGameDays] 🔍 Día calculado por frontend: ${currentGameDay}`);
+    
+    // 1. Obtener los tickets más recientes sin filtrar por gameDay
+    const recentTicketsQuery = query(
+      collection(db, 'player_tickets'),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
+    
+    const recentTicketsSnapshot = await getDocs(recentTicketsQuery);
+    const recentTickets = recentTicketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[investigateGameDays] 📊 Encontrados ${recentTickets.length} tickets recientes`);
+    
+    // 2. Agrupar tickets por gameDay
+    const ticketsByGameDay = {};
+    recentTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay || 'undefined';
+      if (!ticketsByGameDay[gameDay]) {
+        ticketsByGameDay[gameDay] = [];
+      }
+      ticketsByGameDay[gameDay].push(ticket);
+    });
+    
+    console.log(`[investigateGameDays] 📅 Tickets agrupados por gameDay:`);
+    Object.keys(ticketsByGameDay).forEach(gameDay => {
+      const count = ticketsByGameDay[gameDay].length;
+      const isCurrentDay = gameDay === currentGameDay;
+      console.log(`- ${gameDay}: ${count} tickets ${isCurrentDay ? '👈 DÍA ACTUAL' : ''}`);
+    });
+    
+    // 3. Mostrar algunos ejemplos de tickets recientes
+    console.log(`[investigateGameDays] 🎫 Primeros 10 tickets recientes:`);
+    recentTickets.slice(0, 10).forEach((ticket, index) => {
+      const date = ticket.timestamp ? new Date(ticket.timestamp.seconds * 1000) : new Date(ticket.timestamp);
+      console.log(`${index + 1}. ID: ${ticket.id.substring(0, 8)}, GameDay: ${ticket.gameDay}, Fecha: ${date.toLocaleString()}, Activo: ${ticket.isActive}`);
+    });
+    
+    // 4. Verificar si hay resultados de sorteo guardados
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      orderBy('timestamp', 'desc'),
+      limit(5)
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    const results = resultsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[investigateGameDays] 🏆 Últimos ${results.length} resultados de sorteo:`);
+    results.forEach((result, index) => {
+      const date = result.timestamp ? new Date(result.timestamp.seconds * 1000) : new Date();
+      console.log(`${index + 1}. GameDay: ${result.dayKey}, Fecha: ${date.toLocaleString()}, Ganadores: F:${result.firstPrize?.length || 0} S:${result.secondPrize?.length || 0} T:${result.thirdPrize?.length || 0} G:${result.freePrize?.length || 0}`);
+    });
+    
+    return {
+      currentGameDay,
+      ticketsByGameDay,
+      totalTickets: recentTickets.length,
+      recentResults: results
+    };
+    
+  } catch (error) {
+    console.error('[investigateGameDays] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para verificar ganadores de una fecha específica
+(window as any).checkWinnersForDate = async (targetDate = '2025-06-09') => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, getDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    
+    console.log(`[checkWinnersForDate] 🔍 Verificando ganadores para la fecha: ${targetDate}`);
+    
+    // 1. Buscar el resultado del sorteo de esa fecha
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('dayKey', '==', targetDate)
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    
+    if (resultsSnapshot.empty) {
+      console.log(`[checkWinnersForDate] ❌ No se encontró resultado de sorteo para ${targetDate}`);
+      return;
+    }
+    
+    const gameResult = resultsSnapshot.docs[0].data();
+    const winningNumbers = gameResult.winningNumbers;
+    
+    console.log(`[checkWinnersForDate] 🎯 Números ganadores del ${targetDate}:`, winningNumbers);
+    console.log(`[checkWinnersForDate] 💾 Ganadores guardados en el resultado:`);
+    console.log(`- Primer premio: ${gameResult.firstPrize?.length || 0} ganadores`);
+    console.log(`- Segundo premio: ${gameResult.secondPrize?.length || 0} ganadores`);
+    console.log(`- Tercer premio: ${gameResult.thirdPrize?.length || 0} ganadores`);
+    console.log(`- Ticket gratis: ${gameResult.freePrize?.length || 0} ganadores`);
+    
+    // 2. Obtener tickets de esa fecha
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', targetDate)
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    const activeTickets = allTickets.filter(ticket => ticket.isActive === true);
+    
+    console.log(`[checkWinnersForDate] 📊 Estadísticas de tickets del ${targetDate}:`);
+    console.log(`- Total tickets: ${allTickets.length}`);
+    console.log(`- Tickets activos: ${activeTickets.length}`);
+    
+    if (activeTickets.length === 0) {
+      console.log(`[checkWinnersForDate] ⚠️ No hay tickets activos para verificar en ${targetDate}`);
+      return;
+    }
+    
+    // 3. Verificar TODOS los tickets de ese día
+    const results = {
+      firstPrize: [],
+      secondPrize: [],
+      thirdPrize: [],
+      freePrize: [],
+      noWin: []
+    };
+    
+    console.log(`[checkWinnersForDate] 🎫 Verificando TODOS los ${activeTickets.length} tickets del ${targetDate}...`);
+    
+    activeTickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) {
+        console.log(`⚠️ Ticket ${ticket.id.substring(0, 8)} sin números válidos`);
+        return;
+      }
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      if (winStatus.firstPrize) results.firstPrize.push(ticket);
+      else if (winStatus.secondPrize) results.secondPrize.push(ticket);
+      else if (winStatus.thirdPrize) results.thirdPrize.push(ticket);
+      else if (winStatus.freePrize) results.freePrize.push(ticket);
+      else results.noWin.push(ticket);
+      
+      // Mostrar progreso cada 100 tickets
+      if ((index + 1) % 100 === 0) {
+        console.log(`Procesados ${index + 1}/${activeTickets.length} tickets...`);
+      }
+    });
+    
+    console.log(`[checkWinnersForDate] 🏆 RESULTADOS RECALCULADOS para ${targetDate}:`);
+    console.log(`- Primer premio: ${results.firstPrize.length} ganadores`);
+    console.log(`- Segundo premio: ${results.secondPrize.length} ganadores`);
+    console.log(`- Tercer premio: ${results.thirdPrize.length} ganadores`);
+    console.log(`- Ticket gratis: ${results.freePrize.length} ganadores`);
+    console.log(`- Sin premio: ${results.noWin.length} tickets`);
+    
+    // 4. Comparar con los resultados guardados
+    console.log(`[checkWinnersForDate] 📊 COMPARACIÓN:`);
+    console.log(`Primer premio: Guardado ${gameResult.firstPrize?.length || 0} vs Calculado ${results.firstPrize.length} ${gameResult.firstPrize?.length === results.firstPrize.length ? '✅' : '❌'}`);
+    console.log(`Segundo premio: Guardado ${gameResult.secondPrize?.length || 0} vs Calculado ${results.secondPrize.length} ${gameResult.secondPrize?.length === results.secondPrize.length ? '✅' : '❌'}`);
+    console.log(`Tercer premio: Guardado ${gameResult.thirdPrize?.length || 0} vs Calculado ${results.thirdPrize.length} ${gameResult.thirdPrize?.length === results.thirdPrize.length ? '✅' : '❌'}`);
+    console.log(`Ticket gratis: Guardado ${gameResult.freePrize?.length || 0} vs Calculado ${results.freePrize.length} ${gameResult.freePrize?.length === results.freePrize.length ? '✅' : '❌'}`);
+    
+    // 5. Mostrar algunos ejemplos de ganadores encontrados
+    if (results.firstPrize.length > 0) {
+      console.log(`[checkWinnersForDate] 🥇 Ejemplos de PRIMER PREMIO:`);
+      results.firstPrize.slice(0, 5).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId}`);
+      });
+    }
+    
+    if (results.secondPrize.length > 0) {
+      console.log(`[checkWinnersForDate] 🥈 Ejemplos de SEGUNDO PREMIO:`);
+      results.secondPrize.slice(0, 5).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId}`);
+      });
+    }
+    
+    return {
+      targetDate,
+      winningNumbers,
+      savedResults: {
+        firstPrize: gameResult.firstPrize?.length || 0,
+        secondPrize: gameResult.secondPrize?.length || 0,
+        thirdPrize: gameResult.thirdPrize?.length || 0,
+        freePrize: gameResult.freePrize?.length || 0
+      },
+      calculatedResults: {
+        firstPrize: results.firstPrize.length,
+        secondPrize: results.secondPrize.length,
+        thirdPrize: results.thirdPrize.length,
+        freePrize: results.freePrize.length
+      },
+      totalTickets: activeTickets.length,
+      winners: results
+    };
+    
+  } catch (error) {
+    console.error('[checkWinnersForDate] ❌ Error:', error);
+    return null;
+  }
+};
+
 // Función para revisar manualmente la lógica de verificación
 (window as any).testWinLogic = async () => {
   const { checkWin } = await import('./utils/gameLogic');
@@ -1359,6 +1580,8 @@ function App() {
           console.log('- window.resetMyTokens() - Resetear mis tokens a 1000 para pruebas');
       console.log('- window.debugWinners() - Revisar ganadores manualmente (requiere índice)');
       console.log('- window.simpleDebugWinners() - Verificación simple de ganadores');
+      console.log('- window.investigateGameDays() - Ver en qué fechas están los tickets');
+      console.log('- window.checkWinnersForDate() - Verificar ganadores del 9 de junio');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
 
