@@ -641,21 +641,19 @@ export const getPoolStatistics = async (gameDay?: string) => {
   try {
     const pool = await getDailyPrizePool(currentDay);
     
-    // Obtener número de participantes únicos
-    // Requiere índice compuesto: ticket_purchases (gameDay ASC, timestamp DESC)
-    const purchasesQuery = query(
-      collection(db, TICKET_PURCHASES_COLLECTION),
-      where('gameDay', '==', currentDay),
-      orderBy('timestamp', 'desc')
+    // Obtener número de participantes únicos desde player_tickets (fuente real)
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', currentDay)
     );
     
-    const purchasesSnapshot = await getDocs(purchasesQuery);
-    const uniqueParticipants = new Set(purchasesSnapshot.docs.map(doc => doc.data().userId));
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const uniqueParticipants = new Set(ticketsSnapshot.docs.map(doc => doc.data().userId));
     
     return {
       ...pool,
       totalParticipants: uniqueParticipants.size,
-      totalTicketsSold: purchasesSnapshot.size,
+      totalTicketsSold: ticketsSnapshot.size, // Usar player_tickets como fuente real
       averageTokensPerParticipant: uniqueParticipants.size > 0 ? pool.totalTokensCollected / uniqueParticipants.size : 0
     };
   } catch (error) {
