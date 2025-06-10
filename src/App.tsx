@@ -2309,15 +2309,15 @@ const checkUserTicketsFunction = async () => {
     const today = new Date().toISOString().split('T')[0];
     console.log(`[checkTokensVsTickets] 🔍 Verificando conteo para ${today}...`);
     
-    // 1. Contar tokens del día
+    // 1. Contar tokens del día - corregir búsqueda
     const tokensQuery = query(
       collection(db, 'daily_tokens'),
-      where('dayKey', '==', today)
+      where('date', '==', today)
     );
     const tokensSnapshot = await getDocs(tokensQuery);
     const totalTokens = tokensSnapshot.docs.reduce((sum, doc) => {
       const data = doc.data();
-      return sum + (data.amount || 0);
+      return sum + (data.tokensUsed || 0);
     }, 0);
     
     console.log(`💰 Total tokens del día (${today}): ${totalTokens}`);
@@ -2339,17 +2339,17 @@ const checkUserTicketsFunction = async () => {
     // Procesar tokens por usuario
     tokensSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      const userId = data.userId || data.address;
+      const userId = data.userId;
       if (!userStats[userId]) {
         userStats[userId] = { tokens: 0, tickets: 0 };
       }
-      userStats[userId].tokens += (data.amount || 0);
+      userStats[userId].tokens += (data.tokensUsed || 0);
     });
     
     // Procesar tickets por usuario
     ticketsSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      const userId = data.userId || data.address;
+      const userId = data.userId;
       if (!userStats[userId]) {
         userStats[userId] = { tokens: 0, tickets: 0 };
       }
