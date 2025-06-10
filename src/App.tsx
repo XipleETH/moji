@@ -1980,6 +1980,326 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para verificar ganadores incluyendo tickets con gameDay undefined
+(window as any).checkAllTicketsForWinners = async (targetDate = '2025-06-09') => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    
+    console.log(`[checkAllTicketsForWinners] 🔍 Verificando TODOS los tickets para ${targetDate}...`);
+    
+    // 1. Obtener números ganadores de esa fecha
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('dayKey', '==', targetDate)
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    
+    if (resultsSnapshot.empty) {
+      console.log(`❌ No hay resultado para ${targetDate}`);
+      return;
+    }
+    
+    const gameResult = resultsSnapshot.docs[0].data();
+    const winningNumbers = gameResult.winningNumbers;
+    
+    console.log(`🎯 Números ganadores del ${targetDate}: ${winningNumbers.join('')}`);
+    
+    // 2. Obtener TODOS los tickets de la BD (incluyendo undefined gameDay)
+    const allTicketsQuery = query(collection(db, 'player_tickets'));
+    const allTicketsSnapshot = await getDocs(allTicketsQuery);
+    const allTickets = allTicketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`📊 Total tickets en toda la BD: ${allTickets.length}`);
+    
+    // 3. Filtrar tickets relevantes por fecha aproximada
+    const targetDateObj = new Date(targetDate + 'T00:00:00');
+    const dayBefore = new Date(targetDateObj.getTime() - 24 * 60 * 60 * 1000);
+    const dayAfter = new Date(targetDateObj.getTime() + 24 * 60 * 60 * 1000);
+    
+    const relevantTickets = allTickets.filter(ticket => {
+      // Incluir tickets con gameDay exacto
+      if (ticket.gameDay === targetDate) return true;
+      
+      // Incluir tickets con gameDay undefined pero fecha relevante
+      if (ticket.gameDay === undefined || ticket.gameDay === null) {
+        const ticketDate = ticket.timestamp?.seconds ? 
+          new Date(ticket.timestamp.seconds * 1000) : 
+          new Date(ticket.timestamp || 0);
+        
+        return ticketDate >= dayBefore && ticketDate <= dayAfter;
+      }
+      
+      return false;
+    });
+    
+    console.log(`🎫 Tickets relevantes para verificar: ${relevantTickets.length}`);
+    console.log(`   - Con gameDay correcto: ${relevantTickets.filter(t => t.gameDay === targetDate).length}`);
+    console.log(`   - Con gameDay undefined: ${relevantTickets.filter(t => !t.gameDay).length}`);
+    
+    // 4. Verificar ganadores en TODOS los tickets relevantes
+    const results = {
+      firstPrize: [],
+      secondPrize: [],
+      thirdPrize: [],
+      freePrize: [],
+      noWin: []
+    };
+    
+    console.log(`🔍 Verificando ${relevantTickets.length} tickets...`);
+    
+    relevantTickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) return;
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      if (winStatus.firstPrize) results.firstPrize.push(ticket);
+      else if (winStatus.secondPrize) results.secondPrize.push(ticket);
+      else if (winStatus.thirdPrize) results.thirdPrize.push(ticket);
+      else if (winStatus.freePrize) results.freePrize.push(ticket);
+      else results.noWin.push(ticket);
+      
+      if ((index + 1) % 500 === 0) {
+        console.log(`Procesados ${index + 1}/${relevantTickets.length}...`);
+      }
+    });
+    
+    console.log(`\n[checkAllTicketsForWinners] 🏆 GANADORES REALES (incluyendo gameDay undefined):`);
+    console.log(`- Primer premio: ${results.firstPrize.length} ganadores`);
+    console.log(`- Segundo premio: ${results.secondPrize.length} ganadores`);
+    console.log(`- Tercer premio: ${results.thirdPrize.length} ganadores`);
+    console.log(`- Ticket gratis: ${results.freePrize.length} ganadores`);
+    
+    // 5. Mostrar algunos ejemplos de ganadores
+    if (results.firstPrize.length > 0) {
+      console.log(`\n🥇 Ejemplos de PRIMER PREMIO:`);
+      results.firstPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.secondPrize.length > 0) {
+      console.log(`\n🥈 Ejemplos de SEGUNDO PREMIO:`);
+      results.secondPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.thirdPrize.length > 0) {
+      console.log(`\n🥉 Ejemplos de TERCER PREMIO:`);
+      results.thirdPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.freePrize.length > 0) {
+      console.log(`\n🎟️ Ejemplos de TICKET GRATIS:`);
+      results.freePrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    // 6. Comparar con los resultados oficiales guardados
+    console.log(`\n📊 COMPARACIÓN CON RESULTADOS OFICIALES:`);
+    console.log(`Oficial: F:${gameResult.firstPrize?.length || 0} S:${gameResult.secondPrize?.length || 0} T:${gameResult.thirdPrize?.length || 0} G:${gameResult.freePrize?.length || 0}`);
+    console.log(`Real: F:${results.firstPrize.length} S:${results.secondPrize.length} T:${results.thirdPrize.length} G:${results.freePrize.length}`);
+    
+    const totalOfficial = (gameResult.firstPrize?.length || 0) + (gameResult.secondPrize?.length || 0) + (gameResult.thirdPrize?.length || 0) + (gameResult.freePrize?.length || 0);
+    const totalReal = results.firstPrize.length + results.secondPrize.length + results.thirdPrize.length + results.freePrize.length;
+    
+    if (totalReal > totalOfficial) {
+      console.log(`🚨 ¡HAY ${totalReal - totalOfficial} GANADORES NO DETECTADOS!`);
+    }
+    
+    return {
+      winningNumbers,
+      officialResults: {
+        firstPrize: gameResult.firstPrize?.length || 0,
+        secondPrize: gameResult.secondPrize?.length || 0,
+        thirdPrize: gameResult.thirdPrize?.length || 0,
+        freePrize: gameResult.freePrize?.length || 0
+      },
+      actualResults: {
+        firstPrize: results.firstPrize.length,
+        secondPrize: results.secondPrize.length,
+        thirdPrize: results.thirdPrize.length,
+        freePrize: results.freePrize.length
+      },
+      totalTicketsChecked: relevantTickets.length,
+      winnersFound: results
+    };
+    
+  } catch (error) {
+    console.error('[checkAllTicketsForWinners] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para verificar ganadores incluyendo tickets con gameDay undefined
+(window as any).checkAllTicketsForWinners = async (targetDate = '2025-06-09') => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    const { checkWin } = await import('./utils/gameLogic');
+    
+    console.log(`[checkAllTicketsForWinners] 🔍 Verificando TODOS los tickets para ${targetDate}...`);
+    
+    // 1. Obtener números ganadores de esa fecha
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('dayKey', '==', targetDate)
+    );
+    
+    const resultsSnapshot = await getDocs(resultsQuery);
+    
+    if (resultsSnapshot.empty) {
+      console.log(`❌ No hay resultado para ${targetDate}`);
+      return;
+    }
+    
+    const gameResult = resultsSnapshot.docs[0].data();
+    const winningNumbers = gameResult.winningNumbers;
+    
+    console.log(`🎯 Números ganadores del ${targetDate}: ${winningNumbers.join('')}`);
+    
+    // 2. Obtener TODOS los tickets de la BD (incluyendo undefined gameDay)
+    const allTicketsQuery = query(collection(db, 'player_tickets'));
+    const allTicketsSnapshot = await getDocs(allTicketsQuery);
+    const allTickets = allTicketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`📊 Total tickets en toda la BD: ${allTickets.length}`);
+    
+    // 3. Filtrar tickets relevantes por fecha aproximada
+    const targetDateObj = new Date(targetDate + 'T00:00:00');
+    const dayBefore = new Date(targetDateObj.getTime() - 24 * 60 * 60 * 1000);
+    const dayAfter = new Date(targetDateObj.getTime() + 24 * 60 * 60 * 1000);
+    
+    const relevantTickets = allTickets.filter(ticket => {
+      // Incluir tickets con gameDay exacto
+      if (ticket.gameDay === targetDate) return true;
+      
+      // Incluir tickets con gameDay undefined pero fecha relevante
+      if (ticket.gameDay === undefined || ticket.gameDay === null) {
+        const ticketDate = ticket.timestamp?.seconds ? 
+          new Date(ticket.timestamp.seconds * 1000) : 
+          new Date(ticket.timestamp || 0);
+        
+        return ticketDate >= dayBefore && ticketDate <= dayAfter;
+      }
+      
+      return false;
+    });
+    
+    console.log(`🎫 Tickets relevantes para verificar: ${relevantTickets.length}`);
+    console.log(`   - Con gameDay correcto: ${relevantTickets.filter(t => t.gameDay === targetDate).length}`);
+    console.log(`   - Con gameDay undefined: ${relevantTickets.filter(t => !t.gameDay).length}`);
+    
+    // 4. Verificar ganadores en TODOS los tickets relevantes
+    const results = {
+      firstPrize: [],
+      secondPrize: [],
+      thirdPrize: [],
+      freePrize: [],
+      noWin: []
+    };
+    
+    console.log(`🔍 Verificando ${relevantTickets.length} tickets...`);
+    
+    relevantTickets.forEach((ticket, index) => {
+      if (!ticket.numbers || !Array.isArray(ticket.numbers)) return;
+      
+      const winStatus = checkWin(ticket.numbers, winningNumbers);
+      
+      if (winStatus.firstPrize) results.firstPrize.push(ticket);
+      else if (winStatus.secondPrize) results.secondPrize.push(ticket);
+      else if (winStatus.thirdPrize) results.thirdPrize.push(ticket);
+      else if (winStatus.freePrize) results.freePrize.push(ticket);
+      else results.noWin.push(ticket);
+      
+      if ((index + 1) % 500 === 0) {
+        console.log(`Procesados ${index + 1}/${relevantTickets.length}...`);
+      }
+    });
+    
+    console.log(`\n[checkAllTicketsForWinners] 🏆 GANADORES REALES (incluyendo gameDay undefined):`);
+    console.log(`- Primer premio: ${results.firstPrize.length} ganadores`);
+    console.log(`- Segundo premio: ${results.secondPrize.length} ganadores`);
+    console.log(`- Tercer premio: ${results.thirdPrize.length} ganadores`);
+    console.log(`- Ticket gratis: ${results.freePrize.length} ganadores`);
+    
+    // 5. Mostrar algunos ejemplos de ganadores
+    if (results.firstPrize.length > 0) {
+      console.log(`\n🥇 Ejemplos de PRIMER PREMIO:`);
+      results.firstPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.secondPrize.length > 0) {
+      console.log(`\n🥈 Ejemplos de SEGUNDO PREMIO:`);
+      results.secondPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.thirdPrize.length > 0) {
+      console.log(`\n🥉 Ejemplos de TERCER PREMIO:`);
+      results.thirdPrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    if (results.freePrize.length > 0) {
+      console.log(`\n🎟️ Ejemplos de TICKET GRATIS:`);
+      results.freePrize.slice(0, 3).forEach((ticket, i) => {
+        console.log(`${i + 1}. ${ticket.numbers.join('')} vs ${winningNumbers.join('')} - Usuario: ${ticket.userId || 'N/A'}, GameDay: ${ticket.gameDay || 'undefined'}`);
+      });
+    }
+    
+    // 6. Comparar con los resultados oficiales guardados
+    console.log(`\n📊 COMPARACIÓN CON RESULTADOS OFICIALES:`);
+    console.log(`Oficial: F:${gameResult.firstPrize?.length || 0} S:${gameResult.secondPrize?.length || 0} T:${gameResult.thirdPrize?.length || 0} G:${gameResult.freePrize?.length || 0}`);
+    console.log(`Real: F:${results.firstPrize.length} S:${results.secondPrize.length} T:${results.thirdPrize.length} G:${results.freePrize.length}`);
+    
+    const totalOfficial = (gameResult.firstPrize?.length || 0) + (gameResult.secondPrize?.length || 0) + (gameResult.thirdPrize?.length || 0) + (gameResult.freePrize?.length || 0);
+    const totalReal = results.firstPrize.length + results.secondPrize.length + results.thirdPrize.length + results.freePrize.length;
+    
+    if (totalReal > totalOfficial) {
+      console.log(`🚨 ¡HAY ${totalReal - totalOfficial} GANADORES NO DETECTADOS!`);
+    }
+    
+    return {
+      winningNumbers,
+      officialResults: {
+        firstPrize: gameResult.firstPrize?.length || 0,
+        secondPrize: gameResult.secondPrize?.length || 0,
+        thirdPrize: gameResult.thirdPrize?.length || 0,
+        freePrize: gameResult.freePrize?.length || 0
+      },
+      actualResults: {
+        firstPrize: results.firstPrize.length,
+        secondPrize: results.secondPrize.length,
+        thirdPrize: results.thirdPrize.length,
+        freePrize: results.freePrize.length
+      },
+      totalTicketsChecked: relevantTickets.length,
+      winnersFound: results
+    };
+    
+  } catch (error) {
+    console.error('[checkAllTicketsForWinners] ❌ Error:', error);
+    return null;
+  }
+};
+
 // Función para revisar manualmente la lógica de verificación
 (window as any).testWinLogic = async () => {
   const { checkWin } = await import('./utils/gameLogic');
@@ -2359,6 +2679,7 @@ function App() {
       console.log('- window.investigateUserTickets("wallet") - Investigar usuario específico');
       console.log('- window.simpleUserInvestigation("wallet") - Investigar sin índices');
       console.log('- window.checkTemporaryTickets() - Verificar tickets temporales');
+      console.log('- window.checkAllTicketsForWinners() - Verificar TODOS los ganadores');
       console.log('- window.compareFrontendVsDB() - Comparar frontend vs BD');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
