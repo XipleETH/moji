@@ -1832,6 +1832,154 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función simple para investigar usuarios sin índices
+(window as any).simpleUserInvestigation = async (walletAddress) => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    if (!walletAddress) {
+      console.log('[simpleUserInvestigation] ❌ Proporciona una wallet address');
+      return;
+    }
+    
+    console.log(`[simpleUserInvestigation] 🔍 Investigando: ${walletAddress}`);
+    
+    // Buscar sin orderBy para evitar problemas de índice
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('walletAddress', '==', walletAddress)
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const tickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`📊 Total tickets encontrados: ${tickets.length}`);
+    
+    if (tickets.length === 0) {
+      console.log(`❌ NO HAY TICKETS en la BD para ${walletAddress}`);
+      console.log(`🔍 Esto significa que los tickets mostrados en el frontend NUNCA se guardaron`);
+      return { tickets: [], issue: 'NO_TICKETS_IN_DB' };
+    }
+    
+    // Agrupar por gameDay
+    const byGameDay = {};
+    tickets.forEach(ticket => {
+      const day = ticket.gameDay || 'undefined';
+      if (!byGameDay[day]) byGameDay[day] = [];
+      byGameDay[day].push(ticket);
+    });
+    
+    console.log(`📅 Tickets por gameDay:`);
+    Object.entries(byGameDay)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .forEach(([day, dayTickets]) => {
+        console.log(`   ${day}: ${dayTickets.length} tickets`);
+      });
+    
+    // Mostrar fechas de los últimos tickets para ver el patrón
+    const sortedTickets = tickets.sort((a, b) => {
+      const timeA = a.timestamp?.seconds || a.timestamp || 0;
+      const timeB = b.timestamp?.seconds || b.timestamp || 0;
+      return timeB - timeA;
+    });
+    
+    console.log(`🎫 Últimos 10 tickets (por timestamp):`);
+    sortedTickets.slice(0, 10).forEach((ticket, i) => {
+      const timestamp = ticket.timestamp?.seconds ? 
+        new Date(ticket.timestamp.seconds * 1000) : 
+        new Date(ticket.timestamp || 0);
+      
+      console.log(`   ${i+1}. GameDay: ${ticket.gameDay}, Fecha real: ${timestamp.toLocaleString()}, ID: ${ticket.id.substring(0, 8)}`);
+    });
+    
+    return { 
+      tickets, 
+      byGameDay, 
+      totalTickets: tickets.length,
+      issue: tickets.length > 0 ? 'WRONG_GAMEDAY' : 'NO_TICKETS_IN_DB'
+    };
+    
+  } catch (error) {
+    console.error('[simpleUserInvestigation] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para buscar tickets temporales o en memoria
+(window as any).checkTemporaryTickets = async () => {
+  try {
+    console.log(`[checkTemporaryTickets] 🔍 Verificando tickets temporales/en memoria...`);
+    
+    // 1. Verificar el estado local del hook useGameState
+    const { useGameState } = await import('./hooks/useGameState');
+    console.log('🔍 Intentando acceder al estado local del juego...');
+    
+    // 2. Verificar localStorage
+    console.log('🔍 Verificando localStorage:');
+    const localStorageKeys = Object.keys(localStorage).filter(key => 
+      key.includes('ticket') || key.includes('game') || key.includes('moji')
+    );
+    
+    if (localStorageKeys.length > 0) {
+      console.log('📱 Datos en localStorage:');
+      localStorageKeys.forEach(key => {
+        const value = localStorage.getItem(key);
+        console.log(`   ${key}: ${value?.substring(0, 100)}...`);
+      });
+    } else {
+      console.log('📱 No hay datos relevantes en localStorage');
+    }
+    
+    // 3. Verificar sessionStorage  
+    console.log('🔍 Verificando sessionStorage:');
+    const sessionStorageKeys = Object.keys(sessionStorage).filter(key => 
+      key.includes('ticket') || key.includes('game') || key.includes('moji')
+    );
+    
+    if (sessionStorageKeys.length > 0) {
+      console.log('📱 Datos en sessionStorage:');
+      sessionStorageKeys.forEach(key => {
+        const value = sessionStorage.getItem(key);
+        console.log(`   ${key}: ${value?.substring(0, 100)}...`);
+      });
+    } else {
+      console.log('📱 No hay datos relevantes en sessionStorage');
+    }
+    
+    // 4. Verificar si hay tickets con ID temporal
+    const { db } = await import('./firebase/config');
+    const { query, collection, getDocs } = await import('firebase/firestore');
+    
+    const tempTicketsQuery = query(collection(db, 'player_tickets'));
+    const tempTicketsSnapshot = await getDocs(tempTicketsQuery);
+    
+    const tempTickets = [];
+    tempTicketsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (doc.id.startsWith('temp-') || data.isTemporary) {
+        tempTickets.push({ id: doc.id, ...data });
+      }
+    });
+    
+    if (tempTickets.length > 0) {
+      console.log(`🔍 Encontrados ${tempTickets.length} tickets temporales en BD`);
+      tempTickets.forEach(ticket => {
+        console.log(`   Temp ticket: ${ticket.id}, GameDay: ${ticket.gameDay}`);
+      });
+    } else {
+      console.log('🔍 No hay tickets temporales en BD');
+    }
+    
+  } catch (error) {
+    console.error('[checkTemporaryTickets] ❌ Error:', error);
+    return null;
+  }
+};
+
 // Función para revisar manualmente la lógica de verificación
 (window as any).testWinLogic = async () => {
   const { checkWin } = await import('./utils/gameLogic');
@@ -2209,6 +2357,8 @@ function App() {
       console.log('- window.compareWinningDays() - Comparar días con/sin ganadores');
       console.log('- window.getAllMyTickets() - Ver TODOS mis tickets');
       console.log('- window.investigateUserTickets("wallet") - Investigar usuario específico');
+      console.log('- window.simpleUserInvestigation("wallet") - Investigar sin índices');
+      console.log('- window.checkTemporaryTickets() - Verificar tickets temporales');
       console.log('- window.compareFrontendVsDB() - Comparar frontend vs BD');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
