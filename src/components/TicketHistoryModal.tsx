@@ -36,7 +36,7 @@ export const TicketHistoryModal: React.FC<TicketHistoryModalProps> = ({ onClose 
           <div className="p-6 flex justify-between items-center border-b">
             <h2 className="text-xl font-bold flex items-center">
               <Ticket className="mr-2 text-blue-600" size={24} />
-              Historial de Tickets
+              Ticket History
             </h2>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
               <X size={24} />
@@ -44,7 +44,7 @@ export const TicketHistoryModal: React.FC<TicketHistoryModalProps> = ({ onClose 
           </div>
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Cargando historial de tickets...</p>
+            <p className="text-gray-600">Loading ticket history...</p>
           </div>
         </div>
       </div>
@@ -61,10 +61,10 @@ export const TicketHistoryModal: React.FC<TicketHistoryModalProps> = ({ onClose 
           <div>
             <h2 className="text-xl font-bold flex items-center">
               <Ticket className="mr-2 text-blue-600" size={24} />
-              Historial de Tickets
+              Ticket History
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              {totalTickets} tickets en {totalDays} día{totalDays !== 1 ? 's' : ''}
+              {totalTickets} tickets in {totalDays} day{totalDays !== 1 ? 's' : ''}
             </p>
           </div>
           <button 
@@ -81,10 +81,10 @@ export const TicketHistoryModal: React.FC<TicketHistoryModalProps> = ({ onClose 
             <div className="text-center py-12">
               <Ticket className="mx-auto text-gray-300 mb-4" size={64} />
               <h3 className="text-lg font-semibold text-gray-600 mb-2">
-                No hay tickets aún
+                No tickets yet
               </h3>
               <p className="text-gray-500">
-                Cuando compres tickets, aparecerán aquí organizados por días.
+                When you buy tickets, they will appear here organized by days.
               </p>
             </div>
           ) : (
@@ -143,7 +143,7 @@ export const TicketHistoryModal: React.FC<TicketHistoryModalProps> = ({ onClose 
         {/* Footer */}
         <div className="p-4 border-t bg-gray-50 text-center">
           <p className="text-sm text-gray-600">
-            Mostrando tickets de los últimos 30 días
+            Showing tickets from the last 30 days
           </p>
         </div>
       </div>

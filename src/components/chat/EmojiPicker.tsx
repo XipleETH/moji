@@ -146,7 +146,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
           </span>
         ))}
         {selectedEmojis.length === 0 && (
-          <span className="text-gray-400 text-sm">Selecciona emojis para tu mensaje...</span>
+          <span className="text-gray-400 text-sm">Select emojis for your message...</span>
         )}
       </div>
 

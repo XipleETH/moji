@@ -50,7 +50,7 @@ export const useTicketHistory = (limitDays: number = 30) => {
     return Object.keys(state.ticketsByDay).sort((a, b) => b.localeCompare(a));
   };
 
-  // Función para formatear fecha de manera amigable
+  // Function to format date in a friendly way
   const formatGameDay = (gameDay: string): string => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -60,13 +60,13 @@ export const useTicketHistory = (limitDays: number = 30) => {
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
     if (gameDay === todayStr) {
-      return 'Hoy';
+      return 'Today';
     } else if (gameDay === yesterdayStr) {
-      return 'Ayer';
+      return 'Yesterday';
     } else {
-      // Formatear fecha en español
+      // Format date in English
       const date = new Date(gameDay + 'T00:00:00');
-      return date.toLocaleDateString('es-ES', { 
+      return date.toLocaleDateString('en-US', { 
         weekday: 'long', 
         year: 'numeric', 
         month: 'long', 

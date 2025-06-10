@@ -2643,21 +2643,21 @@ function AppContent() {
           rateLimitStatus={rateLimitStatus}
         />
 
-        {/* Tickets de hoy con botón de historial */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <TicketIcon className="mr-2" size={24} />
-              Mis Tickets de Hoy ({gameState.tickets.length})
-            </h2>
-            <button
-              onClick={() => setShowTicketHistory(true)}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <History size={16} />
-              Ver Historial
-            </button>
-          </div>
+                  {/* Today's tickets with history button */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <TicketIcon className="mr-2" size={24} />
+                My Tickets Today ({gameState.tickets.length})
+              </h2>
+              <button
+                onClick={() => setShowTicketHistory(true)}
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <History size={16} />
+                View History
+              </button>
+            </div>
           
 
           
@@ -2679,8 +2679,8 @@ function AppContent() {
           ) : (
             <div className="text-center py-8 bg-white/10 rounded-lg">
               <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
-              <p className="text-white/70">No has comprado tickets hoy</p>
-              <p className="text-white/50 text-sm mt-2">¡Genera tu primer ticket arriba!</p>
+              <p className="text-white/70">You haven't bought any tickets today</p>
+              <p className="text-white/50 text-sm mt-2">Generate your first ticket above!</p>
             </div>
           )}
         </div>
@@ -2743,7 +2743,7 @@ function AppContent() {
         </div>
       </div>
 
-      {/* Modal del Historial de Tickets */}
+              {/* Ticket History Modal */}
       {showTicketHistory && (
         <TicketHistoryModal onClose={() => setShowTicketHistory(false)} />
       )}
