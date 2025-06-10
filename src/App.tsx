@@ -2298,9 +2298,111 @@ const checkUserTicketsFunction = async () => {
     console.error('[checkAllTicketsForWinners] ❌ Error:', error);
     return null;
   }
-};
+  };
 
-// Función para revisar manualmente la lógica de verificación
+// Función para verificar discrepancia de conteo tokens vs tickets
+(window as any).checkTokensVsTickets = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    const today = new Date().toISOString().split('T')[0];
+    console.log(`[checkTokensVsTickets] 🔍 Verificando conteo para ${today}...`);
+    
+    // 1. Contar tokens del día
+    const tokensQuery = query(
+      collection(db, 'daily_tokens'),
+      where('dayKey', '==', today)
+    );
+    const tokensSnapshot = await getDocs(tokensQuery);
+    const totalTokens = tokensSnapshot.docs.reduce((sum, doc) => {
+      const data = doc.data();
+      return sum + (data.amount || 0);
+    }, 0);
+    
+    console.log(`💰 Total tokens del día (${today}): ${totalTokens}`);
+    console.log(`📊 Documentos de tokens encontrados: ${tokensSnapshot.docs.length}`);
+    
+    // 2. Contar tickets del día
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', today)
+    );
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const totalTickets = ticketsSnapshot.docs.length;
+    
+    console.log(`🎫 Total tickets del día (${today}): ${totalTickets}`);
+    
+    // 3. Agrupar por usuario
+    const userStats = {};
+    
+    // Procesar tokens por usuario
+    tokensSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const userId = data.userId || data.address;
+      if (!userStats[userId]) {
+        userStats[userId] = { tokens: 0, tickets: 0 };
+      }
+      userStats[userId].tokens += (data.amount || 0);
+    });
+    
+    // Procesar tickets por usuario
+    ticketsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const userId = data.userId || data.address;
+      if (!userStats[userId]) {
+        userStats[userId] = { tokens: 0, tickets: 0 };
+      }
+      userStats[userId].tickets += 1;
+    });
+    
+    console.log('\n📋 ANÁLISIS POR USUARIO:');
+    console.log('Usuario | Tokens | Tickets | Ratio');
+    console.log('----------------------------------------');
+    
+    let totalUsers = 0;
+    let usersWithDiscrepancy = 0;
+    
+    Object.entries(userStats).forEach(([userId, stats]) => {
+      totalUsers++;
+      const ratio = stats.tokens > 0 ? (stats.tickets / stats.tokens).toFixed(2) : 'N/A';
+      const shortUserId = userId.substring(0, 10) + '...';
+      
+      console.log(`${shortUserId} | ${stats.tokens} | ${stats.tickets} | ${ratio}`);
+      
+      if (stats.tickets > stats.tokens * 2) {
+        console.log(`  ⚠️  DISCREPANCIA: ${stats.tickets} tickets > ${stats.tokens * 2} esperados`);
+        usersWithDiscrepancy++;
+      }
+    });
+    
+    console.log('\n📊 RESUMEN:');
+    console.log(`Total usuarios activos hoy: ${totalUsers}`);
+    console.log(`Total tokens generados: ${totalTokens}`);
+    console.log(`Total tickets creados: ${totalTickets}`);
+    console.log(`Ratio general: ${totalTokens > 0 ? (totalTickets / totalTokens).toFixed(2) : 'N/A'} tickets/token`);
+    console.log(`Usuarios con discrepancias: ${usersWithDiscrepancy}/${totalUsers}`);
+    
+    if (totalTickets > totalTokens * 2) {
+      console.log(`🚨 PROBLEMA: Se crearon ${totalTickets - totalTokens} tickets extra`);
+    }
+    
+    return {
+      totalTokens,
+      totalTickets,
+      totalUsers,
+      usersWithDiscrepancy,
+      ratio: totalTokens > 0 ? totalTickets / totalTokens : 0,
+      userStats
+    };
+    
+  } catch (error) {
+    console.error('[checkTokensVsTickets] ❌ Error:', error);
+    return null;
+  }
+};
+  
+  // Función para revisar manualmente la lógica de verificación
 (window as any).testWinLogic = async () => {
   const { checkWin } = await import('./utils/gameLogic');
   
