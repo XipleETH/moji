@@ -1208,6 +1208,630 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para comparar días con ganadores vs sin ganadores
+(window as any).compareWinningDays = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    console.log(`[compareWinningDays] 🔍 Comparando días con ganadores vs sin ganadores...`);
+    
+    // Días para comparar
+    const daysWithWinners = ['2025-6-7', '2025-6-6'];
+    const daysWithoutWinners = ['2025-06-09', '2025-06-08', '2025-06-10'];
+    
+    for (const dayKey of [...daysWithWinners, ...daysWithoutWinners]) {
+      console.log(`\n[compareWinningDays] 📅 Analizando día: ${dayKey}`);
+      
+      // Obtener resultado del sorteo
+      const resultsQuery = query(
+        collection(db, 'game_results'),
+        where('dayKey', '==', dayKey)
+      );
+      
+      const resultsSnapshot = await getDocs(resultsQuery);
+      
+      if (resultsSnapshot.empty) {
+        console.log(`❌ No hay resultado para ${dayKey}`);
+        continue;
+      }
+      
+      const gameResult = resultsSnapshot.docs[0].data();
+      const winningNumbers = gameResult.winningNumbers;
+      
+      // Contar tickets de ese día
+      const ticketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('gameDay', '==', dayKey)
+      );
+      
+      const ticketsSnapshot = await getDocs(ticketsQuery);
+      const totalTickets = ticketsSnapshot.size;
+      
+      // Información del día
+      const hasWinners = daysWithWinners.includes(dayKey);
+      const totalWinners = (gameResult.firstPrize?.length || 0) + 
+                          (gameResult.secondPrize?.length || 0) + 
+                          (gameResult.thirdPrize?.length || 0) + 
+                          (gameResult.freePrize?.length || 0);
+      
+      console.log(`${hasWinners ? '🏆' : '💔'} ${dayKey}:`);
+      console.log(`   Números ganadores: ${winningNumbers?.join('') || 'N/A'}`);
+      console.log(`   Total tickets: ${totalTickets}`);
+      console.log(`   Ganadores: F:${gameResult.firstPrize?.length || 0} S:${gameResult.secondPrize?.length || 0} T:${gameResult.thirdPrize?.length || 0} G:${gameResult.freePrize?.length || 0} (Total: ${totalWinners})`);
+      
+      // Analizar características de los números ganadores
+      if (winningNumbers && Array.isArray(winningNumbers)) {
+        const uniqueEmojis = [...new Set(winningNumbers)];
+        const hasRepeats = uniqueEmojis.length !== winningNumbers.length;
+        const repeatCount = winningNumbers.length - uniqueEmojis.length;
+        
+        console.log(`   Emojis únicos: ${uniqueEmojis.length}/4 ${hasRepeats ? `(${repeatCount} repetidos)` : '(sin repetidos)'}`);
+        
+        if (hasRepeats) {
+          // Mostrar cuáles se repiten
+          const counts = {};
+          winningNumbers.forEach(emoji => {
+            counts[emoji] = (counts[emoji] || 0) + 1;
+          });
+          const repeated = Object.entries(counts).filter(([emoji, count]) => count > 1);
+          console.log(`   Repetidos: ${repeated.map(([emoji, count]) => `${emoji}×${count}`).join(', ')}`);
+        }
+      }
+    }
+    
+    // Análisis de patrones
+    console.log(`\n[compareWinningDays] 📊 ANÁLISIS DE PATRONES:`);
+    console.log(`🏆 Días CON ganadores: Probablemente tenían números con menos repeticiones`);
+    console.log(`💔 Días SIN ganadores: Probablemente tienen muchos emojis repetidos que dificultan ganar`);
+    
+  } catch (error) {
+    console.error('[compareWinningDays] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para ver todos los tickets del usuario en todas las fechas
+(window as any).getAllMyTickets = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    const { getCurrentUser } = await import('./firebase/auth');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[getAllMyTickets] ❌ No hay usuario logueado');
+      return;
+    }
+    
+    console.log(`[getAllMyTickets] 🔍 Buscando TODOS los tickets del usuario: ${user.id}`);
+    
+    // Obtener TODOS los tickets del usuario sin filtro de fecha
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('userId', '==', user.id),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[getAllMyTickets] 📊 Total de tickets encontrados: ${allTickets.length}`);
+    
+    // Agrupar por gameDay
+    const ticketsByDay = {};
+    allTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay || 'undefined';
+      if (!ticketsByDay[gameDay]) {
+        ticketsByDay[gameDay] = [];
+      }
+      ticketsByDay[gameDay].push(ticket);
+    });
+    
+    console.log(`[getAllMyTickets] 📅 Tickets por día:`);
+    Object.entries(ticketsByDay)
+      .sort(([a], [b]) => b.localeCompare(a)) // Ordenar por fecha descendente
+      .forEach(([gameDay, tickets]) => {
+        const activeTickets = tickets.filter(t => t.isActive);
+        console.log(`- ${gameDay}: ${tickets.length} tickets (${activeTickets.length} activos)`);
+      });
+    
+    const totalActive = allTickets.filter(t => t.isActive).length;
+    console.log(`[getAllMyTickets] 🎫 Total tickets activos: ${totalActive}`);
+    
+    return { allTickets, ticketsByDay, totalActive };
+    
+  } catch (error) {
+    console.error('[getAllMyTickets] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para comparar días con ganadores vs sin ganadores
+(window as any).compareWinningDays = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    console.log(`[compareWinningDays] 🔍 Comparando días con ganadores vs sin ganadores...`);
+    
+    // Días para comparar
+    const daysWithWinners = ['2025-6-7', '2025-6-6'];
+    const daysWithoutWinners = ['2025-06-09', '2025-06-08', '2025-06-10'];
+    
+    for (const dayKey of [...daysWithWinners, ...daysWithoutWinners]) {
+      console.log(`\n[compareWinningDays] 📅 Analizando día: ${dayKey}`);
+      
+      // Obtener resultado del sorteo
+      const resultsQuery = query(
+        collection(db, 'game_results'),
+        where('dayKey', '==', dayKey)
+      );
+      
+      const resultsSnapshot = await getDocs(resultsQuery);
+      
+      if (resultsSnapshot.empty) {
+        console.log(`❌ No hay resultado para ${dayKey}`);
+        continue;
+      }
+      
+      const gameResult = resultsSnapshot.docs[0].data();
+      const winningNumbers = gameResult.winningNumbers;
+      
+      // Contar tickets de ese día
+      const ticketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('gameDay', '==', dayKey)
+      );
+      
+      const ticketsSnapshot = await getDocs(ticketsQuery);
+      const totalTickets = ticketsSnapshot.size;
+      
+      // Información del día
+      const hasWinners = daysWithWinners.includes(dayKey);
+      const totalWinners = (gameResult.firstPrize?.length || 0) + 
+                          (gameResult.secondPrize?.length || 0) + 
+                          (gameResult.thirdPrize?.length || 0) + 
+                          (gameResult.freePrize?.length || 0);
+      
+      console.log(`${hasWinners ? '🏆' : '💔'} ${dayKey}:`);
+      console.log(`   Números ganadores: ${winningNumbers?.join('') || 'N/A'}`);
+      console.log(`   Total tickets: ${totalTickets}`);
+      console.log(`   Ganadores: F:${gameResult.firstPrize?.length || 0} S:${gameResult.secondPrize?.length || 0} T:${gameResult.thirdPrize?.length || 0} G:${gameResult.freePrize?.length || 0} (Total: ${totalWinners})`);
+      
+      // Analizar características de los números ganadores
+      if (winningNumbers && Array.isArray(winningNumbers)) {
+        const uniqueEmojis = [...new Set(winningNumbers)];
+        const hasRepeats = uniqueEmojis.length !== winningNumbers.length;
+        const repeatCount = winningNumbers.length - uniqueEmojis.length;
+        
+        console.log(`   Emojis únicos: ${uniqueEmojis.length}/4 ${hasRepeats ? `(${repeatCount} repetidos)` : '(sin repetidos)'}`);
+        
+        if (hasRepeats) {
+          // Mostrar cuáles se repiten
+          const counts = {};
+          winningNumbers.forEach(emoji => {
+            counts[emoji] = (counts[emoji] || 0) + 1;
+          });
+          const repeated = Object.entries(counts).filter(([emoji, count]) => count > 1);
+          console.log(`   Repetidos: ${repeated.map(([emoji, count]) => `${emoji}×${count}`).join(', ')}`);
+        }
+      }
+    }
+    
+    // Análisis de patrones
+    console.log(`\n[compareWinningDays] 📊 ANÁLISIS DE PATRONES:`);
+    console.log(`🏆 Días CON ganadores: Probablemente tenían números con menos repeticiones`);
+    console.log(`💔 Días SIN ganadores: Probablemente tienen muchos emojis repetidos que dificultan ganar`);
+    
+  } catch (error) {
+    console.error('[compareWinningDays] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para ver todos los tickets del usuario en todas las fechas
+(window as any).getAllMyTickets = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    const { getCurrentUser } = await import('./firebase/auth');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[getAllMyTickets] ❌ No hay usuario logueado');
+      return;
+    }
+    
+    console.log(`[getAllMyTickets] 🔍 Buscando TODOS los tickets del usuario: ${user.id}`);
+    
+    // Obtener TODOS los tickets del usuario sin filtro de fecha
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('userId', '==', user.id),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[getAllMyTickets] 📊 Total de tickets encontrados: ${allTickets.length}`);
+    
+    // Agrupar por gameDay
+    const ticketsByDay = {};
+    allTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay || 'undefined';
+      if (!ticketsByDay[gameDay]) {
+        ticketsByDay[gameDay] = [];
+      }
+      ticketsByDay[gameDay].push(ticket);
+    });
+    
+    console.log(`[getAllMyTickets] 📅 Tickets por día:`);
+    Object.entries(ticketsByDay)
+      .sort(([a], [b]) => b.localeCompare(a)) // Ordenar por fecha descendente
+      .forEach(([gameDay, tickets]) => {
+        const activeTickets = tickets.filter(t => t.isActive);
+        console.log(`- ${gameDay}: ${tickets.length} tickets (${activeTickets.length} activos)`);
+      });
+    
+    const totalActive = allTickets.filter(t => t.isActive).length;
+    console.log(`[getAllMyTickets] 🎫 Total tickets activos: ${totalActive}`);
+    
+    return { allTickets, ticketsByDay, totalActive };
+    
+  } catch (error) {
+    console.error('[getAllMyTickets] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para comparar días con ganadores vs sin ganadores
+(window as any).compareWinningDays = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    console.log(`[compareWinningDays] 🔍 Comparando días con ganadores vs sin ganadores...`);
+    
+    // Días para comparar
+    const daysWithWinners = ['2025-6-7', '2025-6-6'];
+    const daysWithoutWinners = ['2025-06-09', '2025-06-08', '2025-06-10'];
+    
+    for (const dayKey of [...daysWithWinners, ...daysWithoutWinners]) {
+      console.log(`\n[compareWinningDays] 📅 Analizando día: ${dayKey}`);
+      
+      // Obtener resultado del sorteo
+      const resultsQuery = query(
+        collection(db, 'game_results'),
+        where('dayKey', '==', dayKey)
+      );
+      
+      const resultsSnapshot = await getDocs(resultsQuery);
+      
+      if (resultsSnapshot.empty) {
+        console.log(`❌ No hay resultado para ${dayKey}`);
+        continue;
+      }
+      
+      const gameResult = resultsSnapshot.docs[0].data();
+      const winningNumbers = gameResult.winningNumbers;
+      
+      // Contar tickets de ese día
+      const ticketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('gameDay', '==', dayKey)
+      );
+      
+      const ticketsSnapshot = await getDocs(ticketsQuery);
+      const totalTickets = ticketsSnapshot.size;
+      
+      // Información del día
+      const hasWinners = daysWithWinners.includes(dayKey);
+      const totalWinners = (gameResult.firstPrize?.length || 0) + 
+                          (gameResult.secondPrize?.length || 0) + 
+                          (gameResult.thirdPrize?.length || 0) + 
+                          (gameResult.freePrize?.length || 0);
+      
+      console.log(`${hasWinners ? '🏆' : '💔'} ${dayKey}:`);
+      console.log(`   Números ganadores: ${winningNumbers?.join('') || 'N/A'}`);
+      console.log(`   Total tickets: ${totalTickets}`);
+      console.log(`   Ganadores: F:${gameResult.firstPrize?.length || 0} S:${gameResult.secondPrize?.length || 0} T:${gameResult.thirdPrize?.length || 0} G:${gameResult.freePrize?.length || 0} (Total: ${totalWinners})`);
+      
+      // Analizar características de los números ganadores
+      if (winningNumbers && Array.isArray(winningNumbers)) {
+        const uniqueEmojis = [...new Set(winningNumbers)];
+        const hasRepeats = uniqueEmojis.length !== winningNumbers.length;
+        const repeatCount = winningNumbers.length - uniqueEmojis.length;
+        
+        console.log(`   Emojis únicos: ${uniqueEmojis.length}/4 ${hasRepeats ? `(${repeatCount} repetidos)` : '(sin repetidos)'}`);
+        
+        if (hasRepeats) {
+          // Mostrar cuáles se repiten
+          const counts = {};
+          winningNumbers.forEach(emoji => {
+            counts[emoji] = (counts[emoji] || 0) + 1;
+          });
+          const repeated = Object.entries(counts).filter(([emoji, count]) => count > 1);
+          console.log(`   Repetidos: ${repeated.map(([emoji, count]) => `${emoji}×${count}`).join(', ')}`);
+        }
+      }
+    }
+    
+    // Análisis de patrones
+    console.log(`\n[compareWinningDays] 📊 ANÁLISIS DE PATRONES:`);
+    console.log(`🏆 Días CON ganadores: Probablemente tenían números con menos repeticiones`);
+    console.log(`💔 Días SIN ganadores: Probablemente tienen muchos emojis repetidos que dificultan ganar`);
+    
+  } catch (error) {
+    console.error('[compareWinningDays] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para ver todos los tickets del usuario en todas las fechas
+(window as any).getAllMyTickets = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    const { getCurrentUser } = await import('./firebase/auth');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('[getAllMyTickets] ❌ No hay usuario logueado');
+      return;
+    }
+    
+    console.log(`[getAllMyTickets] 🔍 Buscando TODOS los tickets del usuario: ${user.id}`);
+    
+    // Obtener TODOS los tickets del usuario sin filtro de fecha
+    const ticketsQuery = query(
+      collection(db, 'player_tickets'),
+      where('userId', '==', user.id),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[getAllMyTickets] 📊 Total de tickets encontrados: ${allTickets.length}`);
+    
+    // Agrupar por gameDay
+    const ticketsByDay = {};
+    allTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay || 'undefined';
+      if (!ticketsByDay[gameDay]) {
+        ticketsByDay[gameDay] = [];
+      }
+      ticketsByDay[gameDay].push(ticket);
+    });
+    
+    console.log(`[getAllMyTickets] 📅 Tickets por día:`);
+    Object.entries(ticketsByDay)
+      .sort(([a], [b]) => b.localeCompare(a)) // Ordenar por fecha descendente
+      .forEach(([gameDay, tickets]) => {
+        const activeTickets = tickets.filter(t => t.isActive);
+        console.log(`- ${gameDay}: ${tickets.length} tickets (${activeTickets.length} activos)`);
+      });
+    
+    const totalActive = allTickets.filter(t => t.isActive).length;
+    console.log(`[getAllMyTickets] 🎫 Total tickets activos: ${totalActive}`);
+    
+    return { allTickets, ticketsByDay, totalActive };
+    
+  } catch (error) {
+    console.error('[getAllMyTickets] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para investigar usuarios específicos y sus tickets
+(window as any).investigateUserTickets = async (walletAddress) => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    
+    if (!walletAddress) {
+      console.log('[investigateUserTickets] ❌ Proporciona una wallet address');
+      console.log('Ejemplo: investigateUserTickets("0xeb10C0D7804bb7B318D5059B04aaf3a038b1e0F2")');
+      return;
+    }
+    
+    console.log(`[investigateUserTickets] 🔍 Investigando usuario: ${walletAddress}`);
+    
+    // 1. Buscar tickets por walletAddress en player_tickets
+    console.log(`\n1️⃣ Buscando en colección 'player_tickets':`);
+    
+    const ticketsByWalletQuery = query(
+      collection(db, 'player_tickets'),
+      where('walletAddress', '==', walletAddress),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const ticketsByWalletSnapshot = await getDocs(ticketsByWalletQuery);
+    const ticketsByWallet = ticketsByWalletSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`📊 Tickets encontrados en player_tickets: ${ticketsByWallet.length}`);
+    
+    if (ticketsByWallet.length > 0) {
+      // Agrupar por gameDay
+      const byGameDay = {};
+      ticketsByWallet.forEach(ticket => {
+        const day = ticket.gameDay || 'undefined';
+        if (!byGameDay[day]) byGameDay[day] = [];
+        byGameDay[day].push(ticket);
+      });
+      
+      console.log('📅 Distribución por gameDay:');
+      Object.entries(byGameDay).forEach(([day, tickets]) => {
+        console.log(`   ${day}: ${tickets.length} tickets`);
+      });
+      
+      // Mostrar algunos ejemplos
+      console.log('🎫 Últimos 5 tickets en BD:');
+      ticketsByWallet.slice(0, 5).forEach((ticket, i) => {
+        const date = ticket.timestamp ? new Date(ticket.timestamp.seconds * 1000) : new Date();
+        console.log(`   ${i+1}. ID: ${ticket.id.substring(0, 8)}, GameDay: ${ticket.gameDay}, Fecha: ${date.toLocaleString()}, Activo: ${ticket.isActive}`);
+      });
+    }
+    
+    // 2. Buscar por userId si existe
+    if (ticketsByWallet.length > 0) {
+      const userId = ticketsByWallet[0].userId;
+      if (userId) {
+        console.log(`\n2️⃣ Buscando por userId '${userId}' en player_tickets:`);
+        
+        const ticketsByUserQuery = query(
+          collection(db, 'player_tickets'),
+          where('userId', '==', userId),
+          orderBy('timestamp', 'desc')
+        );
+        
+        const ticketsByUserSnapshot = await getDocs(ticketsByUserQuery);
+        console.log(`📊 Tickets por userId: ${ticketsByUserSnapshot.size}`);
+      }
+    }
+    
+    // 3. Buscar en otras posibles colecciones
+    console.log(`\n3️⃣ Buscando en otras colecciones:`);
+    
+    const otherCollections = ['tickets', 'user_tickets', 'daily_tickets'];
+    
+    for (const collectionName of otherCollections) {
+      try {
+        const otherQuery = query(
+          collection(db, collectionName),
+          where('walletAddress', '==', walletAddress)
+        );
+        
+        const otherSnapshot = await getDocs(otherQuery);
+        console.log(`📊 Tickets en '${collectionName}': ${otherSnapshot.size}`);
+        
+        if (otherSnapshot.size > 0) {
+          console.log(`   ⚠️ ¡Encontrados tickets en '${collectionName}'!`);
+        }
+      } catch (error) {
+        console.log(`   ❌ Colección '${collectionName}' no existe o error: ${error.message}`);
+      }
+    }
+    
+    // 4. Verificar qué muestra el frontend vs BD
+    console.log(`\n4️⃣ COMPARACIÓN FRONTEND vs BASE DE DATOS:`);
+    console.log(`Frontend reporta:`);
+    console.log(`   - Usuario 0xeb10C0D7804bb7B318D5059B04aaf3a038b1e0F2: 189 tickets del 10 de junio`);
+    console.log(`   - Usuario 0xDfA9A93f2d5d1861553cb22eb3023Ee3eFEF67e0: 449 tickets del 10 de junio`);
+    console.log(`Base de datos encontró:`);
+    console.log(`   - ${walletAddress}: ${ticketsByWallet.length} tickets totales`);
+    
+    return {
+      walletAddress,
+      ticketsInDB: ticketsByWallet.length,
+      ticketsData: ticketsByWallet
+    };
+    
+  } catch (error) {
+    console.error('[investigateUserTickets] ❌ Error:', error);
+    return null;
+  }
+};
+
+// Función para comparar lo que muestra el frontend vs la BD
+(window as any).compareFrontendVsDB = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    console.log(`[compareFrontendVsDB] 🔍 Comparando frontend vs base de datos...`);
+    
+    // Usuarios reportados con problemas
+    const problematicUsers = [
+      '0xeb10C0D7804bb7B318D5059B04aaf3a038b1e0F2',
+      '0xDfA9A93f2d5d1861553cb22eb3023Ee3eFEF67e0'
+    ];
+    
+    for (const walletAddress of problematicUsers) {
+      console.log(`\n🔍 Verificando usuario: ${walletAddress}`);
+      
+      // Contar tickets del 9 de junio
+      const tickets9Query = query(
+        collection(db, 'player_tickets'),
+        where('walletAddress', '==', walletAddress),
+        where('gameDay', '==', '2025-06-09')
+      );
+      
+      const tickets9Snapshot = await getDocs(tickets9Query);
+      
+      // Contar tickets del 10 de junio
+      const tickets10Query = query(
+        collection(db, 'player_tickets'),
+        where('walletAddress', '==', walletAddress),
+        where('gameDay', '==', '2025-06-10')
+      );
+      
+      const tickets10Snapshot = await getDocs(tickets10Query);
+      
+      // Contar TODOS los tickets
+      const allTicketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('walletAddress', '==', walletAddress)
+      );
+      
+      const allTicketsSnapshot = await getDocs(allTicketsQuery);
+      
+      console.log(`📊 Resultados para ${walletAddress.substring(0, 8)}...:`);
+      console.log(`   - Día 9: ${tickets9Snapshot.size} tickets en BD`);
+      console.log(`   - Día 10: ${tickets10Snapshot.size} tickets en BD`);
+      console.log(`   - Total: ${allTicketsSnapshot.size} tickets en BD`);
+      
+      // Analizar si hay discrepancia
+      const expectedDay10 = walletAddress === '0xeb10C0D7804bb7B318D5059B04aaf3a038b1e0F2' ? 189 : 449;
+      const actualDay10 = tickets10Snapshot.size;
+      
+      if (actualDay10 !== expectedDay10) {
+        console.log(`   ⚠️ DISCREPANCIA: Frontend reporta ${expectedDay10}, BD tiene ${actualDay10}`);
+      } else {
+        console.log(`   ✅ COINCIDE: Frontend y BD reportan ${actualDay10} tickets`);
+      }
+    }
+    
+    // Verificar totales generales
+    console.log(`\n📊 VERIFICACIÓN GENERAL:`);
+    
+    const totalTickets9Query = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', '2025-06-09')
+    );
+    
+    const totalTickets9Snapshot = await getDocs(totalTickets9Query);
+    
+    const totalTickets10Query = query(
+      collection(db, 'player_tickets'),
+      where('gameDay', '==', '2025-06-10')
+    );
+    
+    const totalTickets10Snapshot = await getDocs(totalTickets10Query);
+    
+    console.log(`Total tickets día 9 en BD: ${totalTickets9Snapshot.size}`);
+    console.log(`Total tickets día 10 en BD: ${totalTickets10Snapshot.size}`);
+    
+  } catch (error) {
+    console.error('[compareFrontendVsDB] ❌ Error:', error);
+    return null;
+  }
+};
+
 // Función para revisar manualmente la lógica de verificación
 (window as any).testWinLogic = async () => {
   const { checkWin } = await import('./utils/gameLogic');
@@ -1582,6 +2206,10 @@ function App() {
       console.log('- window.simpleDebugWinners() - Verificación simple de ganadores');
       console.log('- window.investigateGameDays() - Ver en qué fechas están los tickets');
       console.log('- window.checkWinnersForDate() - Verificar ganadores del 9 de junio');
+      console.log('- window.compareWinningDays() - Comparar días con/sin ganadores');
+      console.log('- window.getAllMyTickets() - Ver TODOS mis tickets');
+      console.log('- window.investigateUserTickets("wallet") - Investigar usuario específico');
+      console.log('- window.compareFrontendVsDB() - Comparar frontend vs BD');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
   }, []);
 
