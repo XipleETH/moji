@@ -39,6 +39,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
+  const [isConfirmingTicket, setIsConfirmingTicket] = useState(false);
   const { user, isConnected, connect, isConnecting } = useWallet();
 
   // Reset selected emojis when ticket count changes to 0
@@ -111,7 +112,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    if (disabled || userTokens < 1) return;
+    if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
     
     const newSelection = [...selectedEmojis, emoji];
     setSelectedEmojis(newSelection);
@@ -121,16 +122,17 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiDeselect = (index: number) => {
+    if (isAnyButtonProcessing) return;
     setSelectedEmojis(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleRandomGenerate = async () => {
-    if (disabled || userTokens < 1) return;
+    if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
     
     setIsGeneratingRandom(true);
     
     try {
-    const randomEmojis = generateRandomEmojis(4);
+      const randomEmojis = generateRandomEmojis(4);
       await handleGenerateTicket(randomEmojis);
     } finally {
       // Mantener el efecto visual por un momento antes de resetear
@@ -140,9 +142,18 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     }
   };
 
-  const handleConfirmSelectedTicket = () => {
-    if (selectedEmojis.length === 4) {
-      handleGenerateTicket(selectedEmojis);
+  const handleConfirmSelectedTicket = async () => {
+    if (selectedEmojis.length === 4 && !isAnyButtonProcessing) {
+      setIsConfirmingTicket(true);
+      
+      try {
+        await handleGenerateTicket(selectedEmojis);
+      } finally {
+        // Mantener el efecto visual por un momento antes de resetear
+        setTimeout(() => {
+          setIsConfirmingTicket(false);
+        }, 500);
+      }
     }
   };
 
@@ -154,6 +165,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const canGenerateTicket = userTokens >= 1 && !disabled && !rateLimitStatus?.isBlocked;
   const isOutOfTokens = userTokens === 0;
   const isRateLimited = rateLimitStatus?.isBlocked || false;
+  const isAnyButtonProcessing = isGeneratingRandom || isConfirmingTicket;
 
   return (
     <div className="mb-8 space-y-4">
@@ -209,21 +221,32 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         {selectedEmojis.length === 4 && (
           <button
             onClick={handleConfirmSelectedTicket}
-            disabled={!canGenerateTicket}
-            className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105 
+            disabled={!canGenerateTicket || isAnyButtonProcessing}
+            className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
                      disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
-                     ${canGenerateTicket ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-500 text-gray-300'}`}
+                     ${isConfirmingTicket 
+                       ? 'bg-green-600 scale-95 shadow-2xl animate-pulse ring-4 ring-green-400/50' 
+                       : canGenerateTicket 
+                         ? 'bg-green-500 hover:bg-green-600 hover:scale-105 hover:shadow-xl active:scale-95 active:shadow-inner text-white' 
+                         : 'bg-gray-500 text-gray-300'
+                     }`}
           >
-            <CheckCircle size={20} />
-            {isOutOfTokens ? 'No Tokens Available' : 
-             isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
-             'Confirm Ticket (1 Token)'}
+            <CheckCircle size={20} className={isConfirmingTicket ? 'animate-spin' : ''} />
+            {isConfirmingTicket ? (
+              queueStatus?.totalProcessed > 0 
+                ? `${queueStatus.totalProcessed} procesados`
+                : 'Procesando ticket...'
+            ) : (
+              isOutOfTokens ? 'No Tokens Available' : 
+              isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
+              'Confirm Ticket (1 Token)'
+            )}
           </button>
         )}
         
         <button
           onClick={handleRandomGenerate}
-          disabled={!canGenerateTicket || isGeneratingRandom}
+          disabled={!canGenerateTicket || isAnyButtonProcessing}
           className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
                    disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
                    ${isGeneratingRandom 
