@@ -2686,6 +2686,143 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para reparar pools con finalPools en 0
+(window as any).repairZeroFinalPools = async () => {
+  console.log('🔧 Reparando pools con finalPools en 0...');
+  
+  try {
+    const { db } = await import('./firebase/config');
+    const { collection, getDocs, doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+    
+    const poolsRef = collection(db, 'prize_pools');
+    const poolsSnapshot = await getDocs(poolsRef);
+    
+    const poolsToFix = [];
+    
+    for (const poolDoc of poolsSnapshot.docs) {
+      const poolData = poolDoc.data();
+      
+      // Si tiene finalPools pero todos están en 0, y pools tienen tokens
+      if (poolData.finalPools && poolData.pools) {
+        const finalPoolsSum = (poolData.finalPools.first || 0) + (poolData.finalPools.second || 0) + (poolData.finalPools.third || 0);
+        const poolsSum = (poolData.pools.firstPrize || 0) + (poolData.pools.secondPrize || 0) + (poolData.pools.thirdPrize || 0);
+        
+        if (finalPoolsSum === 0 && poolsSum > 0) {
+          poolsToFix.push({
+            id: poolDoc.id,
+            data: poolData
+          });
+        }
+      }
+    }
+    
+    console.log(`📊 Encontradas ${poolsToFix.length} pools con finalPools en 0 que necesitan reparación`);
+    
+    for (const pool of poolsToFix) {
+      console.log(`🔨 Reparando pool del día ${pool.id}...`);
+      console.log(`   Pools actuales:`, pool.data.pools);
+      console.log(`   FinalPools actuales:`, pool.data.finalPools);
+      
+      const correctedFinalPools = {
+        first: pool.data.pools.firstPrize || 0,
+        second: pool.data.pools.secondPrize || 0,
+        third: pool.data.pools.thirdPrize || 0
+      };
+      
+      const poolRef = doc(db, 'prize_pools', pool.id);
+      await updateDoc(poolRef, {
+        finalPools: correctedFinalPools,
+        repairedAt: serverTimestamp(),
+        repairReason: 'Fixed zero finalPools'
+      });
+      
+      console.log(`✅ Pool ${pool.id} reparada con finalPools:`, correctedFinalPools);
+    }
+    
+    console.log(`🎉 Reparación completada. ${poolsToFix.length} pools reparadas.`);
+    return { success: true, poolsRepaired: poolsToFix.length };
+    
+  } catch (error) {
+    console.error('❌ Error reparando pools:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Función para investigar resultados de sorteo
+(window as any).investigateGameResults = async (gameDay) => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
+    
+    console.log(`🔍 Investigando resultados de sorteo para ${gameDay}...`);
+    
+    // Buscar por gameDay
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('gameDay', '==', gameDay)
+    );
+    const resultsSnapshot = await getDocs(resultsQuery);
+    
+    console.log(`📊 Resultados encontrados por gameDay: ${resultsSnapshot.size}`);
+    
+    if (resultsSnapshot.size > 0) {
+      resultsSnapshot.docs.forEach((doc, index) => {
+        const data = doc.data();
+        console.log(`📋 Resultado ${index + 1}:`, {
+          id: doc.id,
+          gameDay: data.gameDay,
+          timestamp: data.timestamp,
+          firstPrize: data.firstPrize?.length || 0,
+          secondPrize: data.secondPrize?.length || 0,
+          thirdPrize: data.thirdPrize?.length || 0,
+          freePrize: data.freePrize?.length || 0,
+          winningNumbers: data.winningNumbers
+        });
+      });
+    } else {
+      console.log('❌ No se encontraron resultados para ese gameDay');
+      
+      // Buscar todos los resultados para ver qué días existen
+      console.log('🔍 Buscando todos los resultados para ver qué días existen...');
+      const allResultsQuery = query(
+        collection(db, 'game_results'),
+        orderBy('timestamp', 'desc')
+      );
+      const allSnapshot = await getDocs(allResultsQuery);
+      
+      console.log(`📊 Total resultados en BD: ${allSnapshot.size}`);
+      
+      const gamesByDay = new Map();
+      allSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const day = data.gameDay;
+        if (!gamesByDay.has(day)) {
+          gamesByDay.set(day, []);
+        }
+        gamesByDay.get(day).push({
+          id: doc.id,
+          timestamp: data.timestamp,
+          winners: (data.firstPrize?.length || 0) + (data.secondPrize?.length || 0) + (data.thirdPrize?.length || 0)
+        });
+      });
+      
+      console.log('📅 Días con resultados disponibles:');
+      Array.from(gamesByDay.entries()).forEach(([day, results]) => {
+        console.log(`   ${day}: ${results.length} sorteos, ${results.reduce((sum, r) => sum + r.winners, 0)} ganadores totales`);
+      });
+    }
+    
+    return { 
+      found: resultsSnapshot.size > 0,
+      results: resultsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    };
+    
+  } catch (error) {
+    console.error('❌ Error investigando resultados:', error);
+    return { error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -3024,6 +3161,8 @@ function App() {
       console.log('- window.repairExistingPools() - Reparar pools agregando finalPools');
       console.log('- window.inspectPool() - Inspeccionar la estructura real de una pool');
       console.log('- window.forceDistributePrizes() - Forzar distribución de premios específicos');
+      console.log('- window.repairZeroFinalPools() - Reparar pools con finalPools en 0');
+      console.log('- window.investigateGameResults() - Investigador resultados de sorteo');
   }, []);
 
   return (
