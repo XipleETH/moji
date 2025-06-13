@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { WalletIcon, Coins, CircleDollarSign, RefreshCw, UserIcon, ArrowUpDown, Trophy } from 'lucide-react';
+import { WalletIcon, Coins, CircleDollarSign, RefreshCw, UserIcon, ArrowUpDown, Trophy, Gift } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { useAuth } from './AuthProvider';
 import { useFarcasterWallet } from '../hooks/useFarcasterWallet';
 import { useMiniKitAuth } from '../providers/MiniKitProvider';
 import { getUserTokenTransactions } from '../firebase/tokens';
+import { getAvailableWonTokens, createPrizeClaim } from '../firebase/prizes';
 
 // Constantes de red
 const BASE_CHAIN_ID = 8453;
@@ -46,6 +47,7 @@ export const WalletInfo: React.FC = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [totalWonTokens, setTotalWonTokens] = useState(0);
+  const [isClaimingTokens, setIsClaimingTokens] = useState(false);
 
   // Determinar la información de billetera a mostrar (priorizando Farcaster)
   const walletAddress = farcasterAddress || user?.walletAddress;
@@ -69,11 +71,9 @@ export const WalletInfo: React.FC = () => {
       const userTransactions = await getUserTokenTransactions(user.id);
       setTransactions(userTransactions);
       
-      // Calcular tokens ganados
-      const wonTokens = userTransactions
-        .filter(tx => tx.type === 'prize')
-        .reduce((total, tx) => total + tx.amount, 0);
-      setTotalWonTokens(wonTokens);
+      // Obtener tokens disponibles para reclamar (que no han sido reclamados aún)
+      const availableTokens = await getAvailableWonTokens(user.id);
+      setTotalWonTokens(availableTokens);
     } catch (error) {
       console.error('Error cargando transacciones:', error);
     } finally {
@@ -107,6 +107,55 @@ export const WalletInfo: React.FC = () => {
       case BASE_CHAIN_ID: return "Base";
       case OPTIMISM_CHAIN_ID: return "Optimism";
       default: return `Red ${chainId}`;
+    }
+  };
+  
+  // Función para reclamar tokens
+  const handleClaimTokens = async () => {
+    if (totalWonTokens <= 0) {
+      alert('No tienes tokens para reclamar');
+      return;
+    }
+
+    // Mostrar opciones de reclamación
+    const claimType = window.prompt(`¿Qué tipo de premio quieres reclamar con ${totalWonTokens} tokens?
+
+Opciones disponibles:
+1. cash - Dinero en efectivo
+2. nft - NFT exclusivo
+3. special_raffle - Entrada para sorteo especial
+
+Escribe: cash, nft o special_raffle`);
+
+    if (!claimType || !['cash', 'nft', 'special_raffle'].includes(claimType)) {
+      alert('Opción inválida. Debes elegir: cash, nft o special_raffle');
+      return;
+    }
+
+    setIsClaimingTokens(true);
+    try {
+      const result = await createPrizeClaim(totalWonTokens, claimType as any);
+      
+      if (result.success) {
+        alert(`¡Reclamación creada exitosamente! 
+
+ID de reclamación: ${result.claimId}
+Tokens reclamados: ${totalWonTokens}
+Tipo de premio: ${claimType}
+
+Tu solicitud está siendo procesada. Recibirás una notificación cuando esté lista.`);
+        
+        // Recargar transacciones para reflejar los cambios
+        await loadTransactions();
+      } else {
+        alert(`Error al crear reclamación: ${result.error}`);
+      }
+      
+    } catch (error) {
+      console.error('Error reclamando tokens:', error);
+      alert('Error al reclamar tokens. Inténtalo de nuevo.');
+    } finally {
+      setIsClaimingTokens(false);
     }
   };
   
@@ -250,36 +299,64 @@ export const WalletInfo: React.FC = () => {
           )}
           
           {/* Tokens Ganados */}
-          <div className="flex items-center justify-between bg-white/5 p-3 rounded">
-            <div className="flex items-center">
-              <Trophy size={16} className="mr-2 text-yellow-400" />
-              <span>Tokens Ganados</span>
+          <div className="bg-white/5 p-3 rounded">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center">
+                <Trophy size={16} className="mr-2 text-yellow-400" />
+                <span>Tokens Ganados</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-yellow-400">{totalWonTokens}</span>
+                <button 
+                  onClick={loadTransactions}
+                  className="text-white/50 hover:text-white p-1 rounded-full hover:bg-white/10"
+                  disabled={isLoadingTransactions}
+                >
+                  <RefreshCw size={14} className={isLoadingTransactions ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center">
-              <span className="font-medium mr-2">{totalWonTokens}</span>
-              <button 
-                onClick={loadTransactions}
-                className="text-white/50 hover:text-white p-1 rounded-full hover:bg-white/10"
-                disabled={isLoadingTransactions}
+            
+            {/* Botón Claim */}
+            {totalWonTokens > 0 && (
+              <button
+                onClick={handleClaimTokens}
+                disabled={isClaimingTokens}
+                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <RefreshCw size={14} className={isLoadingTransactions ? 'animate-spin' : ''} />
+                <Gift size={16} />
+                {isClaimingTokens ? 'Reclamando...' : `Claim ${totalWonTokens} Tokens`}
               </button>
-            </div>
+            )}
+            
+            {totalWonTokens === 0 && (
+              <div className="text-center text-white/60 text-sm py-2">
+                Gana tokens participando en sorteos
+              </div>
+            )}
           </div>
 
           {/* Historial de Transacciones */}
           {transactions.length > 0 && (
             <div className="bg-white/5 p-3 rounded">
               <div className="text-sm font-medium mb-2">Últimas Transacciones</div>
-              <div className="space-y-2">
-                {transactions.slice(0, 5).map((tx, index) => (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {transactions.slice(0, 10).map((tx, index) => (
                   <div key={index} className="flex justify-between items-center text-sm">
-                    <span className="text-white/70">
-                      {tx.type === 'prize' ? 'Premio' : 
-                       tx.type === 'ticket' ? 'Ticket' : 
-                       tx.type === 'daily' ? 'Tokens Diarios' : 'Otro'}
-                    </span>
-                    <span className={tx.amount > 0 ? 'text-green-400' : 'text-red-400'}>
+                    <div className="flex flex-col">
+                      <span className="text-white/70">
+                        {tx.type === 'prize_first' ? '🥇 Primer Premio' : 
+                         tx.type === 'prize_second' ? '🥈 Segundo Premio' : 
+                         tx.type === 'prize_third' ? '🥉 Tercer Premio' :
+                         tx.type === 'prize_received' ? '🏆 Premio' :
+                         tx.type === 'ticket_purchase' ? '🎫 Ticket' : 
+                         tx.type === 'daily_reset' ? '📅 Tokens Diarios' : 'Otro'}
+                      </span>
+                      {tx.gameDay && (
+                        <span className="text-white/50 text-xs">{tx.gameDay}</span>
+                      )}
+                    </div>
+                    <span className={tx.amount > 0 ? 'text-green-400 font-medium' : 'text-red-400'}>
                       {tx.amount > 0 ? '+' : ''}{tx.amount}
                     </span>
                   </div>

@@ -78,5 +78,17 @@ service cloud.firestore {
       allow read: if true;  // Permitir lectura total para debugging
       allow write: if true; // Permitir escritura total para debugging
     }
+    
+    // Prize claims - Reclamaciones de premios
+    match /prize_claims/{claimId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // User balances - Balances de tokens de usuarios
+    match /user_balances/{balanceId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
   }
 }
