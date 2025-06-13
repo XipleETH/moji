@@ -21,6 +21,7 @@ import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
 import { getCurrentUser } from './firebase/auth';
 import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
+import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -2455,6 +2456,19 @@ const checkUserTicketsFunction = async () => {
   });
 };
 
+// Función para distribuir premios históricos
+(window as any).distributeHistoricalPrizes = async () => {
+  try {
+    console.log('Iniciando distribución de premios históricos...');
+    const result = await distributeHistoricalPrizes();
+    console.log('Resultado:', result);
+    return result;
+  } catch (error) {
+    console.error('Error al distribuir premios históricos:', error);
+    return { success: false, error };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2784,6 +2798,7 @@ function App() {
       console.log('- window.checkAllTicketsForWinners() - Verificar TODOS los ganadores');
       console.log('- window.compareFrontendVsDB() - Comparar frontend vs BD');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
+      console.log('- window.distributeHistoricalPrizes() - Distribuir premios históricos');
   }, []);
 
   return (
