@@ -2266,6 +2266,277 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para verificar todos los usuarios que han jugado
+(window as any).checkAllUsers = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    
+    console.log('👥 Verificando todos los usuarios que han jugado...');
+    
+    const days = ['2025-06-13', '2025-06-12', '2025-06-11', '2025-06-10', '2025-06-09'];
+    
+    for (const day of days) {
+      console.log(`\n📅 === DÍA: ${day} ===`);
+      
+      // 1. Obtener todos los tickets del día
+      const ticketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('gameDay', '==', day)
+      );
+      const ticketsSnapshot = await getDocs(ticketsQuery);
+      const tickets = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // 2. Agrupar por usuario
+      const userStats = {};
+      tickets.forEach(ticket => {
+        const userId = ticket.userId;
+        if (!userStats[userId]) {
+          userStats[userId] = {
+            username: ticket.username || 'Anónimo',
+            walletAddress: ticket.walletAddress,
+            tickets: 0,
+            activeTickets: 0,
+            tokensSpent: 0
+          };
+        }
+        userStats[userId].tickets++;
+        if (ticket.isActive) userStats[userId].activeTickets++;
+        userStats[userId].tokensSpent += (ticket.tokenCost || 1);
+      });
+      
+      const uniqueUsers = Object.keys(userStats).length;
+      const totalTickets = tickets.length;
+      const totalTokens = tickets.reduce((sum, t) => sum + (t.tokenCost || 1), 0);
+      
+      console.log(`  📊 Resumen del día:`);
+      console.log(`    👥 Usuarios únicos: ${uniqueUsers}`);
+      console.log(`    🎫 Total tickets: ${totalTickets}`);
+      console.log(`    💰 Total tokens gastados: ${totalTokens}`);
+      
+      // 3. Mostrar top usuarios del día
+      const topUsers = Object.entries(userStats)
+        .sort(([,a], [,b]) => b.tokensSpent - a.tokensSpent)
+        .slice(0, 5);
+      
+      console.log(`  🏆 Top 5 usuarios por tokens gastados:`);
+      topUsers.forEach(([userId, stats], index) => {
+        console.log(`    ${index + 1}. ${stats.username} (${userId.substring(0, 20)}...)`);
+        console.log(`       💰 ${stats.tokensSpent} tokens | 🎫 ${stats.tickets} tickets`);
+      });
+      
+      // 4. Verificar resultado del sorteo
+      const resultsQuery = query(
+        collection(db, 'game_results'),
+        where('dayKey', '==', day)
+      );
+      const resultsSnapshot = await getDocs(resultsQuery);
+      
+      if (!resultsSnapshot.empty) {
+        const result = resultsSnapshot.docs[0].data();
+        const totalWinners = (result.firstPrize?.length || 0) + 
+                           (result.secondPrize?.length || 0) + 
+                           (result.thirdPrize?.length || 0) + 
+                           (result.freePrize?.length || 0);
+        
+        console.log(`  🎯 Resultado del sorteo:`);
+        console.log(`    🥇 Primer premio: ${result.firstPrize?.length || 0} ganadores`);
+        console.log(`    🥈 Segundo premio: ${result.secondPrize?.length || 0} ganadores`);
+        console.log(`    🥉 Tercer premio: ${result.thirdPrize?.length || 0} ganadores`);
+        console.log(`    🎟️ Premio gratis: ${result.freePrize?.length || 0} ganadores`);
+        console.log(`    📊 Total ganadores: ${totalWinners}`);
+        console.log(`    🎲 Números ganadores: ${result.winningNumbers?.join('') || 'N/A'}`);
+      }
+      
+      // 5. Verificar pool del día
+      const poolsQuery = query(
+        collection(db, 'prize_pools'),
+        where('gameDay', '==', day)
+      );
+      const poolsSnapshot = await getDocs(poolsQuery);
+      
+      if (!poolsSnapshot.empty) {
+        const pool = poolsSnapshot.docs[0].data();
+        console.log(`  🏊‍♂️ Pool del día:`);
+        console.log(`    💰 Total tokens: ${pool.totalTokensCollected}`);
+        console.log(`    ✅ Distribuida: ${pool.poolsDistributed ? 'SÍ' : 'NO'}`);
+        console.log(`    🥇 Primer premio: ${pool.pools?.firstPrize || 0} tokens`);
+        console.log(`    🥈 Segundo premio: ${pool.pools?.secondPrize || 0} tokens`);
+        console.log(`    🥉 Tercer premio: ${pool.pools?.thirdPrize || 0} tokens`);
+        console.log(`    💼 Desarrollo: ${pool.pools?.development || 0} tokens`);
+      }
+      
+      // 6. Verificar transacciones de premios del día
+      const prizeTransactionsQuery = query(
+        collection(db, 'token_transactions'),
+        where('gameDay', '==', day),
+        where('type', 'in', ['prize_first', 'prize_second', 'prize_third'])
+      );
+      const prizeTransactionsSnapshot = await getDocs(prizeTransactionsQuery);
+      
+      if (prizeTransactionsSnapshot.size > 0) {
+        console.log(`  💎 Premios distribuidos: ${prizeTransactionsSnapshot.size} transacciones`);
+        const prizeTransactions = prizeTransactionsSnapshot.docs.map(doc => doc.data());
+        const totalPrizeTokens = prizeTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+        console.log(`    💰 Total tokens en premios: ${totalPrizeTokens}`);
+        
+        // Agrupar por tipo de premio
+        const prizesByType = {};
+        prizeTransactions.forEach(tx => {
+          if (!prizesByType[tx.type]) prizesByType[tx.type] = 0;
+          prizesByType[tx.type] += tx.amount;
+        });
+        
+        Object.entries(prizesByType).forEach(([type, amount]) => {
+          const emoji = type === 'prize_first' ? '🥇' : type === 'prize_second' ? '🥈' : '🥉';
+          console.log(`    ${emoji} ${type}: ${amount} tokens`);
+        });
+      } else {
+        console.log(`  💎 Premios distribuidos: 0 transacciones`);
+      }
+    }
+    
+    // 7. Resumen general de todos los usuarios únicos
+    console.log(`\n\n👥 === RESUMEN GENERAL ===`);
+    
+    const allUsersQuery = query(collection(db, 'player_tickets'));
+    const allUsersSnapshot = await getDocs(allUsersQuery);
+    const allTickets = allUsersSnapshot.docs.map(doc => doc.data());
+    
+    const allUsers = {};
+    allTickets.forEach(ticket => {
+      const userId = ticket.userId;
+      if (!allUsers[userId]) {
+        allUsers[userId] = {
+          username: ticket.username || 'Anónimo',
+          totalTickets: 0,
+          totalTokens: 0,
+          daysPlayed: new Set()
+        };
+      }
+      allUsers[userId].totalTickets++;
+      allUsers[userId].totalTokens += (ticket.tokenCost || 1);
+      if (ticket.gameDay) allUsers[userId].daysPlayed.add(ticket.gameDay);
+    });
+    
+    const totalUniqueUsers = Object.keys(allUsers).length;
+    console.log(`📊 Total usuarios únicos que han jugado: ${totalUniqueUsers}`);
+    
+    // Top 10 usuarios de todos los tiempos
+    const topAllTimeUsers = Object.entries(allUsers)
+      .map(([userId, stats]) => ({
+        userId,
+        ...stats,
+        daysPlayed: stats.daysPlayed.size
+      }))
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+      .slice(0, 10);
+    
+    console.log(`\n🏆 Top 10 usuarios de todos los tiempos:`);
+    topAllTimeUsers.forEach((user, index) => {
+      console.log(`${index + 1}. ${user.username} (${user.userId.substring(0, 20)}...)`);
+      console.log(`   💰 ${user.totalTokens} tokens | 🎫 ${user.totalTickets} tickets | 📅 ${user.daysPlayed} días`);
+    });
+    
+    return { totalUniqueUsers, topAllTimeUsers };
+    
+  } catch (error) {
+    console.error('❌ Error verificando usuarios:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para arreglar pools específicas que se saltaron
+(window as any).fixMissingPools = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { distributePrizePool } = await import('./firebase/prizePools');
+    const { query, collection, where, getDocs, doc, updateDoc } = await import('firebase/firestore');
+    
+    console.log('🔧 Arreglando pools específicas que se saltaron...');
+    
+    // Pools específicas que sabemos que tienen tokens pero no se distribuyeron
+    const problematicDays = ['2025-06-10', '2025-06-09', '2025-06-13', '2025-06-11'];
+    
+    for (const day of problematicDays) {
+      console.log(`\n🔍 Verificando día: ${day}`);
+      
+      // 1. Verificar si la pool existe y tiene tokens
+      const poolsQuery = query(
+        collection(db, 'prize_pools'),
+        where('gameDay', '==', day)
+      );
+      const poolsSnapshot = await getDocs(poolsQuery);
+      
+      if (poolsSnapshot.empty) {
+        console.log(`⚠️ No existe pool para ${day}`);
+        continue;
+      }
+      
+      const poolDoc = poolsSnapshot.docs[0];
+      const pool = poolDoc.data();
+      
+      console.log(`Pool encontrada: ${pool.totalTokensCollected} tokens, distribuida: ${pool.poolsDistributed}`);
+      
+      if (pool.totalTokensCollected > 0) {
+        // 2. Si tiene tokens pero no está distribuida, forzar distribución
+        if (!pool.poolsDistributed) {
+          console.log(`🚀 Forzando distribución de pool ${day} con ${pool.totalTokensCollected} tokens`);
+          
+          try {
+            const result = await distributePrizePool(day);
+            console.log(`✅ Pool ${day} distribuida exitosamente:`, result);
+          } catch (error) {
+            console.error(`❌ Error distribuyendo pool ${day}:`, error);
+          }
+        } else {
+          console.log(`✅ Pool ${day} ya está distribuida`);
+          
+          // 3. Verificar si realmente hay transacciones de premios
+          const prizeQuery = query(
+            collection(db, 'token_transactions'),
+            where('gameDay', '==', day),
+            where('type', 'in', ['prize_first', 'prize_second', 'prize_third'])
+          );
+          const prizeSnapshot = await getDocs(prizeQuery);
+          
+          if (prizeSnapshot.size === 0) {
+            console.log(`⚠️ Pool marcada como distribuida pero sin transacciones de premios. Redistribuyendo...`);
+            
+            // Marcar como no distribuida y redistribuir
+            await updateDoc(poolDoc.ref, { poolsDistributed: false });
+            
+            try {
+              const result = await distributePrizePool(day);
+              console.log(`✅ Pool ${day} redistribuida:`, result);
+            } catch (error) {
+              console.error(`❌ Error redistribuyendo pool ${day}:`, error);
+            }
+          } else {
+            console.log(`✅ Pool ${day} tiene ${prizeSnapshot.size} transacciones de premios`);
+          }
+        }
+      } else {
+        console.log(`ℹ️ Pool ${day} no tiene tokens para distribuir`);
+      }
+    }
+    
+    console.log('\n🎉 Proceso de reparación completado');
+    
+    // Ejecutar distribución de premios históricos
+    console.log('\n🏆 Ejecutando distribución de premios históricos...');
+    const { distributeHistoricalPrizes } = await import('./firebase/distributeHistoricalPrizes');
+    const result = await distributeHistoricalPrizes(true);
+    console.log('📊 Resultado distribución histórica:', result);
+    
+    return { success: true, daysProcessed: problematicDays.length };
+    
+  } catch (error) {
+    console.error('❌ Error arreglando pools:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2599,6 +2870,8 @@ function App() {
       console.log('- window.debugWonTokens() - Debug tokens ganados');
       console.log('- window.debugEmptyPools() - Debug pools vacías');
       console.log('- window.forceDistributePools() - Distribuir pools manualmente');
+      console.log('- window.checkAllUsers() - Verificar todos los usuarios que han jugado');
+      console.log('- window.fixMissingPools() - Arreglar pools específicas que se saltaron');
   }, []);
 
   return (
