@@ -221,6 +221,16 @@ export const WalletInfo: React.FC = () => {
       </div>
 
       <div className="mb-6">
+        <div className="text-sm text-gray-400 mb-1">Tokens Ganados</div>
+        <div className="text-2xl font-bold text-green-400">
+          {isLoadingTransactions ? 'Cargando...' : formatNumber(totalWonTokens)}
+        </div>
+        <div className="text-xs text-gray-400 mt-1">
+          Total acumulado de premios ganados
+        </div>
+      </div>
+
+      <div className="mb-6">
         <div className="text-sm text-gray-400 mb-2">Historial de Transacciones</div>
         <div className="space-y-2 max-h-60 overflow-y-auto">
           {isLoadingTransactions ? (
