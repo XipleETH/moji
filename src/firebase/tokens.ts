@@ -12,7 +12,8 @@ import {
   query,
   where,
   orderBy,
-  limit
+  limit,
+  getDocs
 } from 'firebase/firestore';
 import { DailyTokens, TokenTransaction } from '../types';
 import { getCurrentUser } from './auth';
@@ -219,6 +220,8 @@ const addTokenTransaction = async (transaction: Omit<TokenTransaction, 'id'>): P
 // Obtener historial de transacciones del usuario
 export const getUserTokenTransactions = async (userId: string, limitCount: number = 50): Promise<TokenTransaction[]> => {
   try {
+    console.log(`[getUserTokenTransactions] Obteniendo transacciones para usuario ${userId}`);
+    
     const transactionsQuery = query(
       collection(db, TOKEN_TRANSACTIONS_COLLECTION),
       where('userId', '==', userId),
@@ -226,9 +229,15 @@ export const getUserTokenTransactions = async (userId: string, limitCount: numbe
       limit(limitCount)
     );
     
-    // TODO: Implementar la consulta cuando sea necesario
-    console.log('[getUserTokenTransactions] Consulta de transacciones preparada para:', userId);
-    return [];
+    const transactionsSnapshot = await getDocs(transactionsQuery);
+    const transactions = transactionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toMillis() || Date.now()
+    })) as TokenTransaction[];
+    
+    console.log(`[getUserTokenTransactions] Encontradas ${transactions.length} transacciones`);
+    return transactions;
   } catch (error) {
     console.error('[getUserTokenTransactions] Error obteniendo transacciones:', error);
     return [];

@@ -35,10 +35,21 @@ export const distributeHistoricalPrizes = async () => {
     })) as GameResult[];
 
     console.log(`[distributeHistoricalPrizes] Encontrados ${results.length} resultados recientes`);
+    console.log('[distributeHistoricalPrizes] Estructura del primer resultado:', JSON.stringify(results[0], null, 2));
 
     for (const result of results) {
-      const gameDay = result.gameDay;
+      // Usar el timestamp para generar el gameDay si no existe
+      const gameDay = result.gameDay || new Date(result.timestamp).toISOString().split('T')[0];
       console.log(`[distributeHistoricalPrizes] Procesando sorteo del día ${gameDay}`);
+      console.log('[distributeHistoricalPrizes] Estructura del resultado:', {
+        id: result.id,
+        gameDay,
+        timestamp: result.timestamp,
+        prizesDistributed: result.prizesDistributed,
+        firstPrize: result.firstPrize?.length || 0,
+        secondPrize: result.secondPrize?.length || 0,
+        thirdPrize: result.thirdPrize?.length || 0
+      });
 
       // Verificar si ya se distribuyeron los premios
       if (result.prizesDistributed) {
@@ -56,6 +67,12 @@ export const distributeHistoricalPrizes = async () => {
       }
 
       const poolData = poolDoc.data();
+      console.log('[distributeHistoricalPrizes] Datos de la pool:', {
+        gameDay,
+        poolsDistributed: poolData.poolsDistributed,
+        pools: poolData.pools
+      });
+
       if (!poolData.poolsDistributed) {
         console.log(`[distributeHistoricalPrizes] La pool del día ${gameDay} no está distribuida`);
         continue;
@@ -68,6 +85,11 @@ export const distributeHistoricalPrizes = async () => {
         const winners = result[prizeType];
         if (winners && winners.length > 0) {
           console.log(`[distributeHistoricalPrizes] Distribuyendo ${prizeType} para ${winners.length} ganadores`);
+          console.log('[distributeHistoricalPrizes] Datos de los ganadores:', winners.map(w => ({
+            userId: w.userId,
+            walletAddress: w.walletAddress,
+            ticketId: w.id
+          })));
           
           try {
             await distributePrizesToWinners(

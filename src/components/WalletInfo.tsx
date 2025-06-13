@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { WalletIcon, Coins, CircleDollarSign, RefreshCw, UserIcon, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { WalletIcon, Coins, CircleDollarSign, RefreshCw, UserIcon, ArrowUpDown, Trophy } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 import { useAuth } from './AuthProvider';
 import { useFarcasterWallet } from '../hooks/useFarcasterWallet';
 import { useMiniKitAuth } from '../providers/MiniKitProvider';
+import { getUserTokenTransactions } from '../firebase/tokens';
 
 // Constantes de red
 const BASE_CHAIN_ID = 8453;
@@ -42,12 +43,43 @@ export const WalletInfo: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isChangingNetwork, setIsChangingNetwork] = useState(false);
   
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  const [totalWonTokens, setTotalWonTokens] = useState(0);
+
   // Determinar la información de billetera a mostrar (priorizando Farcaster)
   const walletAddress = farcasterAddress || user?.walletAddress;
   const fid = farcasterFid || user?.fid;
   const username = farcasterUsername || user?.username;
   const isConnected = isFarcasterConnected || isWalletConnected;
   const isConnecting = isFarcasterConnecting || isWalletConnecting;
+  
+  // Cargar transacciones cuando el usuario está conectado
+  useEffect(() => {
+    if (user?.id) {
+      loadTransactions();
+    }
+  }, [user?.id]);
+
+  const loadTransactions = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingTransactions(true);
+    try {
+      const userTransactions = await getUserTokenTransactions(user.id);
+      setTransactions(userTransactions);
+      
+      // Calcular tokens ganados
+      const wonTokens = userTransactions
+        .filter(tx => tx.type === 'prize')
+        .reduce((total, tx) => total + tx.amount, 0);
+      setTotalWonTokens(wonTokens);
+    } catch (error) {
+      console.error('Error cargando transacciones:', error);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  };
   
   // Función para cambiar a la red Base
   const handleSwitchToBase = async () => {
@@ -213,6 +245,45 @@ export const WalletInfo: React.FC = () => {
                     <RefreshCw size={14} className={isPendingTransaction ? 'animate-spin' : ''} />
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+          
+          {/* Tokens Ganados */}
+          <div className="flex items-center justify-between bg-white/5 p-3 rounded">
+            <div className="flex items-center">
+              <Trophy size={16} className="mr-2 text-yellow-400" />
+              <span>Tokens Ganados</span>
+            </div>
+            <div className="flex items-center">
+              <span className="font-medium mr-2">{totalWonTokens}</span>
+              <button 
+                onClick={loadTransactions}
+                className="text-white/50 hover:text-white p-1 rounded-full hover:bg-white/10"
+                disabled={isLoadingTransactions}
+              >
+                <RefreshCw size={14} className={isLoadingTransactions ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Historial de Transacciones */}
+          {transactions.length > 0 && (
+            <div className="bg-white/5 p-3 rounded">
+              <div className="text-sm font-medium mb-2">Últimas Transacciones</div>
+              <div className="space-y-2">
+                {transactions.slice(0, 5).map((tx, index) => (
+                  <div key={index} className="flex justify-between items-center text-sm">
+                    <span className="text-white/70">
+                      {tx.type === 'prize' ? 'Premio' : 
+                       tx.type === 'ticket' ? 'Ticket' : 
+                       tx.type === 'daily' ? 'Tokens Diarios' : 'Otro'}
+                    </span>
+                    <span className={tx.amount > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {tx.amount > 0 ? '+' : ''}{tx.amount}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
