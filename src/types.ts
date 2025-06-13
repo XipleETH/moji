@@ -109,18 +109,10 @@ export interface PrizePool {
   poolsDistributed: boolean;
   distributionTimestamp?: number;
   pools: {
-    firstPrize: number;        // 64% de tokens
-    firstPrizeReserve: number; // 16% de tokens
-    secondPrize: number;       // 8% de tokens  
-    secondPrizeReserve: number;// 2% de tokens
-    thirdPrize: number;        // 4% de tokens
-    thirdPrizeReserve: number; // 1% de tokens
+    firstPrize: number;        // 80% de tokens
+    secondPrize: number;       // 10% de tokens
+    thirdPrize: number;        // 5% de tokens
     development: number;       // 5% de tokens
-  };
-  reserves: {
-    firstPrizeActivated: boolean;
-    secondPrizeActivated: boolean;
-    thirdPrizeActivated: boolean;
   };
   // Nuevos campos para acumulación de pools no ganadas
   accumulatedFromPreviousDays: {

@@ -181,12 +181,9 @@ export const formatTimeUntilDistribution = (milliseconds: number | null): string
 // Función helper para formatear porcentajes de distribución
 export const formatPoolPercentage = (poolType: keyof PrizePool['pools']): string => {
   const percentages = {
-    firstPrize: '64%',
-    firstPrizeReserve: '16%',
-    secondPrize: '8%',
-    secondPrizeReserve: '2%',
-    thirdPrize: '4%',
-    thirdPrizeReserve: '1%',
+    firstPrize: '80%',
+    secondPrize: '10%',
+    thirdPrize: '5%',
     development: '5%'
   };
   

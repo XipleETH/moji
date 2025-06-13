@@ -27,12 +27,9 @@ const POOL_TRANSACTIONS_COLLECTION = 'pool_transactions';
 
 // Porcentajes de distribución de la pool
 export const POOL_DISTRIBUTION_PERCENTAGES = {
-  firstPrize: 0.64,        // 64%
-  firstPrizeReserve: 0.16, // 16%
-  secondPrize: 0.08,       // 8%
-  secondPrizeReserve: 0.02,// 2%
-  thirdPrize: 0.04,        // 4%
-  thirdPrizeReserve: 0.01, // 1%
+  firstPrize: 0.80,        // 80%
+  secondPrize: 0.10,       // 10%
+  thirdPrize: 0.05,        // 5%
   development: 0.05        // 5%
 };
 
@@ -356,7 +353,7 @@ export const addTokensToPool = async (userId: string, walletAddress: string, tok
   }
 };
 
-// Distribuir la pool principal en pools específicas (10 minutos antes del sorteo)
+// Distribuir la pool principal en pools específicas (5 minutos antes del sorteo)
 export const distributePrizePool = async (gameDay?: string): Promise<boolean> => {
   const currentDay = gameDay || getCurrentGameDaySaoPaulo();
   const poolRef = doc(db, PRIZE_POOLS_COLLECTION, currentDay);
@@ -387,45 +384,18 @@ export const distributePrizePool = async (gameDay?: string): Promise<boolean> =>
       // Calcular distribución base del día
       const distributedPools = {
         firstPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.firstPrize),
-        firstPrizeReserve: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.firstPrizeReserve),
         secondPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.secondPrize),
-        secondPrizeReserve: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.secondPrizeReserve),
         thirdPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.thirdPrize),
-        thirdPrizeReserve: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.thirdPrizeReserve),
         development: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.development)
       };
       
-      // Obtener pools acumuladas
-      const accumulatedPools = poolData.accumulatedFromPreviousDays || {
-        firstPrize: 0,
-        secondPrize: 0,
-        thirdPrize: 0,
-        totalDaysAccumulated: 0
-      };
-      
-      // Calcular pools finales (distribución del día + acumuladas)
-      const finalPools = {
-        firstPrize: distributedPools.firstPrize + accumulatedPools.firstPrize,
-        secondPrize: distributedPools.secondPrize + accumulatedPools.secondPrize,
-        thirdPrize: distributedPools.thirdPrize + accumulatedPools.thirdPrize
-      };
-      
-      console.log(`[distributePrizePool] Distribución calculada para ${currentDay}:`);
-      console.log(`- Base del día:`, distributedPools);
-      console.log(`- Acumulado:`, accumulatedPools);
-      console.log(`- Final:`, finalPools);
-      
-      // Actualizar pool con distribución
-      const updatedPool = {
-        ...poolData,
+      // Actualizar la pool con la distribución
+      transaction.update(poolRef, {
         pools: distributedPools,
-        finalPools: finalPools,
         poolsDistributed: true,
         distributionTimestamp: serverTimestamp(),
         lastUpdated: serverTimestamp()
-      };
-      
-      transaction.update(poolRef, updatedPool);
+      });
       
       // Registrar transacciones de distribución
       for (const [poolType, amount] of Object.entries(distributedPools)) {
