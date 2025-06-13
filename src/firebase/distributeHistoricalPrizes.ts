@@ -8,7 +8,8 @@ import {
   doc,
   getDoc,
   runTransaction,
-  serverTimestamp
+  serverTimestamp,
+  where
 } from 'firebase/firestore';
 import { GameResult, PrizeDistribution } from '../types';
 import { distributePrizesToWinners } from './prizePools';
@@ -16,8 +17,27 @@ import { distributePrizesToWinners } from './prizePools';
 const GAME_RESULTS_COLLECTION = 'game_results';
 const PRIZE_POOLS_COLLECTION = 'prize_pools';
 const PRIZE_DISTRIBUTIONS_COLLECTION = 'prize_distributions';
+const TOKEN_TRANSACTIONS_COLLECTION = 'token_transactions';
 
-export const distributeHistoricalPrizes = async () => {
+// Función para verificar si los premios fueron realmente distribuidos
+const verifyPrizeDistribution = async (gameDay: string): Promise<boolean> => {
+  try {
+    // Verificar si hay transacciones de premios para este día
+    const transactionsQuery = query(
+      collection(db, TOKEN_TRANSACTIONS_COLLECTION),
+      where('gameDay', '==', gameDay),
+      where('type', '==', 'prize')
+    );
+    
+    const transactionsSnapshot = await getDocs(transactionsQuery);
+    return !transactionsSnapshot.empty;
+  } catch (error) {
+    console.error(`[verifyPrizeDistribution] Error verificando distribución para ${gameDay}:`, error);
+    return false;
+  }
+};
+
+export const distributeHistoricalPrizes = async (forceRedistribution: boolean = false) => {
   try {
     console.log('[distributeHistoricalPrizes] Iniciando distribución de premios históricos...');
 
@@ -39,7 +59,6 @@ export const distributeHistoricalPrizes = async () => {
     console.log('[distributeHistoricalPrizes] Estructura del primer resultado:', JSON.stringify(results[0], null, 2));
 
     for (const result of results) {
-      // Usar el dayKey si existe, o generar el gameDay desde el timestamp
       const gameDay = result.dayKey || (result.timestamp ? new Date(result.timestamp).toISOString().split('T')[0] : null);
       
       if (!gameDay) {
@@ -58,9 +77,11 @@ export const distributeHistoricalPrizes = async () => {
         thirdPrize: result.thirdPrize?.length || 0
       });
 
-      // Verificar si ya se distribuyeron los premios
-      if (result.prizesDistributed) {
-        console.log(`[distributeHistoricalPrizes] Los premios del día ${gameDay} ya fueron distribuidos`);
+      // Verificar si realmente se distribuyeron los premios
+      const werePrizesDistributed = await verifyPrizeDistribution(gameDay);
+      
+      if (result.prizesDistributed && !forceRedistribution && werePrizesDistributed) {
+        console.log(`[distributeHistoricalPrizes] Los premios del día ${gameDay} ya fueron distribuidos y verificados`);
         continue;
       }
 
