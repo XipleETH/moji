@@ -2078,6 +2078,140 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para debuggear tokens ganados
+(window as any).debugWonTokens = async () => {
+  try {
+    const { getCurrentUser } = await import('./firebase/auth');
+    const { getUserTokenTransactions, getAvailableWonTokens } = await import('./firebase/tokens');
+    const { getAvailableWonTokens: getAvailableWonTokensPrizes } = await import('./firebase/prizes');
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      console.log('❌ No hay usuario conectado');
+      return;
+    }
+    
+    console.log(`🔍 Debuggeando tokens ganados para usuario: ${user.id}`);
+    
+    // 1. Obtener todas las transacciones
+    const transactions = await getUserTokenTransactions(user.id, 100);
+    console.log(`📊 Total transacciones encontradas: ${transactions.length}`);
+    
+    // 2. Filtrar transacciones de premios
+    const prizeTransactions = transactions.filter(tx => 
+      tx.type === 'prize_first' || 
+      tx.type === 'prize_second' || 
+      tx.type === 'prize_third' ||
+      tx.type === 'prize_received'
+    );
+    console.log(`🏆 Transacciones de premios: ${prizeTransactions.length}`);
+    prizeTransactions.forEach(tx => {
+      console.log(`  - ${tx.type}: +${tx.amount} tokens (${tx.gameDay})`);
+    });
+    
+    // 3. Filtrar transacciones de reclamaciones
+    const claimedTransactions = transactions.filter(tx => tx.type === 'prize_claimed');
+    console.log(`💸 Transacciones de reclamaciones: ${claimedTransactions.length}`);
+    claimedTransactions.forEach(tx => {
+      console.log(`  - Reclamado: ${tx.amount} tokens`);
+    });
+    
+    // 4. Calcular tokens disponibles
+    const totalWon = prizeTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const totalClaimed = claimedTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    const available = totalWon - totalClaimed;
+    
+    console.log(`\n📈 Resumen:`);
+    console.log(`  Total ganados: ${totalWon}`);
+    console.log(`  Total reclamados: ${totalClaimed}`);
+    console.log(`  Disponibles: ${available}`);
+    
+    // 5. Verificar función de prizes
+    const availableFromPrizes = await getAvailableWonTokensPrizes(user.id);
+    console.log(`  Disponibles (función prizes): ${availableFromPrizes}`);
+    
+    return { totalWon, totalClaimed, available, availableFromPrizes, transactions };
+    
+  } catch (error) {
+    console.error('❌ Error debuggeando tokens ganados:', error);
+  }
+};
+
+// Función para verificar por qué las pools están vacías
+(window as any).debugEmptyPools = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { query, collection, where, getDocs, orderBy } = await import('firebase/firestore');
+    
+    console.log('🔍 Debuggeando pools vacías...');
+    
+    const days = ['2025-06-13', '2025-06-12', '2025-06-11', '2025-06-10', '2025-06-09'];
+    
+    for (const day of days) {
+      console.log(`\n📅 Analizando día: ${day}`);
+      
+      // 1. Verificar tickets del día
+      const ticketsQuery = query(
+        collection(db, 'player_tickets'),
+        where('gameDay', '==', day)
+      );
+      const ticketsSnapshot = await getDocs(ticketsQuery);
+      const tickets = ticketsSnapshot.docs.map(doc => doc.data());
+      
+      console.log(`  🎫 Tickets encontrados: ${tickets.length}`);
+      
+      if (tickets.length > 0) {
+        const activeTickets = tickets.filter(t => t.isActive);
+        const tokenCosts = tickets.map(t => t.tokenCost || 1);
+        const totalTokensFromTickets = tokenCosts.reduce((sum, cost) => sum + cost, 0);
+        
+        console.log(`    - Tickets activos: ${activeTickets.length}`);
+        console.log(`    - Total tokens gastados: ${totalTokensFromTickets}`);
+      }
+      
+      // 2. Verificar daily tokens del día
+      const dailyTokensQuery = query(
+        collection(db, 'daily_tokens'),
+        where('date', '==', day)
+      );
+      const dailyTokensSnapshot = await getDocs(dailyTokensQuery);
+      const dailyTokens = dailyTokensSnapshot.docs.map(doc => doc.data());
+      
+      console.log(`  💰 Registros de daily_tokens: ${dailyTokens.length}`);
+      if (dailyTokens.length > 0) {
+        const totalUsed = dailyTokens.reduce((sum, dt) => sum + (dt.tokensUsed || 0), 0);
+        console.log(`    - Total tokens usados en daily_tokens: ${totalUsed}`);
+      }
+      
+      // 3. Verificar pool del día
+      const poolQuery = query(
+        collection(db, 'prize_pools'),
+        where('gameDay', '==', day)
+      );
+      const poolSnapshot = await getDocs(poolQuery);
+      
+      if (poolSnapshot.empty) {
+        console.log(`  🏊‍♂️ Pool: No existe`);
+      } else {
+        const poolData = poolSnapshot.docs[0].data();
+        console.log(`  🏊‍♂️ Pool: ${poolData.totalTokensCollected} tokens (distribuida: ${poolData.poolsDistributed})`);
+      }
+      
+      // 4. Verificar ticket purchases del día
+      const purchasesQuery = query(
+        collection(db, 'ticket_purchases'),
+        where('gameDay', '==', day)
+      );
+      const purchasesSnapshot = await getDocs(purchasesQuery);
+      
+      console.log(`  🛒 Ticket purchases: ${purchasesSnapshot.size}`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error debuggeando pools vacías:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2408,6 +2542,8 @@ function App() {
       console.log('- window.compareFrontendVsDB() - Comparar frontend vs BD');
       console.log('- window.testWinLogic() - Probar lógica de verificación de premios');
       console.log('- window.distributeHistoricalPrizes() - Distribuir premios históricos');
+      console.log('- window.debugWonTokens() - Debug tokens ganados');
+      console.log('- window.debugEmptyPools() - Debug pools vacías');
   }, []);
 
   return (
