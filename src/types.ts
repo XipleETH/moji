@@ -195,11 +195,11 @@ export interface PrizeTransaction {
 export interface TokenTransaction {
   id: string;
   userId: string;
-  type: 'PRIZE_WIN' | 'TICKET_PURCHASE' | 'INITIAL_BALANCE';
+  type: 'daily_reset' | 'ticket_purchase' | 'prize_received';
   amount: number;
   timestamp: number;
+  description: string;
   gameDay?: string;
-  description?: string;
 }
 
 // Interfaces para integración con contratos inteligentes

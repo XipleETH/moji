@@ -5,8 +5,6 @@ import { useAuth } from './AuthProvider';
 import { useFarcasterWallet } from '../hooks/useFarcasterWallet';
 import { useMiniKitAuth } from '../providers/MiniKitProvider';
 import { getUserTokenTransactions } from '../firebase/tokens';
-import { formatNumber } from '../utils/format';
-import { TokenTransaction } from '../types';
 
 // Constantes de red
 const BASE_CHAIN_ID = 8453;
@@ -45,10 +43,9 @@ export const WalletInfo: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isChangingNetwork, setIsChangingNetwork] = useState(false);
   
-  const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [totalWonTokens, setTotalWonTokens] = useState(0);
-  const [balance, setBalance] = useState<number>(0);
 
   // Determinar la información de billetera a mostrar (priorizando Farcaster)
   const walletAddress = farcasterAddress || user?.walletAddress;
@@ -150,111 +147,204 @@ export const WalletInfo: React.FC = () => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
   
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (isConnected && walletAddress) {
-        try {
-          const userBalance = await getUserBalance(walletAddress);
-          setBalance(userBalance);
-        } catch (error) {
-          console.error('Error loading user data:', error);
-        }
-      }
-    };
-
-    loadUserData();
-  }, [isConnected, walletAddress]);
-
-  const getTransactionType = (type: string) => {
-    switch (type) {
-      case 'PRIZE_WIN':
-        return '🏆 Premio Ganado';
-      case 'TICKET_PURCHASE':
-        return '🎫 Compra de Ticket';
-      case 'INITIAL_BALANCE':
-        return '🎁 Tokens Iniciales';
-      default:
-        return type;
-    }
-  };
-
-  const getTransactionEmoji = (type: string) => {
-    switch (type) {
-      case 'PRIZE_WIN':
-        return '💰';
-      case 'TICKET_PURCHASE':
-        return '💸';
-      case 'INITIAL_BALANCE':
-        return '🎁';
-      default:
-        return '📝';
-    }
-  };
-
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 shadow-lg">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold">Mi Wallet</h2>
-        <button
-          onClick={() => {
-            connectWallet();
-            refreshWalletData();
-          }}
-          className="text-sm text-gray-400 hover:text-white transition-colors"
-        >
-          Desconectar
+    <div className="bg-white/10 rounded-lg p-4 text-white">
+      <div 
+        className="flex items-center justify-between cursor-pointer" 
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center">
+          <WalletIcon className="mr-2" size={18} />
+          <span className="font-medium">Billetera Farcaster</span>
+        </div>
+        <button className="text-white/70 hover:text-white">
+          {isExpanded ? '▲' : '▼'}
         </button>
       </div>
-
-      <div className="mb-6">
-        <div className="text-sm text-gray-400 mb-1">Dirección</div>
-        <div className="font-mono text-sm bg-black/20 p-2 rounded">
-          {formatAddress(walletAddress)}
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <div className="text-sm text-gray-400 mb-1">Balance de Tokens</div>
-        <div className="text-2xl font-bold">
-          {isLoadingTransactions ? 'Cargando...' : formatNumber(balance)}
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <div className="text-sm text-gray-400 mb-1">Tokens Ganados</div>
-        <div className="text-2xl font-bold text-green-400">
-          {isLoadingTransactions ? 'Cargando...' : formatNumber(totalWonTokens)}
-        </div>
-        <div className="text-xs text-gray-400 mt-1">
-          Total acumulado de premios ganados
-        </div>
-      </div>
-
-      <div className="mb-6">
-        <div className="text-sm text-gray-400 mb-2">Historial de Transacciones</div>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
-          {isLoadingTransactions ? (
-            <div className="text-center text-gray-400">Cargando transacciones...</div>
-          ) : transactions.length === 0 ? (
-            <div className="text-center text-gray-400">No hay transacciones</div>
-          ) : (
-            transactions.map((tx, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-2 bg-black/20 rounded"
-              >
-                <div className="flex items-center">
-                  <span className="mr-2">{getTransactionEmoji(tx.type)}</span>
-                  <span className="text-sm">{getTransactionType(tx.type)}</span>
-                </div>
-                <div className={`font-mono text-sm ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {tx.amount >= 0 ? '+' : ''}{formatNumber(tx.amount)}
-                </div>
+      
+      {isExpanded && (
+        <div className="mt-3 space-y-3">
+          {walletAddress && (
+            <div className="bg-white/5 p-3 rounded">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-white/70">Dirección</span>
+                <span className="font-mono text-sm">{formatAddress(walletAddress)}</span>
               </div>
-            ))
+              
+              {fid && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-white/70">Farcaster ID</span>
+                  <span>{fid}</span>
+                </div>
+              )}
+              
+              {username && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-white/70">Usuario</span>
+                  <div className="flex items-center">
+                    <UserIcon size={12} className="mr-1" />
+                    <span>{username}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Información de red */}
+              {currentChainId && (
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm text-white/70">Red</span>
+                  <div className="flex items-center gap-2">
+                    <span className={isBaseNetwork ? "text-green-400" : "text-yellow-400"}>
+                      {getNetworkName(currentChainId)}
+                    </span>
+                    {!isBaseNetwork && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSwitchToBase();
+                        }}
+                        disabled={isChangingNetwork}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center transition-colors disabled:opacity-50"
+                      >
+                        {isChangingNetwork ? 'Cambiando...' : (
+                          <>
+                            <ArrowUpDown size={10} className="mr-1" />
+                            Cambiar a Base
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {isWarpcastApp && (
+            <div className="bg-white/5 p-2 rounded text-center text-xs text-white/60">
+              Conectado a través de Warpcast
+            </div>
+          )}
+          
+          {tokenBalance && (
+            <div className="flex items-center justify-between bg-white/5 p-3 rounded">
+              <div className="flex items-center">
+                <Coins size={16} className="mr-2 text-yellow-400" />
+                <span>Balance de Tokens</span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium mr-2">{tokenBalance}</span>
+                {refreshWalletData && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      refreshWalletData();
+                    }}
+                    className="text-white/50 hover:text-white p-1 rounded-full hover:bg-white/10"
+                    disabled={isPendingTransaction}
+                  >
+                    <RefreshCw size={14} className={isPendingTransaction ? 'animate-spin' : ''} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Tokens Ganados */}
+          <div className="flex items-center justify-between bg-white/5 p-3 rounded">
+            <div className="flex items-center">
+              <Trophy size={16} className="mr-2 text-yellow-400" />
+              <span>Tokens Ganados</span>
+            </div>
+            <div className="flex items-center">
+              <span className="font-medium mr-2">{totalWonTokens}</span>
+              <button 
+                onClick={loadTransactions}
+                className="text-white/50 hover:text-white p-1 rounded-full hover:bg-white/10"
+                disabled={isLoadingTransactions}
+              >
+                <RefreshCw size={14} className={isLoadingTransactions ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Historial de Transacciones */}
+          {transactions.length > 0 && (
+            <div className="bg-white/5 p-3 rounded">
+              <div className="text-sm font-medium mb-2">Últimas Transacciones</div>
+              <div className="space-y-2">
+                {transactions.slice(0, 5).map((tx, index) => (
+                  <div key={index} className="flex justify-between items-center text-sm">
+                    <span className="text-white/70">
+                      {tx.type === 'prize' ? 'Premio' : 
+                       tx.type === 'ticket' ? 'Ticket' : 
+                       tx.type === 'daily' ? 'Tokens Diarios' : 'Otro'}
+                    </span>
+                    <span className={tx.amount > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {tx.amount > 0 ? '+' : ''}{tx.amount}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {!isConnected ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                connectFarcaster();
+              }}
+              disabled={isConnecting}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition-colors"
+            >
+              {isConnecting ? 'Conectando...' : 'Conectar Billetera'}
+            </button>
+          ) : (
+            <>
+              {nfts && nfts.length > 0 && (
+                <div className="bg-white/5 p-3 rounded">
+                  <div className="flex items-center mb-2">
+                    <CircleDollarSign size={16} className="mr-2 text-pink-400" />
+                    <span>NFTs de LottoMoji</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {nfts.map((nft, index) => (
+                      <div key={index} className="bg-white/10 p-2 rounded text-sm truncate">
+                        {nft}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {lastTransaction && (
+                <div className="bg-white/5 p-3 rounded">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/70">Última Tx</span>
+                    <a 
+                      href={`https://${isBaseNetwork ? 'basescan.org' : 'optimistic.etherscan.io'}/tx/${lastTransaction}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-indigo-300 hover:text-indigo-200 truncate max-w-[200px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {lastTransaction.substring(0, 10)}...
+                    </a>
+                  </div>
+                </div>
+              )}
+              
+              {walletAddress && fid && (
+                <div className="bg-white/5 p-3 rounded text-center text-xs">
+                  <span className="text-white/60">
+                    Puedes usar esta billetera para interactuar con contratos en la red {isBaseNetwork ? 'Base' : getNetworkName(currentChainId)}
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }; 

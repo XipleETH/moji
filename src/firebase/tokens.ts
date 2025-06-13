@@ -218,24 +218,28 @@ const addTokenTransaction = async (transaction: Omit<TokenTransaction, 'id'>): P
 };
 
 // Obtener historial de transacciones del usuario
-export const getUserTokenTransactions = async (userId: string): Promise<TokenTransaction[]> => {
+export const getUserTokenTransactions = async (userId: string, limitCount: number = 50): Promise<TokenTransaction[]> => {
   try {
-    const { db } = await import('./config');
-    const { collection, query, where, orderBy, getDocs } = await import('firebase/firestore');
-
+    console.log(`[getUserTokenTransactions] Obteniendo transacciones para usuario ${userId}`);
+    
     const transactionsQuery = query(
       collection(db, TOKEN_TRANSACTIONS_COLLECTION),
       where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(limitCount)
     );
-
-    const snapshot = await getDocs(transactionsQuery);
-    return snapshot.docs.map(doc => ({
+    
+    const transactionsSnapshot = await getDocs(transactionsQuery);
+    const transactions = transactionsSnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toMillis() || Date.now()
     })) as TokenTransaction[];
+    
+    console.log(`[getUserTokenTransactions] Encontradas ${transactions.length} transacciones`);
+    return transactions;
   } catch (error) {
-    console.error('Error getting user token transactions:', error);
+    console.error('[getUserTokenTransactions] Error obteniendo transacciones:', error);
     return [];
   }
 };

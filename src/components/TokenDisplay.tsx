@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Coins, Clock, Trophy } from 'lucide-react';
+import { useWallet } from '../contexts/WalletContext';
 import { getUserTokenTransactions } from '../firebase/tokens';
-import { getCurrentUser } from '../firebase/auth';
-import { formatNumber } from '../utils/format';
 
 interface TokenDisplayProps {
   tokensAvailable: number;
@@ -17,34 +16,40 @@ export function TokenDisplay({
   totalDailyTokens = 1000,
   className = "" 
 }: TokenDisplayProps) {
-  const [totalWonTokens, setTotalWonTokens] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const loadWonTokens = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user) return;
-
-        const transactions = await getUserTokenTransactions(user.id);
-        const wonTokens = transactions
-          .filter(tx => tx.type === 'PRIZE_WIN')
-          .reduce((total, tx) => total + tx.amount, 0);
-        
-        setTotalWonTokens(wonTokens);
-      } catch (error) {
-        console.error('Error loading won tokens:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadWonTokens();
-  }, []);
-
+  const { user } = useWallet();
+  const [tokensWon, setTokensWon] = useState<number>(0);
+  const [isLoadingWon, setIsLoadingWon] = useState<boolean>(false);
+  
   const tokensUsedToday = tokensUsed;
   const isLowTokens = tokensAvailable <= 2;
   const isOutOfTokens = tokensAvailable === 0;
+
+  // Cargar tokens ganados del usuario
+  useEffect(() => {
+    const loadTokensWon = async () => {
+      if (!user?.id) return;
+      
+      setIsLoadingWon(true);
+      try {
+        const transactions = await getUserTokenTransactions(user.id);
+        const prizeTransactions = transactions.filter(t => 
+          t.type === 'prize_first' || 
+          t.type === 'prize_second' || 
+          t.type === 'prize_third'
+        );
+        
+        const totalWon = prizeTransactions.reduce((sum, t) => sum + t.amount, 0);
+        setTokensWon(totalWon);
+      } catch (error) {
+        console.error('Error cargando tokens ganados:', error);
+        setTokensWon(0);
+      } finally {
+        setIsLoadingWon(false);
+      }
+    };
+
+    loadTokensWon();
+  }, [user?.id]);
 
   return (
     <div className={`bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white ${className}`}>
@@ -59,7 +64,7 @@ export function TokenDisplay({
         </div>
       </div>
       
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-white/80">Available:</span>
           <span className={`text-xl font-bold ${isOutOfTokens ? 'text-red-400' : isLowTokens ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -71,15 +76,15 @@ export function TokenDisplay({
           <span className="text-white/60">Used today:</span>
           <span className="text-white/80">{tokensUsedToday}</span>
         </div>
-
-        {/* Nueva sección de Tokens Ganados */}
-        <div className="flex justify-between items-center text-sm">
+        
+        {/* Tokens ganados */}
+        <div className="flex justify-between items-center text-sm border-t border-white/20 pt-2">
           <div className="flex items-center gap-1">
             <Trophy className="w-4 h-4 text-yellow-400" />
-            <span className="text-white/60">Tokens Won:</span>
+            <span className="text-white/60">Tokens won:</span>
           </div>
-          <span className="text-yellow-400 font-medium">
-            {isLoading ? '...' : formatNumber(totalWonTokens)}
+          <span className="text-yellow-400 font-semibold">
+            {isLoadingWon ? '...' : tokensWon}
           </span>
         </div>
         
