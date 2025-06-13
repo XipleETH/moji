@@ -1,5 +1,8 @@
-import React from 'react';
-import { Coins, Clock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Coins, Clock, Trophy } from 'lucide-react';
+import { getUserTokenTransactions } from '../firebase/tokens';
+import { getCurrentUser } from '../firebase/auth';
+import { formatNumber } from '../utils/format';
 
 interface TokenDisplayProps {
   tokensAvailable: number;
@@ -11,9 +14,34 @@ interface TokenDisplayProps {
 export function TokenDisplay({ 
   tokensAvailable, 
   tokensUsed = 0, 
-  totalDailyTokens = 10,
+  totalDailyTokens = 1000,
   className = "" 
 }: TokenDisplayProps) {
+  const [totalWonTokens, setTotalWonTokens] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadWonTokens = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) return;
+
+        const transactions = await getUserTokenTransactions(user.id);
+        const wonTokens = transactions
+          .filter(tx => tx.type === 'PRIZE_WIN')
+          .reduce((total, tx) => total + tx.amount, 0);
+        
+        setTotalWonTokens(wonTokens);
+      } catch (error) {
+        console.error('Error loading won tokens:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadWonTokens();
+  }, []);
+
   const tokensUsedToday = tokensUsed;
   const isLowTokens = tokensAvailable <= 2;
   const isOutOfTokens = tokensAvailable === 0;
@@ -31,7 +59,7 @@ export function TokenDisplay({
         </div>
       </div>
       
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex justify-between items-center">
           <span className="text-white/80">Available:</span>
           <span className={`text-xl font-bold ${isOutOfTokens ? 'text-red-400' : isLowTokens ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -42,6 +70,17 @@ export function TokenDisplay({
         <div className="flex justify-between items-center text-sm">
           <span className="text-white/60">Used today:</span>
           <span className="text-white/80">{tokensUsedToday}</span>
+        </div>
+
+        {/* Nueva sección de Tokens Ganados */}
+        <div className="flex justify-between items-center text-sm">
+          <div className="flex items-center gap-1">
+            <Trophy className="w-4 h-4 text-yellow-400" />
+            <span className="text-white/60">Tokens Won:</span>
+          </div>
+          <span className="text-yellow-400 font-medium">
+            {isLoading ? '...' : formatNumber(totalWonTokens)}
+          </span>
         </div>
         
         {/* Barra de progreso */}
