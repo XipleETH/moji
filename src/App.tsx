@@ -2591,6 +2591,101 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para inspeccionar la estructura real de una pool
+(window as any).inspectPool = async (gameDay) => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { doc, getDoc } = await import('firebase/firestore');
+    
+    console.log(`🔍 Inspeccionando pool del día ${gameDay}...`);
+    
+    const poolRef = doc(db, 'prize_pools', gameDay);
+    const poolDoc = await getDoc(poolRef);
+    
+    if (!poolDoc.exists()) {
+      console.log(`❌ No existe pool para el día ${gameDay}`);
+      return { error: 'Pool not found' };
+    }
+    
+    const poolData = poolDoc.data();
+    console.log(`📊 Estructura completa de la pool ${gameDay}:`, poolData);
+    
+    // Verificar si tiene finalPools
+    if (poolData.finalPools) {
+      console.log(`✅ finalPools encontrada:`, poolData.finalPools);
+    } else {
+      console.log(`❌ finalPools NO encontrada`);
+      console.log(`📋 pools disponible:`, poolData.pools);
+    }
+    
+    return poolData;
+    
+  } catch (error) {
+    console.error('❌ Error inspeccionando pool:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para forzar distribución de premios específicos
+(window as any).forceDistributePrizes = async (gameDay) => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { collection, query, where, getDocs } = await import('firebase/firestore');
+    const { distributePrizesToWinners } = await import('./firebase/prizePools');
+    
+    console.log(`🎯 Forzando distribución de premios para ${gameDay}...`);
+    
+    // 1. Obtener los resultados del sorteo
+    const resultsQuery = query(
+      collection(db, 'game_results'),
+      where('gameDay', '==', gameDay)
+    );
+    const resultsSnapshot = await getDocs(resultsQuery);
+    
+    if (resultsSnapshot.empty) {
+      console.log(`❌ No hay resultados de sorteo para ${gameDay}`);
+      return { error: 'No game results found' };
+    }
+    
+    const resultDoc = resultsSnapshot.docs[0];
+    const result = resultDoc.data();
+    
+    console.log(`📋 Resultado del sorteo:`, {
+      firstPrize: result.firstPrize?.length || 0,
+      secondPrize: result.secondPrize?.length || 0,
+      thirdPrize: result.thirdPrize?.length || 0
+    });
+    
+    // 2. Distribuir premios si hay ganadores
+    const distributions = [];
+    
+    if (result.firstPrize && result.firstPrize.length > 0) {
+      console.log(`🥇 Distribuyendo primer premio a ${result.firstPrize.length} ganadores...`);
+      const distribution = await distributePrizesToWinners(gameDay, 'first', result.firstPrize);
+      distributions.push({ type: 'first', distribution });
+    }
+    
+    if (result.secondPrize && result.secondPrize.length > 0) {
+      console.log(`🥈 Distribuyendo segundo premio a ${result.secondPrize.length} ganadores...`);
+      const distribution = await distributePrizesToWinners(gameDay, 'second', result.secondPrize);
+      distributions.push({ type: 'second', distribution });
+    }
+    
+    if (result.thirdPrize && result.thirdPrize.length > 0) {
+      console.log(`🥉 Distribuyendo tercer premio a ${result.thirdPrize.length} ganadores...`);
+      const distribution = await distributePrizesToWinners(gameDay, 'third', result.thirdPrize);
+      distributions.push({ type: 'third', distribution });
+    }
+    
+    console.log(`✅ Distribución completada para ${gameDay}:`, distributions);
+    return { success: true, distributions };
+    
+  } catch (error) {
+    console.error('❌ Error forzando distribución:', error);
+    return { error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2927,6 +3022,8 @@ function App() {
       console.log('- window.checkAllUsers() - Verificar todos los usuarios que han jugado');
       console.log('- window.fixMissingPools() - Arreglar pools específicas que se saltaron');
       console.log('- window.repairExistingPools() - Reparar pools agregando finalPools');
+      console.log('- window.inspectPool() - Inspeccionar la estructura real de una pool');
+      console.log('- window.forceDistributePrizes() - Forzar distribución de premios específicos');
   }, []);
 
   return (
