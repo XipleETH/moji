@@ -31,15 +31,22 @@ export const distributeHistoricalPrizes = async () => {
     const resultsSnapshot = await getDocs(resultsQuery);
     const results = resultsSnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toMillis() || Date.now()
     })) as GameResult[];
 
     console.log(`[distributeHistoricalPrizes] Encontrados ${results.length} resultados recientes`);
     console.log('[distributeHistoricalPrizes] Estructura del primer resultado:', JSON.stringify(results[0], null, 2));
 
     for (const result of results) {
-      // Usar el timestamp para generar el gameDay si no existe
-      const gameDay = result.gameDay || new Date(result.timestamp).toISOString().split('T')[0];
+      // Usar el dayKey si existe, o generar el gameDay desde el timestamp
+      const gameDay = result.dayKey || (result.timestamp ? new Date(result.timestamp).toISOString().split('T')[0] : null);
+      
+      if (!gameDay) {
+        console.log(`[distributeHistoricalPrizes] No se pudo determinar el día para el resultado ${result.id}`);
+        continue;
+      }
+
       console.log(`[distributeHistoricalPrizes] Procesando sorteo del día ${gameDay}`);
       console.log('[distributeHistoricalPrizes] Estructura del resultado:', {
         id: result.id,
