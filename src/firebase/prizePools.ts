@@ -381,23 +381,31 @@ export const distributePrizePool = async (gameDay?: string): Promise<boolean> =>
         return true;
       }
       
-      // Calcular distribución base del día
+            // Calcular distribución base del día
       const distributedPools = {
         firstPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.firstPrize),
         secondPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.secondPrize),
         thirdPrize: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.thirdPrize),
         development: Math.floor(totalTokens * POOL_DISTRIBUTION_PERCENTAGES.development)
       };
-      
+
+      // Crear finalPools con las claves correctas para distributePrizesToWinners
+      const finalPools = {
+        first: distributedPools.firstPrize,
+        second: distributedPools.secondPrize,
+        third: distributedPools.thirdPrize
+      };
+
       // Actualizar la pool con la distribución
       transaction.update(poolRef, {
         pools: distributedPools,
+        finalPools: finalPools,
         poolsDistributed: true,
         distributionTimestamp: serverTimestamp(),
         lastUpdated: serverTimestamp()
       });
       
-      // Registrar transacciones de distribución
+      // Registrar transacciones de distribución para pools principales
       for (const [poolType, amount] of Object.entries(distributedPools)) {
         if (amount > 0) {
           const transactionRef = doc(collection(db, POOL_TRANSACTIONS_COLLECTION));
@@ -413,6 +421,32 @@ export const distributePrizePool = async (gameDay?: string): Promise<boolean> =>
             metadata: { 
               totalTokens,
               percentage: POOL_DISTRIBUTION_PERCENTAGES[poolType as keyof typeof POOL_DISTRIBUTION_PERCENTAGES] || 0
+            }
+          };
+          
+          transaction.set(transactionRef, {
+            ...poolTransaction,
+            timestamp: serverTimestamp()
+          });
+        }
+      }
+
+      // Registrar transacciones para finalPools también
+      for (const [poolType, amount] of Object.entries(finalPools)) {
+        if (amount > 0) {
+          const transactionRef = doc(collection(db, POOL_TRANSACTIONS_COLLECTION));
+          const poolTransaction: PoolTransaction = {
+            id: transactionRef.id,
+            gameDay: currentDay,
+            type: 'pool_distribution',
+            amount,
+            fromPool: 'main',
+            toPool: `final_${poolType}`,
+            description: `Final distribution to ${poolType} prize pool`,
+            timestamp: Date.now(),
+            metadata: { 
+              totalTokens,
+              isFinalPool: true
             }
           };
           
@@ -643,8 +677,60 @@ export const debugPrizePool = async (gameDay?: string) => {
   return stats;
 };
 
+// Función para reparar pools existentes agregando finalPools
+const repairExistingPools = async () => {
+  console.log('🔧 Reparando pools existentes agregando finalPools...');
+  
+  try {
+    const poolsRef = collection(db, PRIZE_POOLS_COLLECTION);
+    const poolsSnapshot = await getDocs(poolsRef);
+    
+    const poolsToFix = [];
+    
+    for (const poolDoc of poolsSnapshot.docs) {
+      const poolData = poolDoc.data();
+      
+      // Si tiene pools distribuidas pero no finalPools, necesita reparación
+      if (poolData.poolsDistributed && poolData.pools && !poolData.finalPools) {
+        poolsToFix.push({
+          id: poolDoc.id,
+          data: poolData
+        });
+      }
+    }
+    
+    console.log(`📊 Encontradas ${poolsToFix.length} pools que necesitan reparación`);
+    
+    for (const pool of poolsToFix) {
+      console.log(`🔨 Reparando pool del día ${pool.id}...`);
+      
+      const finalPools = {
+        first: pool.data.pools.firstPrize || 0,
+        second: pool.data.pools.secondPrize || 0,
+        third: pool.data.pools.thirdPrize || 0
+      };
+      
+      const poolRef = doc(db, PRIZE_POOLS_COLLECTION, pool.id);
+      await updateDoc(poolRef, {
+        finalPools: finalPools,
+        repairedAt: serverTimestamp()
+      });
+      
+      console.log(`✅ Pool ${pool.id} reparada:`, finalPools);
+    }
+    
+    console.log(`🎉 Reparación completada. ${poolsToFix.length} pools reparadas.`);
+    return { success: true, poolsRepaired: poolsToFix.length };
+    
+  } catch (error) {
+    console.error('❌ Error reparando pools:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Hacer funciones disponibles globalmente en desarrollo
 if (import.meta.env.DEV) {
   (window as any).debugPrizePool = debugPrizePool;
   (window as any).distributePrizePool = () => distributePrizePool();
+  (window as any).repairExistingPools = repairExistingPools;
 }

@@ -2537,6 +2537,60 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para reparar pools existentes agregando finalPools
+(window as any).repairExistingPools = async () => {
+  console.log('🔧 Reparando pools existentes agregando finalPools...');
+  
+  try {
+    const { db } = await import('./firebase/config');
+    const { collection, getDocs, doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+    
+    const poolsRef = collection(db, 'prize_pools');
+    const poolsSnapshot = await getDocs(poolsRef);
+    
+    const poolsToFix = [];
+    
+    for (const poolDoc of poolsSnapshot.docs) {
+      const poolData = poolDoc.data();
+      
+      // Si tiene pools distribuidas pero no finalPools, necesita reparación
+      if (poolData.poolsDistributed && poolData.pools && !poolData.finalPools) {
+        poolsToFix.push({
+          id: poolDoc.id,
+          data: poolData
+        });
+      }
+    }
+    
+    console.log(`📊 Encontradas ${poolsToFix.length} pools que necesitan reparación`);
+    
+    for (const pool of poolsToFix) {
+      console.log(`🔨 Reparando pool del día ${pool.id}...`);
+      
+      const finalPools = {
+        first: pool.data.pools.firstPrize || 0,
+        second: pool.data.pools.secondPrize || 0,
+        third: pool.data.pools.thirdPrize || 0
+      };
+      
+      const poolRef = doc(db, 'prize_pools', pool.id);
+      await updateDoc(poolRef, {
+        finalPools: finalPools,
+        repairedAt: serverTimestamp()
+      });
+      
+      console.log(`✅ Pool ${pool.id} reparada:`, finalPools);
+    }
+    
+    console.log(`🎉 Reparación completada. ${poolsToFix.length} pools reparadas.`);
+    return { success: true, poolsRepaired: poolsToFix.length };
+    
+  } catch (error) {
+    console.error('❌ Error reparando pools:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2872,6 +2926,7 @@ function App() {
       console.log('- window.forceDistributePools() - Distribuir pools manualmente');
       console.log('- window.checkAllUsers() - Verificar todos los usuarios que han jugado');
       console.log('- window.fixMissingPools() - Arreglar pools específicas que se saltaron');
+      console.log('- window.repairExistingPools() - Reparar pools agregando finalPools');
   }, []);
 
   return (
