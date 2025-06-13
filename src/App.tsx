@@ -2212,6 +2212,60 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para distribuir pools manualmente
+(window as any).forceDistributePools = async () => {
+  try {
+    const { db } = await import('./firebase/config');
+    const { distributePrizePool } = await import('./firebase/prizePools');
+    const { query, collection, where, getDocs } = await import('firebase/firestore');
+    
+    console.log('🚀 Forzando distribución de pools no distribuidas...');
+    
+    // Obtener todas las pools no distribuidas
+    const poolsQuery = query(
+      collection(db, 'prize_pools'),
+      where('poolsDistributed', '==', false)
+    );
+    
+    const poolsSnapshot = await getDocs(poolsQuery);
+    const undistributedPools = poolsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`📊 Pools no distribuidas encontradas: ${undistributedPools.length}`);
+    
+    for (const pool of undistributedPools) {
+      if (pool.totalTokensCollected > 0) {
+        console.log(`\n🏊‍♂️ Distribuyendo pool del día ${pool.gameDay} (${pool.totalTokensCollected} tokens)`);
+        
+        try {
+          const result = await distributePrizePool(pool.gameDay);
+          console.log(`✅ Pool ${pool.gameDay} distribuida:`, result);
+        } catch (error) {
+          console.error(`❌ Error distribuyendo pool ${pool.gameDay}:`, error);
+        }
+      } else {
+        console.log(`⚠️ Pool ${pool.gameDay} no tiene tokens para distribuir`);
+      }
+    }
+    
+    console.log('\n🎉 Distribución de pools completada');
+    
+    // Ahora ejecutar distribución de premios históricos
+    console.log('\n🏆 Ejecutando distribución de premios históricos...');
+    const { distributeHistoricalPrizes } = await import('./firebase/distributeHistoricalPrizes');
+    const result = await distributeHistoricalPrizes(true);
+    console.log('📊 Resultado distribución histórica:', result);
+    
+    return { success: true, poolsProcessed: undistributedPools.length };
+    
+  } catch (error) {
+    console.error('❌ Error forzando distribución de pools:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
   const { context } = useMiniKit();
@@ -2544,6 +2598,7 @@ function App() {
       console.log('- window.distributeHistoricalPrizes() - Distribuir premios históricos');
       console.log('- window.debugWonTokens() - Debug tokens ganados');
       console.log('- window.debugEmptyPools() - Debug pools vacías');
+      console.log('- window.forceDistributePools() - Distribuir pools manualmente');
   }, []);
 
   return (

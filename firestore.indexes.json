@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "player_tickets",
+      "collectionGroup": "token_transactions",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "collectionGroup": "ticket_purchases",
+      "collectionGroup": "player_tickets",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -23,8 +23,22 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
+          "fieldPath": "isActive",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "prize_pools",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gameDay",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "poolsDistributed",
+          "order": "ASCENDING"
         }
       ]
     }
