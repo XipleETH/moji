@@ -17,6 +17,7 @@ import { TicketHistoryModal } from './components/TicketHistoryModal';
 import { TicketHistoryModal } from './components/TicketHistoryModal';
 import { WalletInfo } from './components/WalletInfo';
 import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
+import { EnhancedPrizePoolDisplay } from './components/EnhancedPrizePoolDisplay';
 import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
 import { getCurrentUser } from './firebase/auth';
 import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
@@ -2972,11 +2973,12 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Pool de Premios */}
-        <div className="max-w-md mx-auto mb-8">
-          <PrizePoolDisplay 
-            showDetailedBreakdown={true} 
-            showDebugControls={import.meta.env.DEV}
+        {/* Pool de Premios - Sistema Mejorado con Reservas */}
+        <div className="max-w-4xl mx-auto mb-8">
+          <EnhancedPrizePoolDisplay 
+            showReserves={true}
+            showAccumulated={true}
+            compact={false}
           />
         </div>
 
