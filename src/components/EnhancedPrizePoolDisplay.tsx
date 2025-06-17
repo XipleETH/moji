@@ -174,6 +174,4 @@ export const EnhancedPrizePoolDisplay: React.FC<EnhancedPrizePoolDisplayProps> =
   );
 };
 
-export default EnhancedPrizePoolDisplay;
-
 export default EnhancedPrizePoolDisplay; 
