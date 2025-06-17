@@ -1,18 +1,14 @@
 import { Ticket } from '../types';
+import { getEmojis, generateRandomEmojis as generateRandomEmojisFromContract } from './emojiManager';
 
+// DEPRECATED: Usar getEmojis() del emojiManager en su lugar
 export const EMOJIS = ['🌟', '🎈', '🎨', '🌈', '🦄', '🍭', '🎪', '🎠', '🎡', '🎢', 
                       '🌺', '🦋', '🐬', '🌸', '🍦', '🎵', '🎯', '🌴', '🎩', '🎭',
                       '🎁', '🎮', '🚀', '🌍', '🍀'];
 
+// Usar la versión del emojiManager que obtiene emojis del contrato
 export const generateRandomEmojis = (count: number): string[] => {
-  const result: string[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    const randomIndex = Math.floor(Math.random() * EMOJIS.length);
-    result.push(EMOJIS[randomIndex]);
-  }
-  
-  return result;
+  return generateRandomEmojisFromContract(count);
 };
 
 export const checkWin = (ticket: string[], winning: string[]): {

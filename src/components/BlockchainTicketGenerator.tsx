@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
+import { getEmojis, loadEmojisFromContract } from '../utils/emojiManager';
 import { GAME_CONFIG } from '../utils/contractAddresses';
 
 interface BlockchainTicketGeneratorProps {
@@ -20,6 +21,44 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     resetPurchaseState,
     formatUSDC
   } = useBlockchainTickets();
+  
+  const [emojis, setEmojis] = useState<string[]>(getEmojis());
+  const [emojisLoading, setEmojisLoading] = useState(false);
+  const [emojisError, setEmojisError] = useState<string | null>(null);
+
+  // Cargar emojis del contrato al montar el componente
+  useEffect(() => {
+    const updateEmojis = async () => {
+      setEmojisLoading(true);
+      setEmojisError(null);
+      try {
+        const contractEmojis = await loadEmojisFromContract();
+        setEmojis(contractEmojis);
+      } catch (error: any) {
+        console.error('Error cargando emojis:', error);
+        setEmojisError(error.message || 'Error cargando emojis del contrato');
+        setEmojis(getEmojis()); // Fallback
+      } finally {
+        setEmojisLoading(false);
+      }
+    };
+
+    updateEmojis();
+  }, []);
+
+  const refreshEmojis = async () => {
+    setEmojisLoading(true);
+    setEmojisError(null);
+    try {
+      const contractEmojis = await loadEmojisFromContract();
+      setEmojis(contractEmojis);
+    } catch (error: any) {
+      setEmojisError(error.message || 'Error cargando emojis del contrato');
+      setEmojis(getEmojis());
+    } finally {
+      setEmojisLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (purchaseState.step === 'success' && purchaseState.txHash) {
@@ -42,7 +81,11 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   };
 
   const generateRandomTicket = () => {
-    const shuffled = [...GAME_CONFIG.EMOJIS].sort(() => 0.5 - Math.random());
+    if (!emojis || !Array.isArray(emojis) || emojis.length === 0) {
+      console.error('No hay emojis disponibles para seleccionar');
+      return;
+    }
+    const shuffled = [...emojis].sort(() => 0.5 - Math.random());
     setSelectedEmojis(shuffled.slice(0, 4));
   };
 
@@ -147,8 +190,27 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
         </div>
 
         {/* Grid de emojis */}
+        {emojisLoading ? (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto"></div>
+            <div className="text-sm text-gray-300 mt-2">Cargando emojis del contrato...</div>
+          </div>
+        ) : emojisError ? (
+          <div className="bg-orange-600/20 rounded-lg p-3 mb-4">
+            <div className="text-orange-300 text-sm">
+              ⚠️ Error cargando emojis del contrato. Usando emojis predeterminados.
+              <button 
+                onClick={refreshEmojis}
+                className="ml-2 text-blue-300 underline"
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        ) : null}
+        
         <div className="grid grid-cols-5 gap-2">
-          {GAME_CONFIG.EMOJIS.map((emoji, i) => (
+          {emojis.map((emoji, i) => (
             <button
               key={i}
               onClick={() => selectEmoji(emoji)}
@@ -157,7 +219,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                   ? 'bg-yellow-500/30 border-2 border-yellow-400' 
                   : 'bg-white/10 hover:bg-white/20'
               }`}
-              disabled={purchaseState.isLoading}
+              disabled={purchaseState.isLoading || emojisLoading}
             >
               {emoji}
             </button>

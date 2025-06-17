@@ -115,15 +115,15 @@ export const useBlockchainTickets = () => {
     if (!userAddress) return;
 
     try {
-      const [balance, allowance, ticketPrice] = await Promise.all([
+              const [balance, allowance, ticketPrice] = await Promise.all([
         publicClient.readContract({
-          address: CONTRACT_ADDRESSES.USDC_ADDRESS as `0x${string}`,
+          address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
           abi: USDC_ABI,
           functionName: 'balanceOf',
           args: [userAddress as `0x${string}`]
         }),
         publicClient.readContract({
-          address: CONTRACT_ADDRESSES.USDC_ADDRESS as `0x${string}`,
+          address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
           abi: USDC_ABI,
           functionName: 'allowance',
           args: [userAddress as `0x${string}`, CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN as `0x${string}`]
@@ -155,8 +155,9 @@ export const useBlockchainTickets = () => {
     }
 
     // Convertir emojis a números
+    const emojisArray = GAME_CONFIG.EMOJIS || [];
     const numberArray = emojiNumbers.map(emoji => {
-      const index = GAME_CONFIG.EMOJIS.indexOf(emoji);
+      const index = emojisArray.indexOf(emoji);
       return index >= 0 ? index : 0;
     });
 
@@ -172,13 +173,13 @@ export const useBlockchainTickets = () => {
       if (userData.usdcAllowance < userData.ticketPrice) {
         setPurchaseState(prev => ({ ...prev, step: 'approving' }));
         
-        const approveHash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESSES.USDC_ADDRESS as `0x${string}`,
-          abi: USDC_ABI,
-          functionName: 'approve',
-          args: [CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN as `0x${string}`, userData.ticketPrice * 10n],
-          account: userAddress as `0x${string}`
-        });
+                  const approveHash = await walletClient.writeContract({
+            address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
+            abi: USDC_ABI,
+            functionName: 'approve',
+            args: [CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN as `0x${string}`, userData.ticketPrice * 10n],
+            account: userAddress as `0x${string}`
+          });
 
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }

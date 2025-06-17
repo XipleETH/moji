@@ -25,6 +25,11 @@ export const GAME_CONFIG = {
   USDC_DECIMALS: 6,
   DRAW_TIME_UTC_MINUS_3: '03:00', // 3:00 AM São Paulo
   
+  // 25 emojis crypto/gambling themed según README2.md
+  EMOJIS: ['💰', '💎', '🚀', '🎰', '🎲', '🃏', '💸', '🏆', '🎯', '🔥', 
+           '⚡', '🌙', '⭐', '💫', '🎪', '🎨', '🦄', '🌈', '🍀', '🎭',
+           '🎢', '🎮', '🏅', '🎊', '🎈'] as const,
+  
   // Distribución de pools (según README2.md)
   DISTRIBUTION: {
     DAILY_TO_RESERVES: 0.20, // 20% SIEMPRE a reservas

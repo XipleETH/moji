@@ -24,6 +24,7 @@ import { getCurrentUser } from './firebase/auth';
 import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
+import { EmojiDebugger } from './components/EmojiDebugger';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -3112,6 +3113,9 @@ function AppContent() {
             </div>
           )}
         </div>
+        
+        {/* Emoji Debugger - Solo en desarrollo */}
+        {import.meta.env.DEV && <EmojiDebugger />}
       </div>
 
               {/* Ticket History Modal */}

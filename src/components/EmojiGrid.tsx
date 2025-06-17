@@ -1,5 +1,5 @@
-import React from 'react';
-import { EMOJIS } from '../utils/gameLogic';
+import React, { useState, useEffect } from 'react';
+import { getEmojis, loadEmojisFromContract } from '../utils/emojiManager';
 import { X } from 'lucide-react';
 
 interface EmojiGridProps {
@@ -15,7 +15,27 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
   onEmojiDeselect,
   maxSelections 
 }) => {
+  const [emojis, setEmojis] = useState<string[]>(getEmojis());
+  const [isLoading, setIsLoading] = useState(false);
+  
   const canSelect = selectedEmojis.length < maxSelections;
+
+  useEffect(() => {
+    const updateEmojis = async () => {
+      setIsLoading(true);
+      try {
+        const contractEmojis = await loadEmojisFromContract();
+        setEmojis(contractEmojis);
+      } catch (error) {
+        console.error('Error cargando emojis:', error);
+        setEmojis(getEmojis()); // Fallback
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    updateEmojis();
+  }, []);
 
   return (
     <div className="p-4 bg-white/80 rounded-xl backdrop-blur-sm shadow-lg">
@@ -43,22 +63,29 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
       )}
 
       {/* Emoji grid */}
-      <div className="grid grid-cols-5 gap-2">
-        {EMOJIS.map((emoji) => (
-          <button
-            key={emoji}
-            onClick={() => canSelect && onEmojiSelect(emoji)}
-            className={`
-              text-2xl p-2 rounded-lg transition-all duration-200
-              ${canSelect 
-                ? 'bg-white/50 hover:bg-white shadow hover:scale-105'
-                : 'opacity-50 cursor-not-allowed'}
-            `}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="text-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+          <div className="text-sm text-gray-600 mt-2">Cargando emojis del contrato...</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-5 gap-2">
+          {emojis.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => canSelect && onEmojiSelect(emoji)}
+              className={`
+                text-2xl p-2 rounded-lg transition-all duration-200
+                ${canSelect 
+                  ? 'bg-white/50 hover:bg-white shadow hover:scale-105'
+                  : 'opacity-50 cursor-not-allowed'}
+              `}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
