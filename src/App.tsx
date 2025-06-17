@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Timer } from './components/Timer';
 import { Ticket as TicketComponent } from './components/Ticket';
 import { TicketGenerator } from './components/TicketGenerator';
+import { HybridTicketSystem } from './components/HybridTicketSystem';
 import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
 import { WalletConnector } from './components/WalletConnector';
@@ -3002,7 +3003,7 @@ function AppContent() {
           </div>
         )}
 
-        <TicketGenerator
+        <HybridTicketSystem
           onGenerateTicket={generateTicket}
           disabled={false}
           ticketCount={gameState.tickets.length}
