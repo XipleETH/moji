@@ -1,23 +1,9 @@
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { CONTRACT_ADDRESSES } from './contractAddresses';
+import { CONTRACT_ADDRESSES, GAME_CONFIG } from './contractAddresses';
 
-const LOTTO_MOJI_MAIN_ABI = [
-  {
-    inputs: [{ name: '', type: 'uint256' }],
-    name: 'EMOJIS',
-    outputs: [{ name: '', type: 'string' }],
-    stateMutability: 'view',
-    type: 'function'
-  }
-] as const;
-
-// Emojis de respaldo si el contrato no está disponible
-const FALLBACK_EMOJIS = [
-  '💰', '💎', '🚀', '🎰', '🎲', '🃏', '💸', '🏆', '🎯', '🔥',
-  '⚡', '🌙', '⭐', '💫', '🎪', '🎨', '🦄', '🌈', '🍀', '🎭',
-  '🎢', '🎮', '🏅', '🎊', '🎈'
-];
+// Emojis de respaldo si hay problemas
+const FALLBACK_EMOJIS = GAME_CONFIG.EMOJI_MAP;
 
 let cachedEmojis: string[] = [];
 let isLoading = false;
@@ -45,43 +31,16 @@ export const loadEmojisFromContract = async (): Promise<string[]> => {
   isLoading = true;
 
   try {
-    console.log('🔍 Cargando emojis del contrato:', CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN);
-    console.log('🌐 Red: Base Sepolia');
-    console.log('📡 RPC Transport: HTTP');
-    
-    const emojiPromises = [];
-    
-    // Cargar 25 emojis del contrato (índices 0-24)
-    console.log('📋 Intentando leer emojis indices 0-24...');
-    for (let i = 0; i < 25; i++) {
-      emojiPromises.push(
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN as `0x${string}`,
-          abi: LOTTO_MOJI_MAIN_ABI,
-          functionName: 'EMOJIS',
-          args: [BigInt(i)]
-        }).catch(err => {
-          console.warn(`❌ Error cargando emoji índice ${i}:`, err.message || err);
-          return null;
-        })
-      );
-    }
-
-    const results = await Promise.all(emojiPromises);
-    const validEmojis = results.filter(emoji => emoji !== null && emoji !== '') as string[];
-    
-    if (validEmojis.length > 0) {
-      cachedEmojis = validEmojis;
-      lastLoadTime = now;
-      console.log('✅ Emojis cargados del contrato:', validEmojis);
-      console.log(`📊 Total de emojis: ${validEmojis.length}`);
-      return validEmojis;
-    } else {
-      throw new Error('No se pudieron cargar emojis del contrato');
-    }
+    // En el nuevo sistema, simplemente devolvemos el mapeo de emojis
+    // ya que el contrato solo maneja índices
+    cachedEmojis = [...GAME_CONFIG.EMOJI_MAP];
+    lastLoadTime = now;
+    console.log('✅ Usando mapeo de emojis configurado');
+    console.log(`📊 Total de emojis: ${cachedEmojis.length}`);
+    return cachedEmojis;
     
   } catch (err: any) {
-    console.error('❌ Error cargando emojis del contrato:', err);
+    console.error('❌ Error con el mapeo de emojis:', err);
     console.log('🔄 Usando emojis de respaldo...');
     return FALLBACK_EMOJIS;
     
@@ -95,9 +54,6 @@ export const getEmojis = (): string[] => {
   if (cachedEmojis.length > 0) {
     return cachedEmojis;
   }
-  
-  // Si no hay caché, cargar en background y devolver fallback
-  loadEmojisFromContract().catch(console.error);
   return FALLBACK_EMOJIS;
 };
 
@@ -120,7 +76,7 @@ export const validateEmojiSelection = (selectedEmojis: string[]): boolean => {
   return selectedEmojis.every(emoji => validEmojis.includes(emoji));
 };
 
-// Función para obtener el índice del emoji en el contrato
+// Función para obtener el índice del emoji
 export const getEmojiIndex = (emoji: string): number => {
   const emojis = getEmojis();
   const index = emojis.indexOf(emoji);

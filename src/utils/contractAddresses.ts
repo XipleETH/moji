@@ -7,28 +7,35 @@ export const CONTRACT_ADDRESSES = {
   // Token USDC en Base Sepolia
   USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
-  // Contratos LottoMoji desplegados en Base Sepolia
-  LOTTO_MOJI_MAIN: '0x3823B745121DFC7616CC2F3dd15E89e0cb1E7987',
-  LOTTO_MOJI_RESERVES: '0x765A3071f14BDD5272e6Cc83BE7fa059F472a77F',
-  LOTTO_MOJI_TICKETS: '0x96303188b9e09f6F8b55685f51273c57DD2a8f79',
-  LOTTO_MOJI_RANDOM: '0x3674D09be633dB84A2943B8386196D3eE9F9DeCc',
-  LOTTO_MOJI_AUTOMATION: '0x311b8Aec021a78c3291005A5ee58727e080Fe94b',
+  // Nuevo contrato integrado LottoMoji
+  LOTTO_MOJI_CORE: '0xE0afd152Ec3F945A32586eb01A28522F1F69c15c', // Contrato completo desplegado
+  
+  // Contratos legacy (mantener para referencia)
+  LEGACY_LOTTO_MOJI_MAIN: '0x3823B745121DFC7616CC2F3dd15E89e0cb1E7987',
+  LEGACY_LOTTO_MOJI_RESERVES: '0x765A3071f14BDD5272e6Cc83BE7fa059F472a77F',
+  LEGACY_LOTTO_MOJI_TICKETS: '0x96303188b9e09f6F8b55685f51273c57DD2a8f79',
+  LEGACY_LOTTO_MOJI_RANDOM: '0x3674D09be633dB84A2943B8386196D3eE9F9DeCc',
+  LEGACY_LOTTO_MOJI_AUTOMATION: '0x311b8Aec021a78c3291005A5ee58727e080Fe94b',
   
   // Chainlink en Base Sepolia
   VRF_COORDINATOR: '0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE',
-  KEY_HASH: '0x8077df514608a09f83e4e8d300645594e5d7cd9f1e39beb9b8ebb88c6f4bb2e4'
+  KEY_HASH: '0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71'
 } as const;
 
 // Configuración del juego
 export const GAME_CONFIG = {
   TICKET_PRICE: 2, // 2 USDC
   USDC_DECIMALS: 6,
-  DRAW_TIME_UTC_MINUS_3: '03:00', // 3:00 AM São Paulo
+  DRAW_TIME_UTC_MINUS_3: '00:00', // Medianoche São Paulo
   
-  // 25 emojis crypto/gambling themed según README2.md
-  EMOJIS: ['💰', '💎', '🚀', '🎰', '🎲', '🃏', '💸', '🏆', '🎯', '🔥', 
-           '⚡', '🌙', '⭐', '💫', '🎪', '🎨', '🦄', '🌈', '🍀', '🎭',
-           '🎢', '🎮', '🏅', '🎊', '🎈'] as const,
+  // Mapeo de índices a emojis (personalizable)
+  EMOJI_MAP: [
+    '🎮', '🎲', '🎯', '🎪', '🎨', // Gaming & Art (0-4)
+    '💎', '💰', '💸', '🏆', '🎁', // Money & Prizes (5-9)
+    '🚀', '🌙', '⭐', '✨', '🌟', // Space & Stars (10-14)
+    '🎭', '🎪', '🎢', '🎡', '🎠', // Entertainment (15-19)
+    '🍀', '🌈', '⚡', '🔥', '💫'  // Luck & Magic (20-24)
+  ] as const,
   
   // Distribución de pools (según README2.md)
   DISTRIBUTION: {
@@ -42,7 +49,7 @@ export const GAME_CONFIG = {
     DEVELOPMENT: 0.05   // 5% del 80%
   },
   
-  // Sistema de reservas mejorado
+  // Sistema de reservas mejorado (ahora integrado en el core)
   RESERVES: {
     FIRST_PRIZE_RESERVE: true,  // Reserve Pool 1
     SECOND_PRIZE_RESERVE: true, // Reserve Pool 2  

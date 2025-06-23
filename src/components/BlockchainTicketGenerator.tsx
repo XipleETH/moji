@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
 import { getEmojis, loadEmojisFromContract } from '../utils/emojiManager';
 import { GAME_CONFIG } from '../utils/contractAddresses';
+import { formatUnits } from 'viem';
 
 interface BlockchainTicketGeneratorProps {
   onTicketPurchased?: (txHash: string) => void;
@@ -18,8 +19,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     userAddress,
     purchaseState,
     buyTicket,
-    resetPurchaseState,
-    formatUSDC
+    resetPurchaseState
   } = useBlockchainTickets();
   
   const [emojis, setEmojis] = useState<string[]>(getEmojis());
@@ -109,10 +109,16 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     }
   };
 
+  const formatUSDC = (amount: bigint) => formatUnits(amount, 6);
+
   const canBuyTicket = selectedEmojis.length === 4 && 
                       userData.canBuyTicket && 
                       !purchaseState.isLoading && 
                       userAddress;
+
+  const timeUntilDraw = userData.timeUntilNextDraw > 0n ? 
+    new Date(Number(userData.timeUntilNextDraw) * 1000).toLocaleTimeString() : 
+    'Próximo sorteo en proceso';
 
   if (!userAddress) {
     return (
@@ -145,6 +151,20 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
         </div>
       </div>
 
+      {/* Info del próximo sorteo */}
+      <div className="bg-blue-600/20 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-blue-300">Próximo Sorteo</div>
+            <div className="text-lg font-bold">{timeUntilDraw}</div>
+          </div>
+          <div>
+            <div className="text-sm text-blue-300">Tus Tickets</div>
+            <div className="text-lg font-bold text-center">{userData.ticketsOwned.toString()}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Estados */}
       {purchaseState.isLoading && (
         <div className="bg-blue-600/20 rounded-lg p-4 mb-4">
@@ -164,6 +184,16 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
       {purchaseState.step === 'success' && (
         <div className="bg-green-600/20 rounded-lg p-4 mb-4">
           <div className="text-green-300">✅ ¡Ticket comprado!</div>
+          {purchaseState.txHash && (
+            <a 
+              href={`https://sepolia.basescan.org/tx/${purchaseState.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-300 hover:text-blue-200 mt-2 block"
+            >
+              Ver en BaseScan 🔍
+            </a>
+          )}
         </div>
       )}
 
@@ -198,55 +228,50 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
         ) : emojisError ? (
           <div className="bg-orange-600/20 rounded-lg p-3 mb-4">
             <div className="text-orange-300 text-sm">
-              ⚠️ Error cargando emojis del contrato. Usando emojis predeterminados.
-              <button 
+              ⚠️ {emojisError}
+              <button
                 onClick={refreshEmojis}
-                className="ml-2 text-blue-300 underline"
+                className="text-blue-300 hover:text-blue-200 ml-2"
               >
                 Reintentar
               </button>
             </div>
           </div>
-        ) : null}
-        
-        <div className="grid grid-cols-5 gap-2">
-          {emojis.map((emoji, i) => (
-            <button
-              key={i}
-              onClick={() => selectEmoji(emoji)}
-              className={`aspect-square text-xl rounded transition-all ${
-                selectedEmojis.includes(emoji) 
-                  ? 'bg-yellow-500/30 border-2 border-yellow-400' 
-                  : 'bg-white/10 hover:bg-white/20'
-              }`}
-              disabled={purchaseState.isLoading || emojisLoading}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+        ) : (
+          <div className="grid grid-cols-5 gap-2">
+            {emojis.map((emoji, index) => (
+              <button
+                key={index}
+                onClick={() => selectEmoji(emoji)}
+                className={`aspect-square text-xl rounded ${
+                  selectedEmojis.includes(emoji)
+                    ? 'bg-blue-500 hover:bg-blue-600'
+                    : 'bg-white/10 hover:bg-white/20'
+                }`}
+                disabled={purchaseState.isLoading || (selectedEmojis.length >= 4 && !selectedEmojis.includes(emoji))}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Warning saldo */}
-      {!userData.canBuyTicket && (
-        <div className="bg-orange-600/20 rounded-lg p-4 mb-4">
-          <div className="text-orange-300 text-sm">
-            ⚠️ Saldo insuficiente. Necesitas {formatUSDC(userData.ticketPrice)} USDC
-          </div>
-        </div>
-      )}
-
-      {/* Botón comprar */}
+      {/* Botón de compra */}
       <button
         onClick={handleBuyTicket}
         disabled={!canBuyTicket}
-        className={`w-full py-3 rounded-lg font-bold transition-all ${
+        className={`w-full py-3 rounded-lg text-lg font-bold ${
           canBuyTicket
-            ? 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600'
-            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            ? 'bg-green-600 hover:bg-green-700'
+            : 'bg-gray-600 cursor-not-allowed'
         }`}
       >
-        💳 Comprar por {formatUSDC(userData.ticketPrice)} USDC
+        {!userAddress ? '🔒 Conecta tu Wallet' :
+         !userData.canBuyTicket ? '❌ USDC Insuficiente' :
+         selectedEmojis.length < 4 ? `🎯 Selecciona ${4 - selectedEmojis.length} más` :
+         purchaseState.isLoading ? '⏳ Procesando...' :
+         '💫 Comprar Ticket'}
       </button>
     </div>
   );

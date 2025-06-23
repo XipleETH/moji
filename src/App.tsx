@@ -15,7 +15,6 @@ import { useAuth } from './components/AuthProvider';
 import { useWallet } from './contexts/WalletContext';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
 import { TicketHistoryModal } from './components/TicketHistoryModal';
-import { TicketHistoryModal } from './components/TicketHistoryModal';
 import { WalletInfo } from './components/WalletInfo';
 import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
 import { EnhancedPrizePoolDisplay } from './components/EnhancedPrizePoolDisplay';
