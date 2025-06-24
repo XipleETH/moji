@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trophy, Award, Medal, Ticket, Users, Target, Wallet } from 'lucide-react';
+import { X, Trophy, Award, Medal, Ticket, Users, Target, Wallet, RefreshCw, Activity, Clock } from 'lucide-react';
 import { useUserStatistics } from '../hooks/useUserStatistics';
 import { WalletProvider } from '../types';
 
@@ -22,7 +22,44 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   user, 
   onDisconnect 
 }) => {
-  const { statistics, loading, error } = useUserStatistics(user.id);
+  const { statistics, loading, error, refreshStats, lastUpdated } = useUserStatistics(user.id);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshStats();
+    } catch (error) {
+      console.error('Error refreshing stats:', error);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 1000);
+    }
+  };
+
+  const formatLastUpdated = (timestamp: number) => {
+    if (!timestamp) return 'Never';
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const getNetworkName = (chainId?: number) => {
+    switch (chainId) {
+      case 8453: return 'Base';
+      case 10: return 'Optimism';
+      case 1: return 'Ethereum';
+      case 84532: return 'Base Sepolia';
+      case 11155420: return 'Sepolia';
+      default: return chainId ? `Chain ${chainId}` : 'Unknown';
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -33,12 +70,22 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-xl">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">Wallet Profile</h2>
-            <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white transition-colors"
-            >
-              <X size={24} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing || loading}
+                className="text-white/80 hover:text-white transition-colors disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
+              <button
+                onClick={onClose}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
           </div>
           <div className="mt-4">
             <div className="font-medium">{user.username}</div>
@@ -54,28 +101,45 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   {user.walletProvider === 'injected' && 'Browser Wallet'}
                 </div>
               )}
-            {user.chainId && (
-                <div className="text-xs text-white/70">
-                Network: {user.chainId === 8453 ? 'Base' : user.chainId === 10 ? 'Optimism' : `Chain ${user.chainId}`}
+              <div className="text-xs text-white/70">
+                Network: {getNetworkName(user.chainId)}
               </div>
-            )}
+            </div>
+            {/* Status indicator */}
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center text-xs text-white/70">
+                <Activity size={12} className="mr-1" />
+                {loading || isRefreshing ? 'Updating...' : 'Live data'}
+              </div>
+              {lastUpdated > 0 && (
+                <div className="flex items-center text-xs text-white/70">
+                  <Clock size={12} className="mr-1" />
+                  {formatLastUpdated(lastUpdated)}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Statistics */}
         <div className="p-6">
-          {loading && (
+          {loading && !statistics && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
               <div className="text-gray-500 mt-2">Loading statistics...</div>
             </div>
           )}
 
-          {error && (
+          {error && !statistics && (
             <div className="text-center py-8">
               <div className="text-red-500">Error loading statistics</div>
               <div className="text-sm text-gray-500 mt-1">{error}</div>
+              <button
+                onClick={handleRefresh}
+                className="mt-3 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           )}
 
@@ -86,15 +150,28 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                   <Ticket className="mr-2 text-blue-600" size={20} />
                   Tickets Overview
+                  {(statistics.isLoadingBlockchain || statistics.isLoadingFirebase) && (
+                    <div className="ml-2 w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+                  )}
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-blue-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-blue-600">{statistics.totalTickets}</div>
                     <div className="text-xs text-blue-700">Total Tickets</div>
+                    {statistics.blockchainTickets > 0 && (
+                      <div className="text-xs text-blue-500 mt-1">
+                        {statistics.blockchainTickets} on-chain
+                      </div>
+                    )}
                   </div>
                   <div className="bg-green-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-green-600">{statistics.paidTickets}</div>
                     <div className="text-xs text-green-700">Purchased</div>
+                    {statistics.recentTickets > 0 && (
+                      <div className="text-xs text-green-500 mt-1">
+                        {statistics.recentTickets} recent
+                      </div>
+                    )}
                   </div>
                   <div className="bg-purple-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-purple-600">{statistics.freeTickets}</div>
@@ -154,6 +231,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                       ? `${((statistics.totalWins / statistics.totalTickets) * 100).toFixed(1)}% win rate`
                       : 'No tickets yet'
                     }
+                  </div>
+                  {/* Data source indicator */}
+                  <div className="text-xs text-purple-400 mt-2">
+                    Combined Firebase + Blockchain data
                   </div>
                 </div>
               </div>
