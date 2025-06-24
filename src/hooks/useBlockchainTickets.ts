@@ -150,6 +150,8 @@ export const useBlockchainTickets = () => {
     step: 'idle'
   });
 
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+
   const publicClient = createPublicClient({
     chain: baseSepolia,
     transport: http()
@@ -183,6 +185,7 @@ export const useBlockchainTickets = () => {
     }
 
     console.log('[useBlockchainTickets] Loading data for:', user.walletAddress);
+    setIsLoadingTickets(true);
 
     try {
       const [balance, allowance, ticketPrice, lastDrawTime, drawInterval, ticketsOwned, userTicketIds] = await Promise.all([
@@ -245,14 +248,15 @@ export const useBlockchainTickets = () => {
       // Obtener información detallada de los tickets
       const userTickets: UserTicket[] = [];
       
-      // Limitar a los últimos 20 tickets para evitar demasiadas llamadas
-      const ticketIdsToLoad = userTicketIds.slice(-20);
+      // Limitar a los últimos 10 tickets para evitar demasiadas llamadas
+      const ticketIdsToLoad = userTicketIds.slice(-10);
       
       if (process.env.NODE_ENV === 'development') {
         console.log('[useBlockchainTickets] Loading ticket details for IDs:', ticketIdsToLoad);
       }
-      
-      for (const ticketId of ticketIdsToLoad) {
+
+      // Cargar tickets en paralelo pero con límite
+      const ticketPromises = ticketIdsToLoad.map(async (ticketId) => {
         try {
           const [ticketInfo, ticketDetails] = await Promise.all([
             publicClient.readContract({
@@ -272,7 +276,7 @@ export const useBlockchainTickets = () => {
           const numbers = Array.from(ticketInfo[1]);
           const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
           
-          const ticket: UserTicket = {
+          return {
             tokenId: ticketId.toString(),
             numbers: numbers,
             emojis: emojis,
@@ -281,10 +285,32 @@ export const useBlockchainTickets = () => {
             purchaseTime: Number(ticketDetails[5]) * 1000, // Convert to milliseconds
             matches: ticketInfo[4]
           };
-          userTickets.push(ticket);
         } catch (error) {
           console.warn(`Error loading ticket ${ticketId}:`, error);
+          return null;
         }
+      });
+
+      // Usar Promise.allSettled con timeout
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Ticket loading timeout')), 8000)
+      );
+
+      try {
+        const results = await Promise.race([
+          Promise.allSettled(ticketPromises),
+          timeoutPromise
+        ]);
+
+        if (Array.isArray(results)) {
+          results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value) {
+              userTickets.push(result.value);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Ticket loading timed out, continuing with basic data');
       }
 
       // Ordenar tickets por tiempo de compra (más recientes primero)
@@ -310,6 +336,8 @@ export const useBlockchainTickets = () => {
 
     } catch (error) {
       console.error('[useBlockchainTickets] Error loading user data:', error);
+    } finally {
+      setIsLoadingTickets(false);
     }
   };
 
@@ -395,6 +423,7 @@ export const useBlockchainTickets = () => {
     purchaseState,
     buyTicket,
     resetPurchaseState,
-    refreshData: loadUserData
+    refreshData: loadUserData,
+    isLoadingTickets
   };
 }; 

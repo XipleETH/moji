@@ -10,8 +10,9 @@ interface BlockchainTicketsDisplayProps {
 export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> = ({ 
   onViewHistory 
 }) => {
-  const { userData, isConnected, userAddress, refreshData } = useBlockchainTickets();
+  const { userData, isConnected, userAddress, refreshData, isLoadingTickets } = useBlockchainTickets();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
   // Debug logs for development
   if (process.env.NODE_ENV === 'development') {
@@ -21,12 +22,28 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
       ticketsOwned: userData.ticketsOwned.toString(),
       userTicketsLength: userData.userTickets.length,
       userTickets: userData.userTickets,
-      usdcBalance: userData.usdcBalance.toString()
+      usdcBalance: userData.usdcBalance.toString(),
+      loadingTimeout,
+      isLoadingTickets
     });
   }
 
+  // Set timeout for loading state to avoid infinite loading
+  React.useEffect(() => {
+    if (isConnected && userData.ticketsOwned > 0n && userData.userTickets.length === 0) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 10000); // 10 seconds timeout
+
+      return () => clearTimeout(timer);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [isConnected, userData.ticketsOwned, userData.userTickets.length]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    setLoadingTimeout(false);
     await refreshData();
     setTimeout(() => setIsRefreshing(false), 1000);
   };
@@ -78,8 +95,8 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
 
   const todayTickets = getTodayTickets();
 
-  // Show loading state if connected but no data yet
-  if (isConnected && userData.ticketsOwned > 0n && userData.userTickets.length === 0) {
+  // Show loading state if actively loading tickets or if connected but no data yet (but not if timeout reached)
+  if (isConnected && (isLoadingTickets || (userData.ticketsOwned > 0n && userData.userTickets.length === 0 && !loadingTimeout))) {
     return (
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -152,7 +169,10 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
           <p className="text-white/70">Your blockchain tickets will appear here</p>
           <p className="text-white/50 text-sm mt-2">
             {userData.ticketsOwned > 0n 
-              ? `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days. Try refreshing!`
+              ? (loadingTimeout 
+                  ? `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days or having loading issues. Try refreshing!`
+                  : `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days. Try refreshing!`
+                )
               : 'Buy your first USDC ticket above!'
             }
           </p>
@@ -163,7 +183,7 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
               className="mt-3 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto disabled:opacity-50"
             >
               <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-              Refresh Tickets
+              {loadingTimeout ? 'Try Refresh Again' : 'Refresh Tickets'}
             </button>
           )}
         </div>
