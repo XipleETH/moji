@@ -95,9 +95,11 @@ export const useContractPools = () => {
     error: null
   });
 
-  const fetchContractData = async () => {
+  const fetchContractData = async (showLoading = true) => {
     try {
-      setData(prev => ({ ...prev, loading: true, error: null }));
+      if (showLoading) {
+        setData(prev => ({ ...prev, loading: true, error: null }));
+      }
 
       // Configurar provider para Base Sepolia
       const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
@@ -220,10 +222,10 @@ export const useContractPools = () => {
   };
 
   useEffect(() => {
-    fetchContractData();
+    fetchContractData(true);
     
-    // Actualizar cada 30 segundos
-    const interval = setInterval(fetchContractData, 30000);
+    // Actualizar cada 60 segundos en background (sin loading)
+    const interval = setInterval(() => fetchContractData(false), 60000);
     
     return () => clearInterval(interval);
   }, []);
