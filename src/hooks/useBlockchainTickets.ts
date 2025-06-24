@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { createPublicClient, createWalletClient, custom, http, parseUnits, formatUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
+import { ethers } from 'ethers';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 
 // ABI del contrato LottoMojiCore desplegado
 const LOTTO_MOJI_CORE_ABI = [
@@ -87,6 +89,21 @@ const LOTTO_MOJI_CORE_ABI = [
     outputs: [{ name: '', type: 'uint8[4]' }],
     stateMutability: 'view',
     type: 'function'
+  },
+  {
+    inputs: [{ name: '', type: 'uint256' }],
+    name: 'tickets',
+    outputs: [
+      { name: 'tokenId', type: 'uint256' },
+      { name: 'ticketOwner', type: 'address' },
+      { name: 'numbers', type: 'uint8[4]' },
+      { name: 'gameDay', type: 'uint256' },
+      { name: 'isActive', type: 'bool' },
+      { name: 'purchaseTime', type: 'uint256' },
+      { name: 'eligibleForReserve', type: 'bool' }
+    ],
+    stateMutability: 'view',
+    type: 'function'
   }
 ] as const;
 
@@ -138,24 +155,78 @@ export interface UserTicketData {
   canBuyTicket: boolean;
   timeUntilNextDraw: bigint;
   ticketsOwned: bigint;
+  userTickets: UserTicket[];
 }
 
-export const useBlockchainTickets = () => {
+interface UserTicket {
+  tokenId: string;
+  numbers: number[];
+  emojis: string[];
+  gameDay: string;
+  isActive: boolean;
+  purchaseTime: number;
+  matches?: number;
+}
+
+interface UserData {
+  isConnected: boolean;
+  usdcBalance: bigint;
+  usdcAllowance: bigint;
+  ticketPrice: bigint;
+  canBuyTicket: boolean;
+  ticketsOwned: bigint;
+  timeUntilNextDraw: bigint;
+  userTickets: UserTicket[];
+}
+
+interface PurchaseState {
+  isLoading: boolean;
+  step: 'idle' | 'checking-balance' | 'approving' | 'buying' | 'confirming' | 'success' | 'error';
+  error: string | null;
+  txHash: string | null;
+}
+
+// ABI para leer tickets del usuario
+const TICKET_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function tokenOfOwnerByIndex(address, uint256) view returns (uint256)",
+  "function getTicketInfo(uint256) view returns (address ticketOwner, uint8[4] numbers, uint256 gameDay, bool isActive, uint8 matches)",
+  "function tickets(uint256) view returns (uint256 tokenId, address ticketOwner, uint8[4] numbers, uint256 gameDay, bool isActive, uint256 purchaseTime, bool eligibleForReserve)",
+  "function getUserTickets(address) view returns (uint256[])",
+  "function TICKET_PRICE() view returns (uint256)",
+  "function getCurrentDay() view returns (uint256)",
+  "function timeUntilNextDraw() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address, address) view returns (uint256)",
+  "function approve(address, uint256) returns (bool)",
+  "function buyTicket(uint8[4])"
+];
+
+export function useBlockchainTickets() {
+  const { address: userAddress } = useAccount();
+  
   const [userData, setUserData] = useState<UserTicketData>({
     usdcBalance: 0n,
     usdcAllowance: 0n,
     ticketPrice: 0n,
     canBuyTicket: false,
     timeUntilNextDraw: 0n,
-    ticketsOwned: 0n
+    ticketsOwned: 0n,
+    userTickets: []
   });
+  
   const [purchaseState, setPurchaseState] = useState<TicketPurchaseState>({
     isLoading: false,
     error: null,
     txHash: null,
     step: 'idle'
   });
-  const [userAddress, setUserAddress] = useState<string | null>(null);
+
+  const { writeContract, data: hash, error: writeError, isPending } = useWriteContract();
+  
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
 
   const publicClient = createPublicClient({
     chain: baseSepolia,
@@ -168,7 +239,7 @@ export const useBlockchainTickets = () => {
         try {
           const accounts = await window.ethereum.request({ method: 'eth_accounts' });
           if (accounts.length > 0) {
-            setUserAddress(accounts[0]);
+            setUserData(prev => ({ ...prev, isConnected: true }));
           }
         } catch (error) {
           console.error('Error detectando wallet:', error);
@@ -180,154 +251,214 @@ export const useBlockchainTickets = () => {
 
   useEffect(() => {
     if (userAddress) {
-      loadUserData();
+      fetchUserData();
       // Actualizar datos cada 30 segundos
-      const interval = setInterval(loadUserData, 30000);
+      const interval = setInterval(fetchUserData, 30000);
       return () => clearInterval(interval);
     }
   }, [userAddress]);
 
-  const loadUserData = async () => {
-    if (!userAddress) return;
+  const fetchUserData = async () => {
+    if (!userAddress) {
+      setUserData(prev => ({ ...prev, isConnected: false, userTickets: [] }));
+      return;
+    }
 
     try {
-      const [balance, allowance, ticketPrice, lastDrawTime, drawInterval, ticketsOwned] = await Promise.all([
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
-          abi: USDC_ABI,
-          functionName: 'balanceOf',
-          args: [userAddress as `0x${string}`]
-        }),
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
-          abi: USDC_ABI,
-          functionName: 'allowance',
-          args: [userAddress as `0x${string}`, CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`]
-        }),
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
-          functionName: 'TICKET_PRICE'
-        }),
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
-          functionName: 'lastDrawTime'
-        }),
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
-          functionName: 'DRAW_INTERVAL'
-        }),
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
-          functionName: 'balanceOf',
-          args: [userAddress as `0x${string}`]
-        })
+      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      const lottoContract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TICKET_ABI, provider);
+      const usdcContract = new ethers.Contract(CONTRACT_ADDRESSES.USDC, USDC_ABI, provider);
+
+      const [
+        usdcBalance,
+        usdcAllowance,
+        ticketPrice,
+        ticketsOwned,
+        timeUntilNextDraw,
+        userTicketIds
+      ] = await Promise.all([
+        usdcContract.balanceOf(userAddress),
+        usdcContract.allowance(userAddress, CONTRACT_ADDRESSES.LOTTO_MOJI_CORE),
+        lottoContract.TICKET_PRICE(),
+        lottoContract.balanceOf(userAddress),
+        lottoContract.timeUntilNextDraw(),
+        lottoContract.getUserTickets(userAddress)
       ]);
 
-      // Calcular tiempo hasta próximo sorteo
-      const currentTime = BigInt(Math.floor(Date.now() / 1000));
-      const nextDrawTime = lastDrawTime + drawInterval;
-      const timeUntilDraw = nextDrawTime > currentTime ? nextDrawTime - currentTime : 0n;
+      // Obtener información detallada de cada ticket
+      const ticketDetails: UserTicket[] = [];
+      
+      for (let i = 0; i < Math.min(userTicketIds.length, 20); i++) { // Limit to 20 most recent
+        try {
+          const tokenId = userTicketIds[i];
+          const ticketInfo = await lottoContract.tickets(tokenId);
+          
+          const ticket: UserTicket = {
+            tokenId: tokenId.toString(),
+            numbers: ticketInfo.numbers.map((n: any) => Number(n)),
+            emojis: ticketInfo.numbers.map((n: any) => GAME_CONFIG.EMOJI_MAP[Number(n)]),
+            gameDay: ticketInfo.gameDay.toString(),
+            isActive: ticketInfo.isActive,
+            purchaseTime: Number(ticketInfo.purchaseTime) * 1000, // Convert to milliseconds
+          };
+          
+          ticketDetails.push(ticket);
+        } catch (error) {
+          console.warn(`Error fetching ticket ${userTicketIds[i]}:`, error);
+        }
+      }
 
-      const canBuy = balance >= ticketPrice;
+      // Sort tickets by purchase time (newest first)
+      ticketDetails.sort((a, b) => b.purchaseTime - a.purchaseTime);
+
+      const canBuyTicket = usdcBalance >= ticketPrice && usdcAllowance >= ticketPrice;
 
       setUserData({
-        usdcBalance: balance,
-        usdcAllowance: allowance,
-        ticketPrice: ticketPrice,
-        canBuyTicket: canBuy,
-        timeUntilNextDraw: timeUntilDraw,
-        ticketsOwned: ticketsOwned
+        isConnected: true,
+        usdcBalance,
+        usdcAllowance,
+        ticketPrice,
+        canBuyTicket,
+        ticketsOwned,
+        timeUntilNextDraw,
+        userTickets: ticketDetails
       });
 
     } catch (error) {
-      console.error('Error cargando datos del usuario:', error);
+      console.error('Error fetching user data:', error);
+      setUserData(prev => ({ 
+        ...prev, 
+        isConnected: !!userAddress,
+        userTickets: []
+      }));
     }
   };
 
-  const buyTicket = async (emojiNumbers: string[]): Promise<string | null> => {
-    if (!userAddress || !window.ethereum) {
-      throw new Error('Wallet no conectada');
+  const buyTicket = async (selectedEmojis: string[]) => {
+    if (!userAddress || selectedEmojis.length !== 4) {
+      throw new Error('Invalid parameters for ticket purchase');
     }
 
-    // Convertir emojis a números (usando EMOJI_MAP)
-    const numberArray = emojiNumbers.map(emoji => {
-      const index = GAME_CONFIG.EMOJI_MAP.indexOf(emoji);
-      return index >= 0 ? index : 0;
-    });
-
-    const walletClient = createWalletClient({
-      chain: baseSepolia,
-      transport: custom(window.ethereum)
-    });
-
-    setPurchaseState({ isLoading: true, error: null, txHash: null, step: 'checking-balance' });
-
     try {
-      // Verificar allowance
-      if (userData.usdcAllowance < userData.ticketPrice) {
+      setPurchaseState({
+        isLoading: true,
+        step: 'checking-balance',
+        error: null,
+        txHash: null
+      });
+
+      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      const usdcContract = new ethers.Contract(CONTRACT_ADDRESSES.USDC, USDC_ABI, provider);
+      
+      // Check USDC balance and allowance
+      const [balance, allowance, ticketPrice] = await Promise.all([
+        usdcContract.balanceOf(userAddress),
+        usdcContract.allowance(userAddress, CONTRACT_ADDRESSES.LOTTO_MOJI_CORE),
+        new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TICKET_ABI, provider).TICKET_PRICE()
+      ]);
+
+      if (balance < ticketPrice) {
+        throw new Error('Insufficient USDC balance');
+      }
+
+      // Convert emojis to indices
+      const emojiIndices = selectedEmojis.map(emoji => {
+        const index = GAME_CONFIG.EMOJI_MAP.indexOf(emoji);
+        if (index === -1) throw new Error(`Invalid emoji: ${emoji}`);
+        return index;
+      });
+
+      // Approve USDC if needed
+      if (allowance < ticketPrice) {
         setPurchaseState(prev => ({ ...prev, step: 'approving' }));
         
-        const approveHash = await walletClient.writeContract({
+        await writeContract({
           address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
           abi: USDC_ABI,
           functionName: 'approve',
-          args: [CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`, userData.ticketPrice * 10n],
-          account: userAddress as `0x${string}`
+          args: [CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, parseUnits('10', 6)] // Approve 10 USDC
         });
 
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        // Wait for approval
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
+      // Buy ticket
       setPurchaseState(prev => ({ ...prev, step: 'buying' }));
-
-      // Comprar ticket
-      const hash = await walletClient.writeContract({
+      
+      await writeContract({
         address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-        abi: LOTTO_MOJI_CORE_ABI,
+        abi: TICKET_ABI,
         functionName: 'buyTicket',
-        args: [numberArray as [number, number, number, number]],
-        account: userAddress as `0x${string}`
+        args: [emojiIndices]
       });
 
-      setPurchaseState(prev => ({ ...prev, step: 'confirming', txHash: hash }));
-      await publicClient.waitForTransactionReceipt({ hash });
+      setPurchaseState(prev => ({ ...prev, step: 'confirming' }));
 
-      // Recargar datos del usuario
-      await loadUserData();
-
-      setPurchaseState(prev => ({ ...prev, isLoading: false, step: 'success' }));
-      return hash;
-
-    } catch (error) {
-      console.error('Error comprando ticket:', error);
+    } catch (error: any) {
+      console.error('Error buying ticket:', error);
       setPurchaseState({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Error desconocido',
-        txHash: null,
-        step: 'idle'
+        step: 'error',
+        error: error.message || 'Failed to buy ticket',
+        txHash: null
       });
-      return null;
     }
   };
 
   const resetPurchaseState = () => {
     setPurchaseState({
       isLoading: false,
+      step: 'idle',
       error: null,
-      txHash: null,
-      step: 'idle'
+      txHash: null
     });
   };
 
+  // Handle transaction success
+  useEffect(() => {
+    if (isSuccess && hash) {
+      setPurchaseState({
+        isLoading: false,
+        step: 'success',
+        error: null,
+        txHash: hash
+      });
+      
+      // Refresh user data after successful purchase
+      setTimeout(fetchUserData, 2000);
+    }
+  }, [isSuccess, hash]);
+
+  // Handle transaction error
+  useEffect(() => {
+    if (writeError) {
+      setPurchaseState({
+        isLoading: false,
+        step: 'error',
+        error: writeError.message || 'Transaction failed',
+        txHash: null
+      });
+    }
+  }, [writeError]);
+
+  // Update loading state
+  useEffect(() => {
+    if (isPending || isConfirming) {
+      setPurchaseState(prev => ({
+        ...prev,
+        isLoading: true,
+        step: isPending ? 'buying' : 'confirming'
+      }));
+    }
+  }, [isPending, isConfirming]);
+
   return {
     userData,
+    userAddress,
     purchaseState,
     buyTicket,
     resetPurchaseState,
-    userAddress
+    refreshData: fetchUserData
   };
-}; 
+} 

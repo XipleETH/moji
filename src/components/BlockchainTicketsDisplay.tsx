@@ -1,0 +1,156 @@
+import React from 'react';
+import { TicketIcon, History, Clock, CheckCircle, X } from 'lucide-react';
+import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
+import { formatUnits } from 'viem';
+
+interface BlockchainTicketsDisplayProps {
+  onViewHistory: () => void;
+}
+
+export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> = ({ 
+  onViewHistory 
+}) => {
+  const { userData } = useBlockchainTickets();
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatGameDay = (gameDay: string) => {
+    const day = parseInt(gameDay);
+    return `Game #${day}`;
+  };
+
+  const getStatusIcon = (isActive: boolean, matches?: number) => {
+    if (!isActive) {
+      return <CheckCircle className="text-green-400" size={16} />;
+    }
+    if (matches && matches >= 2) {
+      return <CheckCircle className="text-yellow-400" size={16} />;
+    }
+    return <Clock className="text-blue-400" size={16} />;
+  };
+
+  const getStatusText = (isActive: boolean, matches?: number) => {
+    if (!isActive) {
+      return 'Claimed';
+    }
+    if (matches && matches >= 2) {
+      return `Winner! ${matches} matches`;
+    }
+    return 'Active';
+  };
+
+  const getTodayTickets = () => {
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    
+    return userData.userTickets.filter(ticket => 
+      ticket.purchaseTime >= todayStart
+    );
+  };
+
+  const todayTickets = getTodayTickets();
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white flex items-center">
+          <TicketIcon className="mr-2" size={24} />
+          My Blockchain Tickets
+          {userData.ticketsOwned > 0n && (
+            <span className="ml-2 bg-purple-600 text-white text-sm px-2 py-1 rounded-full">
+              {userData.ticketsOwned.toString()}
+            </span>
+          )}
+        </h2>
+        <button
+          onClick={onViewHistory}
+          className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+        >
+          <History size={16} />
+          View History
+        </button>
+      </div>
+
+      {todayTickets.length === 0 ? (
+        <div className="text-center py-8 bg-white/10 rounded-lg">
+          <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
+          <p className="text-white/70">Your blockchain tickets will appear here</p>
+          <p className="text-white/50 text-sm mt-2">Buy your first USDC ticket above!</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="text-white/80 text-sm mb-3">
+            Today's tickets ({todayTickets.length})
+          </div>
+          
+          {todayTickets.map((ticket) => (
+            <div
+              key={ticket.tokenId}
+              className="bg-white/10 rounded-lg p-4 border border-white/20"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-white/60 text-sm">#{ticket.tokenId}</span>
+                  <span className="text-white/60 text-sm">{formatGameDay(ticket.gameDay)}</span>
+                  {getStatusIcon(ticket.isActive, ticket.matches)}
+                  <span className="text-white/80 text-sm">
+                    {getStatusText(ticket.isActive, ticket.matches)}
+                  </span>
+                </div>
+                <span className="text-white/60 text-sm">
+                  {formatDate(ticket.purchaseTime)}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-center gap-2 bg-black/20 rounded-lg p-3">
+                {ticket.emojis.map((emoji, index) => (
+                  <span 
+                    key={index} 
+                    className="text-3xl bg-white/10 rounded-lg w-12 h-12 flex items-center justify-center"
+                  >
+                    {emoji}
+                  </span>
+                ))}
+              </div>
+              
+              {ticket.matches !== undefined && ticket.matches > 0 && (
+                <div className="mt-3 text-center">
+                  <span className={`text-sm px-2 py-1 rounded-full ${
+                    ticket.matches >= 4 ? 'bg-yellow-500/20 text-yellow-300' :
+                    ticket.matches >= 3 ? 'bg-blue-500/20 text-blue-300' :
+                    ticket.matches >= 2 ? 'bg-green-500/20 text-green-300' :
+                    'bg-gray-500/20 text-gray-300'
+                  }`}>
+                    {ticket.matches} match{ticket.matches !== 1 ? 'es' : ''}
+                    {ticket.matches >= 2 ? ' - Prize available!' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+          
+          {userData.userTickets.length > todayTickets.length && (
+            <div className="text-center py-3">
+              <button
+                onClick={onViewHistory}
+                className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 mx-auto"
+              >
+                <History size={14} />
+                View {userData.userTickets.length - todayTickets.length} more tickets in history
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}; 

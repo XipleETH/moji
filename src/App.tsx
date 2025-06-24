@@ -20,6 +20,7 @@ import { WalletInfo } from './components/WalletInfo';
 import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
 import { EnhancedPrizePoolDisplay } from './components/EnhancedPrizePoolDisplay';
 import { ContractPoolsDisplay } from './components/ContractPoolsDisplay';
+import { BlockchainTicketsDisplay } from './components/BlockchainTicketsDisplay';
 import { resetUserTokens, canUserBuyTicket } from './firebase/tokens';
 import { getCurrentUser } from './firebase/auth';
 import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
@@ -2997,27 +2998,9 @@ function AppContent() {
         <HybridTicketSystem />
 
         {/* Blockchain Tickets Section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <TicketIcon className="mr-2" size={24} />
-              My Blockchain Tickets
-            </h2>
-            <button
-              onClick={() => setShowTicketHistory(true)}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <History size={16} />
-              View History
-            </button>
-          </div>
-
-          <div className="text-center py-8 bg-white/10 rounded-lg">
-            <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
-            <p className="text-white/70">Your blockchain tickets will appear here</p>
-            <p className="text-white/50 text-sm mt-2">Buy your first USDC ticket above!</p>
-          </div>
-        </div>
+        <BlockchainTicketsDisplay 
+          onViewHistory={() => setShowTicketHistory(true)}
+        />
 
         <div className="mt-8 space-y-6">
           <div className="bg-white/10 rounded-lg p-6 text-white">
