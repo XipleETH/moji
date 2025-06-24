@@ -7,10 +7,11 @@ export const CONTRACT_ADDRESSES = {
   // Token USDC en Base Sepolia
   USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
-  // Nuevo contrato integrado LottoMoji
-  LOTTO_MOJI_CORE: '0x3D896A1255aa93b529b4675c4991C92C7783652D', // Contrato completo desplegado con getFullTicketInfo
+  // Nuevo contrato integrado LottoMoji V2 (precio 0.2 USDC + timing corregido)
+  LOTTO_MOJI_CORE: '0x8F6A8D8E1408d53D1C06Ed0664CC334Fa533480c', // V2: precio 0.2 USDC + setLastDrawTime
   
   // Contratos legacy (mantener para referencia)
+  LEGACY_LOTTO_MOJI_CORE_V1: '0x3D896A1255aa93b529b4675c4991C92C7783652D', // V1: precio 2 USDC, timing desajustado
   LEGACY_LOTTO_MOJI_MAIN: '0x3823B745121DFC7616CC2F3dd15E89e0cb1E7987',
   LEGACY_LOTTO_MOJI_RESERVES: '0x765A3071f14BDD5272e6Cc83BE7fa059F472a77F',
   LEGACY_LOTTO_MOJI_TICKETS: '0x96303188b9e09f6F8b55685f51273c57DD2a8f79',
@@ -24,7 +25,7 @@ export const CONTRACT_ADDRESSES = {
 
 // Configuración del juego
 export const GAME_CONFIG = {
-  TICKET_PRICE: 2, // 2 USDC
+  TICKET_PRICE: 0.2, // 0.2 USDC (actualizado V2)
   USDC_DECIMALS: 6,
   DRAW_TIME_UTC_MINUS_3: '00:00', // Medianoche São Paulo
   

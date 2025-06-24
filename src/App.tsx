@@ -3312,6 +3312,103 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para mostrar el antes y después de la corrección temporal
+(window as any).showTimerCorrection = async () => {
+  try {
+    console.log('⚡ Mostrando corrección temporal del timer...');
+    console.log('==============================================');
+    
+    const { ethers } = await import('ethers');
+    const { CONTRACT_ADDRESSES } = await import('./utils/contractAddresses');
+    
+    const TIMER_ABI = [
+      "function getCurrentDay() view returns (uint256)",
+      "function lastDrawTime() view returns (uint256)",
+      "function drawTimeUTC() view returns (uint256)",
+      "function DRAW_INTERVAL() view returns (uint256)"
+    ];
+    
+    // Conectar al contrato
+    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
+    
+    // Obtener datos del contrato
+    const [lastDrawTime, drawInterval] = await Promise.all([
+      contract.lastDrawTime(),
+      contract.DRAW_INTERVAL()
+    ]);
+    
+    const lastDraw = Number(lastDrawTime);
+    const interval = Number(drawInterval);
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Calcular el tiempo según el contrato (SIN corrección)
+    const contractNextDraw = lastDraw + interval;
+    const contractRemaining = Math.max(0, contractNextDraw - now);
+    
+    // Calcular el tiempo corregido (medianoche São Paulo)
+    const currentUTC = new Date(now * 1000);
+    const nextMidnightUTC = new Date(currentUTC);
+    
+    if (currentUTC.getUTCHours() >= 3) {
+      nextMidnightUTC.setUTCDate(nextMidnightUTC.getUTCDate() + 1);
+    }
+    
+    nextMidnightUTC.setUTCHours(3, 0, 0, 0);
+    const correctedNextDraw = Math.floor(nextMidnightUTC.getTime() / 1000);
+    const correctedRemaining = Math.max(0, correctedNextDraw - now);
+    
+    // Calcular diferencia
+    const offsetSeconds = contractNextDraw - correctedNextDraw;
+    const offsetMinutes = Math.floor(Math.abs(offsetSeconds) / 60);
+    const offsetSecondsRem = Math.abs(offsetSeconds) % 60;
+    
+    console.log('❌ ANTES (Contrato sin corrección):');
+    console.log('- Próximo sorteo:', new Date(contractNextDraw * 1000).toISOString());
+    console.log('- En São Paulo:', new Date(contractNextDraw * 1000).toLocaleString('es-BR', { timeZone: 'America/Sao_Paulo', hour12: false }));
+    console.log('- Tiempo restante:', Math.floor(contractRemaining / 3600) + 'h', Math.floor((contractRemaining % 3600) / 60) + 'm', (contractRemaining % 60) + 's');
+    
+    console.log('\n✅ DESPUÉS (Con corrección):');
+    console.log('- Próximo sorteo:', new Date(correctedNextDraw * 1000).toISOString());
+    console.log('- En São Paulo:', new Date(correctedNextDraw * 1000).toLocaleString('es-BR', { timeZone: 'America/Sao_Paulo', hour12: false }));
+    console.log('- Tiempo restante:', Math.floor(correctedRemaining / 3600) + 'h', Math.floor((correctedRemaining % 3600) / 60) + 'm', (correctedRemaining % 60) + 's');
+    
+    console.log('\n📊 Diferencia corregida:');
+    console.log('- Offset del contrato:', offsetMinutes + 'm', offsetSecondsRem + 's', '(' + offsetSeconds + ' segundos)');
+    console.log('- Dirección:', offsetSeconds > 0 ? 'Contrato adelantado' : 'Contrato atrasado');
+    
+    // Verificar si es medianoche
+    const contractSPTime = new Date(contractNextDraw * 1000).toLocaleString('es-BR', { 
+      timeZone: 'America/Sao_Paulo', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    
+    const correctedSPTime = new Date(correctedNextDraw * 1000).toLocaleString('es-BR', { 
+      timeZone: 'America/Sao_Paulo', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    
+    console.log('\n🇧🇷 Verificación medianoche São Paulo:');
+    console.log('- Contrato original:', contractSPTime, contractSPTime === '00:00' ? '✅' : '❌');
+    console.log('- Con corrección:', correctedSPTime, correctedSPTime === '00:00' ? '✅' : '❌');
+    
+    return {
+      contractTime: contractRemaining,
+      correctedTime: correctedRemaining,
+      offsetSeconds: offsetSeconds,
+      isFixed: correctedSPTime === '00:00'
+    };
+    
+  } catch (error) {
+    console.error('[showTimerCorrection] Error:', error);
+    return { error: error.message };
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus, timerInfo } = useGameState();
   const { context } = useMiniKit();
@@ -3641,6 +3738,7 @@ function App() {
       console.log('- window.checkContractDrawTime() - Verificar hora exacta del sorteo según el contrato');
       console.log('- window.verifyContractLogic() - Verificar lógica de cálculo del contrato');
       console.log('- window.compareFrontendVsContract() - Comparar timer frontend vs contrato');
+      console.log('- window.showTimerCorrection() - Mostrar corrección temporal del timer');
   }, []);
 
   return (

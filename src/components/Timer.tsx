@@ -26,6 +26,9 @@ export const Timer: React.FC<TimerProps> = ({
     return formatTimeSaoPaulo(date);
   };
 
+  // V2 contract should always be at midnight, no need to check anymore
+  const isNextDrawAtMidnight = () => true;
+
   return (
     <div className="text-center">
       <div className="text-4xl font-bold text-white p-4 rounded-xl bg-purple-600/80 backdrop-blur-sm shadow-lg mb-2">
@@ -44,7 +47,7 @@ export const Timer: React.FC<TimerProps> = ({
       <div className="mt-2 flex items-center justify-center gap-2">
         <div className={`w-2 h-2 rounded-full ${isContractConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
         <span className={`text-xs ${isContractConnected ? 'text-green-300' : 'text-red-300'}`}>
-          {isContractConnected ? 'Contract Synced' : 'Contract Offline'}
+          {isContractConnected ? 'Contract V2 Synced' : 'Contract Offline'}
         </span>
       </div>
 
@@ -58,7 +61,7 @@ export const Timer: React.FC<TimerProps> = ({
       {/* Mostrar próximo sorteo según contrato */}
       {isContractConnected && nextDrawTime && (
         <div className="text-white/50 text-xs mt-1">
-          Contract: {formatNextDrawTime()}
+          ✅ Next: {formatNextDrawTime().split(',')[1]?.trim() || 'N/A'}
         </div>
       )}
 

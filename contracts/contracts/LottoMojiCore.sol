@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  * @title LottoMojiCore
  * @dev Core contract combining lottery, VRF, automation and NFT functionality
  * FIXED: Removed OpenZeppelin Ownable to avoid conflicts with Chainlink ownership
+ * VERSION 2: Changed ticket price to 0.2 USDC and added setLastDrawTime function
  */
 contract LottoMojiCore is 
     VRFConsumerBaseV2Plus, 
@@ -35,7 +36,7 @@ contract LottoMojiCore is
     // Lottery Constants
     uint256 public constant DAILY_RESERVE_PERCENTAGE = 20; // 20% goes to reserve DAILY
     uint256 public constant MAIN_POOL_PERCENTAGE = 80;     // 80% stays in main pools
-    uint256 public constant TICKET_PRICE = 2 * 10**6;      // 2 USDC (6 decimals)
+    uint256 public constant TICKET_PRICE = 2 * 10**5;      // 0.2 USDC (6 decimals) - CHANGED from 2 * 10**6
     
     // Prize distribution percentages (applied to the 80% main pool portion)
     uint256 public constant FIRST_PRIZE_PERCENTAGE = 80;
@@ -152,6 +153,18 @@ contract LottoMojiCore is
         uint256 secondReserveAmount,
         uint256 thirdReserveAmount,
         uint256 totalSent
+    );
+    
+    event LastDrawTimeUpdated(
+        uint256 oldTime,
+        uint256 newTime,
+        uint256 newGameDay
+    );
+    
+    event DrawTimeUTCUpdated(
+        uint256 oldTime,
+        uint256 newTime,
+        uint256 newGameDay
     );
     
     constructor(
@@ -511,6 +524,49 @@ contract LottoMojiCore is
         uint256 balance = usdcToken.balanceOf(address(this));
         require(balance > 0, "No balance to withdraw");
         require(usdcToken.transfer(owner(), balance), "Transfer failed");
+    }
+    
+    /**
+     * @dev Set the last draw time to correct timing issues
+     * @param _lastDrawTime New timestamp for last draw (should be exactly at drawTimeUTC)
+     */
+    function setLastDrawTime(uint256 _lastDrawTime) external onlyOwner {
+        require(_lastDrawTime <= block.timestamp, "Cannot set future time");
+        require(_lastDrawTime > 0, "Invalid timestamp");
+        
+        // Verify the timestamp aligns with drawTimeUTC (should be exactly at 03:00 UTC)
+        uint256 dayStart = (_lastDrawTime / DRAW_INTERVAL) * DRAW_INTERVAL;
+        uint256 expectedDrawTime = dayStart + drawTimeUTC - DRAW_INTERVAL;
+        
+        require(
+            _lastDrawTime == expectedDrawTime || 
+            _lastDrawTime == expectedDrawTime + DRAW_INTERVAL,
+            "Time must align with drawTimeUTC schedule"
+        );
+        
+        uint256 oldTime = lastDrawTime;
+        lastDrawTime = _lastDrawTime;
+        
+        // Update current game day based on new timing
+        currentGameDay = getCurrentDay();
+        
+        emit LastDrawTimeUpdated(oldTime, _lastDrawTime, currentGameDay);
+    }
+    
+    /**
+     * @dev Set draw time in UTC (for São Paulo midnight = 3 hours UTC)
+     * @param _drawTimeUTC New draw time in UTC seconds from midnight
+     */
+    function setDrawTimeUTC(uint256 _drawTimeUTC) external onlyOwner {
+        require(_drawTimeUTC < DRAW_INTERVAL, "Draw time must be within 24h");
+        
+        uint256 oldTime = drawTimeUTC;
+        drawTimeUTC = _drawTimeUTC;
+        
+        // Update current game day based on new timing
+        currentGameDay = getCurrentDay();
+        
+        emit DrawTimeUTCUpdated(oldTime, _drawTimeUTC, currentGameDay);
     }
     
     // NFT metadata
