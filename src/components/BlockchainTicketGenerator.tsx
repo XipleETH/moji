@@ -6,6 +6,48 @@ import { CheckCircle, Coins, X, Dice1 } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
 import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
 
+// Debug system
+const createDebugLogger = () => {
+  const logs: string[] = [];
+  const log = (message: string) => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}`;
+    logs.push(logMessage);
+    console.log(`🔍 [BlockchainTicketGenerator] ${logMessage}`);
+    
+    // Mantener solo los últimos 50 logs
+    if (logs.length > 50) {
+      logs.splice(0, logs.length - 50);
+    }
+  };
+  
+  const getLogs = () => logs.slice();
+  const clearLogs = () => {
+    logs.length = 0;
+    console.log('🧹 Debug logs cleared');
+  };
+  
+  return { log, getLogs, clearLogs };
+};
+
+const debugLogger = createDebugLogger();
+
+// Hacer disponible globalmente para debug en consola
+if (typeof window !== 'undefined') {
+  (window as any).blockchainTicketDebug = {
+    getLogs: debugLogger.getLogs,
+    clearLogs: debugLogger.clearLogs,
+    enableVerbose: () => {
+      (window as any).verboseBlockchainDebug = true;
+      console.log('🔊 Verbose blockchain debug enabled');
+    },
+    disableVerbose: () => {
+      (window as any).verboseBlockchainDebug = false;
+      console.log('🔇 Verbose blockchain debug disabled');
+    }
+  };
+}
+
 interface BlockchainTicketGeneratorProps {
   onTicketPurchased?: (txHash: string) => void;
   className?: string;
@@ -32,18 +74,30 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   const [emojisLoading, setEmojisLoading] = useState(false);
   const [emojisError, setEmojisError] = useState<string | null>(null);
 
+  // Debug states
+  useEffect(() => {
+    debugLogger.log(`Component mounted - isConnected: ${isConnected}, user: ${!!user}`);
+  }, []);
+
+  useEffect(() => {
+    debugLogger.log(`State change - isGeneratingRandom: ${isGeneratingRandom}, isConfirmingTicket: ${isConfirmingTicket}, purchaseState.step: ${purchaseState.step}, purchaseState.isLoading: ${purchaseState.isLoading}`);
+  }, [isGeneratingRandom, isConfirmingTicket, purchaseState.step, purchaseState.isLoading]);
+
   // Load emojis from contract on mount
   useEffect(() => {
     const updateEmojis = async () => {
+      debugLogger.log('Loading emojis from contract...');
       setEmojisLoading(true);
       setEmojisError(null);
       try {
         const contractEmojis = await loadEmojisFromContract();
         setEmojis(contractEmojis);
+        debugLogger.log(`Emojis loaded successfully: ${contractEmojis.length} emojis`);
       } catch (error: any) {
         console.error('Error loading emojis:', error);
         setEmojisError(error.message || 'Error loading contract emojis');
         setEmojis(getEmojis()); // Fallback
+        debugLogger.log(`Error loading emojis: ${error.message}`);
       } finally {
         setEmojisLoading(false);
       }
@@ -53,34 +107,75 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   }, []);
 
   useEffect(() => {
+    debugLogger.log(`Purchase state change - step: ${purchaseState.step}, txHash: ${purchaseState.txHash}, error: ${purchaseState.error}`);
+    
     if (purchaseState.step === 'success' && purchaseState.txHash) {
-      if (onTicketPurchased) {
-        onTicketPurchased(purchaseState.txHash);
-      }
-      setSelectedEmojis([]);
+      debugLogger.log('Purchase successful, starting post-purchase process...');
       
-      // Resetear estados de botones cuando la compra es exitosa
-      setIsGeneratingRandom(false);
-      setIsConfirmingTicket(false);
+      // Usar try-catch para todo el proceso post-compra
+      const handlePostPurchase = async () => {
+        try {
+          if (onTicketPurchased) {
+            debugLogger.log('Calling onTicketPurchased callback...');
+            await onTicketPurchased(purchaseState.txHash);
+            debugLogger.log('onTicketPurchased callback completed');
+          }
+          
+          debugLogger.log('Clearing selected emojis...');
+          setSelectedEmojis([]);
+          
+          // Resetear estados de botones cuando la compra es exitosa
+          debugLogger.log('Resetting button states...');
+          setIsGeneratingRandom(false);
+          setIsConfirmingTicket(false);
+          
+        } catch (error) {
+          debugLogger.log(`Error in post-purchase process: ${error}`);
+          console.error('Error in post-purchase process:', error);
+        }
+      };
       
-      // Simplificar los refreshes - solo uno inicial y uno de seguimiento
-      setTimeout(() => {
-        console.log('[BlockchainTicketGenerator] Refreshing data after purchase');
-        refreshData();
-      }, 1000);
+      // Ejecutar inmediatamente
+      handlePostPurchase();
       
-      setTimeout(() => {
-        console.log('[BlockchainTicketGenerator] Final refresh and reset state');
-        refreshData();
-        resetPurchaseState();
-      }, 3000);
+      // Programar refreshes con manejo de errores individual
+      const scheduleRefresh = (delay: number, label: string) => {
+        setTimeout(async () => {
+          try {
+            debugLogger.log(`Executing ${label}...`);
+            await refreshData();
+            debugLogger.log(`${label} completed`);
+          } catch (error) {
+            debugLogger.log(`Error in ${label}: ${error}`);
+            console.error(`Error in ${label}:`, error);
+          }
+        }, delay);
+      };
+      
+      // Programar reset con manejo de errores
+      const scheduleReset = (delay: number) => {
+        setTimeout(() => {
+          try {
+            debugLogger.log('Executing purchase state reset...');
+            resetPurchaseState();
+            debugLogger.log('Purchase state reset completed');
+          } catch (error) {
+            debugLogger.log(`Error in purchase state reset: ${error}`);
+            console.error('Error in purchase state reset:', error);
+          }
+        }, delay);
+      };
+      
+      scheduleRefresh(1000, 'first refresh');
+      scheduleRefresh(3000, 'second refresh');
+      scheduleReset(5000);
     }
-  }, [purchaseState.step, purchaseState.txHash, refreshData, resetPurchaseState, onTicketPurchased]);
+  }, [purchaseState.step, purchaseState.txHash]); // Removemos dependencias que pueden causar loops
 
   // Resetear estados de botones cuando hay errores
   useEffect(() => {
     if (purchaseState.error) {
-      console.log('[BlockchainTicketGenerator] Purchase error detected, resetting button states');
+      debugLogger.log(`Purchase error detected: ${purchaseState.error}`);
       setIsGeneratingRandom(false);
       setIsConfirmingTicket(false);
     }
@@ -99,41 +194,68 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   };
 
   const generateRandomTicket = async () => {
-    if (!userData.canBuyTicket || purchaseState.isLoading || !emojis || emojis.length === 0 || isGeneratingRandom) return;
+    debugLogger.log('generateRandomTicket called');
+    debugLogger.log(`Conditions check - canBuyTicket: ${userData.canBuyTicket}, isLoading: ${purchaseState.isLoading}, emojis: ${emojis?.length}, isGeneratingRandom: ${isGeneratingRandom}`);
     
+    if (!userData.canBuyTicket || purchaseState.isLoading || !emojis || emojis.length === 0 || isGeneratingRandom) {
+      debugLogger.log('generateRandomTicket aborted - conditions not met');
+      return;
+    }
+    
+    debugLogger.log('Starting random ticket generation...');
     setIsGeneratingRandom(true);
     
     try {
       const shuffled = [...emojis].sort(() => 0.5 - Math.random());
       const randomEmojis = shuffled.slice(0, 4);
+      debugLogger.log(`Random emojis selected: ${randomEmojis.join(', ')}`);
+      
+      debugLogger.log('Calling buyTicket...');
       await buyTicket(randomEmojis);
+      debugLogger.log('buyTicket call completed');
     } catch (error) {
+      debugLogger.log(`Error in generateRandomTicket: ${error}`);
       console.error('Error buying random ticket:', error);
       // Si hay error, resetear inmediatamente
       setIsGeneratingRandom(false);
     }
     
     // Timeout de respaldo para asegurar que el estado se resetee
+    debugLogger.log('Setting safety timeout for random ticket generation...');
     setTimeout(() => {
+      debugLogger.log('Safety timeout triggered for random ticket generation');
       setIsGeneratingRandom(false);
     }, 10000);
   };
 
   const handleConfirmSelectedTicket = async () => {
-    if (selectedEmojis.length !== 4 || isConfirmingTicket || !userData.canBuyTicket || purchaseState.isLoading) return;
+    debugLogger.log('handleConfirmSelectedTicket called');
+    debugLogger.log(`Conditions check - selectedEmojis: ${selectedEmojis.length}, isConfirmingTicket: ${isConfirmingTicket}, canBuyTicket: ${userData.canBuyTicket}, isLoading: ${purchaseState.isLoading}`);
     
+    if (selectedEmojis.length !== 4 || isConfirmingTicket || !userData.canBuyTicket || purchaseState.isLoading) {
+      debugLogger.log('handleConfirmSelectedTicket aborted - conditions not met');
+      return;
+    }
+    
+    debugLogger.log('Starting selected ticket confirmation...');
     setIsConfirmingTicket(true);
     
     try {
+      debugLogger.log(`Selected emojis: ${selectedEmojis.join(', ')}`);
+      debugLogger.log('Calling buyTicket...');
       await buyTicket(selectedEmojis);
+      debugLogger.log('buyTicket call completed');
     } catch (error) {
+      debugLogger.log(`Error in handleConfirmSelectedTicket: ${error}`);
       console.error('Error buying selected ticket:', error);
       // Si hay error, resetear inmediatamente
       setIsConfirmingTicket(false);
     }
     
     // Timeout de respaldo para asegurar que el estado se resetee
+    debugLogger.log('Setting safety timeout for selected ticket confirmation...');
     setTimeout(() => {
+      debugLogger.log('Safety timeout triggered for selected ticket confirmation');
       setIsConfirmingTicket(false);
     }, 10000);
   };

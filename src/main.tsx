@@ -2,21 +2,26 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { AuthProvider } from './components/AuthProvider';
+import { initializeApp } from 'firebase/app';
+import { firebaseConfig } from './firebase/config';
+import { WalletProvider } from './contexts/WalletContext';
 import { MiniKitProvider } from './providers/MiniKitProvider';
-import { initializeGameState } from './firebase/gameServer';
+import { setupGlobalDebug } from './utils/debugConsole';
 
 // Configuración de redes blockchain
 // Base Mainnet - ID: 8453
 // Optimism - ID: 10
 
-// Inicializar Firebase al cargar la aplicación, pero sin bloquear el renderizado
-setTimeout(() => {
+// Initialize Firebase
+try {
+  const app = initializeApp(firebaseConfig);
   console.log('Inicializando estado del juego en segundo plano...');
-  initializeGameState().catch(error => {
-    console.error('Error al inicializar Firebase:', error);
-  });
-}, 2000); // Retraso de 2 segundos para permitir que la UI se cargue primero
+} catch (error) {
+  console.error('Error al inicializar Firebase:', error);
+}
+
+// Setup debug functions
+setupGlobalDebug();
 
 // Verificar si estamos en Warpcast
 const isWarpcast = typeof window !== 'undefined' && 
