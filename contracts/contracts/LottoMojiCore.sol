@@ -468,6 +468,27 @@ contract LottoMojiCore is
         );
     }
     
+    function getFullTicketInfo(uint256 ticketId) external view returns (
+        address ticketOwner,
+        uint8[4] memory numbers,
+        uint256 gameDay,
+        bool isActive,
+        uint256 purchaseTime,
+        bool eligibleForReserve,
+        uint8 matches
+    ) {
+        Ticket memory ticket = tickets[ticketId];
+        return (
+            ticket.ticketOwner,
+            ticket.numbers,
+            ticket.gameDay,
+            ticket.isActive,
+            ticket.purchaseTime,
+            ticket.eligibleForReserve,
+            _countMatches(ticketId)
+        );
+    }
+    
     function getUserTickets(address user) external view returns (uint256[] memory) {
         return userTickets[user];
     }

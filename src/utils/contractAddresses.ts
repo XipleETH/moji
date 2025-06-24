@@ -8,7 +8,7 @@ export const CONTRACT_ADDRESSES = {
   USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
   // Nuevo contrato integrado LottoMoji
-  LOTTO_MOJI_CORE: '0xE0afd152Ec3F945A32586eb01A28522F1F69c15c', // Contrato completo desplegado
+  LOTTO_MOJI_CORE: '0x3D896A1255aa93b529b4675c4991C92C7783652D', // Contrato completo desplegado con getFullTicketInfo
   
   // Contratos legacy (mantener para referencia)
   LEGACY_LOTTO_MOJI_MAIN: '0x3823B745121DFC7616CC2F3dd15E89e0cb1E7987',

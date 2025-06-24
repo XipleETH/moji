@@ -90,20 +90,21 @@ const LOTTO_MOJI_CORE_ABI = [
     type: 'function'
   },
   {
-    inputs: [{ name: '', type: 'uint256' }],
-    name: 'tickets',
+    inputs: [{ name: 'ticketId', type: 'uint256' }],
+    name: 'getFullTicketInfo',
     outputs: [
-      { name: 'tokenId', type: 'uint256' },
       { name: 'ticketOwner', type: 'address' },
       { name: 'numbers', type: 'uint8[4]' },
       { name: 'gameDay', type: 'uint256' },
       { name: 'isActive', type: 'bool' },
       { name: 'purchaseTime', type: 'uint256' },
-      { name: 'eligibleForReserve', type: 'bool' }
+      { name: 'eligibleForReserve', type: 'bool' },
+      { name: 'matches', type: 'uint8' }
     ],
     stateMutability: 'view',
     type: 'function'
-  }
+  },
+
 ] as const;
 
 const USDC_ABI = [
@@ -258,20 +259,13 @@ export const useBlockchainTickets = () => {
       // Cargar tickets en paralelo pero con límite
       const ticketPromises = ticketIdsToLoad.map(async (ticketId) => {
         try {
-          const [ticketInfo, ticketDetails] = await Promise.all([
-            publicClient.readContract({
-              address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-              abi: LOTTO_MOJI_CORE_ABI,
-              functionName: 'getTicketInfo',
-              args: [ticketId]
-            }),
-            publicClient.readContract({
-              address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-              abi: LOTTO_MOJI_CORE_ABI,
-              functionName: 'tickets',
-              args: [ticketId]
-            })
-          ]);
+          // Usar getFullTicketInfo para obtener toda la información incluyendo purchaseTime
+          const ticketInfo = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+            abi: LOTTO_MOJI_CORE_ABI,
+            functionName: 'getFullTicketInfo',
+            args: [ticketId]
+          });
 
           const numbers = Array.from(ticketInfo[1]);
           const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
@@ -282,8 +276,8 @@ export const useBlockchainTickets = () => {
             emojis: emojis,
             gameDay: ticketInfo[2].toString(),
             isActive: ticketInfo[3],
-            purchaseTime: Number(ticketDetails[5]) * 1000, // Convert to milliseconds
-            matches: ticketInfo[4]
+            purchaseTime: Number(ticketInfo[4]) * 1000, // Convert from seconds to milliseconds
+            matches: ticketInfo[6]
           };
         } catch (error) {
           console.warn(`Error loading ticket ${ticketId}:`, error);
