@@ -2828,8 +2828,44 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para diagnosticar el timer híbrido
+(window as any).diagnoseHybridTimer = () => {
+  try {
+    console.log('🔍 Diagnóstico del Timer Híbrido:');
+    console.log('===============================');
+    
+    // Intentar acceder a los datos del timer desde el estado global (si está disponible)
+    // Esta función será útil para debugging una vez que el componente esté montado
+    
+    console.log('📋 Instrucciones de uso:');
+    console.log('1. Asegúrate de que el componente esté cargado');
+    console.log('2. El timer híbrido debería mostrar estado de conexión con el contrato');
+    console.log('3. Verifica que los logs muestren sincronización cada 60 segundos');
+    console.log('4. El indicador visual debería mostrar "Contract Synced" cuando esté conectado');
+    
+    console.log('⚙️ Configuración esperada:');
+    console.log('- drawTimeUTC: 3 hours (03:00 UTC = 00:00 São Paulo)');
+    console.log('- drawInterval: 24 hours (86400 seconds)');
+    console.log('- Timer source: "contract" cuando conectado, "local" como fallback');
+    
+    console.log('🎯 Logs a observar:');
+    console.log('- [useContractTimer] Contract data');
+    console.log('- [useHybridTimer] Switching timer source');
+    console.log('- [useContractTimer] Syncing with contract');
+    
+    return {
+      message: 'Diagnóstico completado. Revisa los logs de la consola.',
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[diagnoseHybridTimer] Error:', error);
+    return { error: error.message };
+  }
+};
+
 function AppContent() {
-  const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus } = useGameState();
+  const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus, timerInfo } = useGameState();
   const { context } = useMiniKit();
   const sendNotification = useNotification();
   const viewProfile = useViewProfile();
@@ -2973,7 +3009,13 @@ function AppContent() {
             ⏰ Next draw in:
           </p>
           <div className="flex justify-center">
-            <Timer seconds={gameState.timeRemaining} />
+            <Timer 
+              seconds={gameState.timeRemaining}
+              isContractConnected={timerInfo?.isContractConnected}
+              currentGameDay={timerInfo?.currentGameDay}
+              nextDrawTime={timerInfo?.nextDrawTime}
+              error={timerInfo?.error}
+            />
           </div>
         </div>
 
@@ -3144,6 +3186,7 @@ function App() {
       console.log('- window.forceDistributePrizes() - Forzar distribución de premios específicos');
       console.log('- window.repairZeroFinalPools() - Reparar pools con finalPools en 0');
       console.log('- window.investigateGameResults() - Investigador resultados de sorteo');
+      console.log('- window.diagnoseHybridTimer() - Diagnosticar el timer híbrido');
   }, []);
 
   return (

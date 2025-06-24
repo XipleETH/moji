@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { GameState, Ticket, GameResult, DailyTokens } from '../types';
-import { useRealTimeTimer } from './useRealTimeTimer';
+import { useHybridTimer } from './useHybridTimer';
 import { useWallet } from '../contexts/WalletContext';
 import { useRateLimit } from './useRateLimit';
 import { useTicketQueue } from './useTicketQueue';
@@ -198,8 +198,8 @@ export function useGameState() {
     // Solo registrar que el temporizador ha terminado
   }, []);
 
-  // Obtener el tiempo restante del temporizador
-  const timeRemaining = useRealTimeTimer(onGameProcessed);
+  // Obtener el tiempo restante del temporizador híbrido (contrato + local)
+  const hybridTimer = useHybridTimer(onGameProcessed);
 
   // Función para forzar un sorteo manualmente
   const forceGameDraw = useCallback(() => {
@@ -265,7 +265,7 @@ export function useGameState() {
   return {
     gameState: {
       ...gameState,
-      timeRemaining
+      timeRemaining: hybridTimer.timeRemaining
     },
     generateTicket,
     forceGameDraw,
@@ -274,6 +274,14 @@ export function useGameState() {
     rateLimitStatus: {
       isBlocked: rateLimit.isBlocked,
       remainingTime: rateLimit.remainingTime
+    },
+    // Información del timer híbrido para el componente Timer
+    timerInfo: {
+      isContractConnected: hybridTimer.isContractConnected,
+      currentGameDay: hybridTimer.currentGameDay,
+      nextDrawTime: hybridTimer.nextDrawTime,
+      error: hybridTimer.error,
+      timerSource: hybridTimer.timerSource
     }
   };
 }
