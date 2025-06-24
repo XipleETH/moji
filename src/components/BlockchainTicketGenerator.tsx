@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
 import { getEmojis, loadEmojisFromContract } from '../utils/emojiManager';
 import { GAME_CONFIG } from '../utils/contractAddresses';
 import { formatUnits } from 'viem';
 import { CheckCircle, Coins, X, Dice1 } from 'lucide-react';
+import { useWallet } from '../contexts/WalletContext';
+import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
 
 interface BlockchainTicketGeneratorProps {
   onTicketPurchased?: (txHash: string) => void;
@@ -18,9 +19,9 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   const [isConfirmingTicket, setIsConfirmingTicket] = useState(false);
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   
+  const { user, isConnected } = useWallet();
   const {
     userData,
-    userAddress,
     purchaseState,
     buyTicket,
     resetPurchaseState
@@ -122,15 +123,15 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
 
   const formatUSDC = (amount: bigint) => formatUnits(amount, 6);
 
-  const canBuyTicket = userData.canBuyTicket && !purchaseState.isLoading && userAddress;
+  const canBuyTicket = userData.canBuyTicket && !purchaseState.isLoading && isConnected && user;
   const isAnyButtonProcessing = isGeneratingRandom || isConfirmingTicket || purchaseState.isLoading;
 
-  if (!userAddress) {
+  if (!isConnected || !user) {
     return (
       <div className={`bg-red-900/50 rounded-lg p-6 text-white text-center ${className}`}>
         <div className="text-4xl mb-3">🔒</div>
         <h3 className="text-lg font-bold mb-2">Connect Your Wallet</h3>
-        <p className="text-red-300">You need a Coinbase Wallet to buy tickets</p>
+        <p className="text-red-300">You need to connect your wallet to buy tickets</p>
       </div>
     );
   }
@@ -200,124 +201,124 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                 href={`https://sepolia.basescan.org/tx/${purchaseState.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-blue-300 hover:text-blue-200 mt-2 block"
+                className="text-blue-400 hover:text-blue-300 text-sm underline"
               >
-                View on BaseScan 🔍
+                View transaction
               </a>
             )}
           </div>
         )}
 
-        {/* Emoji Selection Grid */}
-        <div className="p-4 bg-white/80 rounded-xl backdrop-blur-sm shadow-lg">
-          <div className="mb-3 text-center text-gray-700">
+        {/* Selection Header */}
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-semibold text-white">
             Select 4 emojis ({selectedEmojis.length}/4)
-          </div>
-          
-          {/* Random button */}
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={generateRandomTicket}
-              disabled={!canBuyTicket || isAnyButtonProcessing}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all
-                ${isGeneratingRandom 
-                  ? 'bg-purple-600 scale-95 shadow-2xl animate-pulse ring-4 ring-purple-400/50 text-white' 
-                  : canBuyTicket && !isAnyButtonProcessing
-                    ? 'bg-yellow-500 hover:bg-yellow-600 text-white hover:scale-105'
-                    : 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
-                }`}
-            >
-              <Dice1 size={16} className={isGeneratingRandom ? 'animate-spin' : ''} />
-              🎲 Random
-            </button>
-          </div>
-          
-          {/* Selected emojis display */}
-          <div className="grid grid-cols-4 gap-2 mb-4 p-3 bg-white/50 rounded-lg">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="relative">
-                <div className="aspect-square bg-white/70 rounded-lg flex items-center justify-center text-xl border-2 border-dashed border-gray-300">
-                  {selectedEmojis[i] || '?'}
-                </div>
-                {selectedEmojis[i] && (
-                  <button
-                    onClick={() => handleEmojiDeselect(i)}
-                    className="absolute -top-2 -right-2 bg-red-500 rounded-full p-0.5 
-                             text-white hover:bg-red-600 transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+          </h4>
+          <button
+            onClick={generateRandomTicket}
+            disabled={!canBuyTicket || isAnyButtonProcessing}
+            className={`
+              flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all
+              ${canBuyTicket && !isAnyButtonProcessing
+                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }
+            `}
+          >
+            <Dice1 size={18} className={isGeneratingRandom ? 'animate-spin' : ''} />
+            {isGeneratingRandom ? 'Generating...' : '🎲 Random'}
+          </button>
+        </div>
 
-          {/* Emoji grid */}
+        {/* Selected Emojis */}
+        {selectedEmojis.length > 0 && (
+          <div className="bg-black/20 rounded-lg p-4">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {selectedEmojis.map((emoji, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleEmojiDeselect(index)}
+                  className="relative group bg-white/10 hover:bg-red-500/20 rounded-lg p-3 transition-colors"
+                  disabled={purchaseState.isLoading}
+                >
+                  <span className="text-3xl">{emoji}</span>
+                  <X 
+                    size={16} 
+                    className="absolute -top-1 -right-1 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 rounded-full p-0.5"
+                  />
+                </button>
+              ))}
+              {Array.from({ length: 4 - selectedEmojis.length }).map((_, index) => (
+                <div key={`empty-${index}`} className="bg-white/5 border-2 border-dashed border-white/20 rounded-lg w-14 h-14 flex items-center justify-center">
+                  <span className="text-white/40 text-xl">?</span>
+                </div>
+              ))}
+            </div>
+            
+            {selectedEmojis.length === 4 && (
+              <button
+                onClick={handleConfirmSelectedTicket}
+                disabled={!canBuyTicket || isConfirmingTicket}
+                className={`
+                  w-full py-3 px-4 rounded-lg font-bold transition-all
+                  ${canBuyTicket && !isConfirmingTicket
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }
+                `}
+              >
+                {isConfirmingTicket ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Confirming...
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <CheckCircle size={20} />
+                    Buy Ticket • {formatUSDC(userData.ticketPrice)} USDC
+                  </div>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Emoji Grid */}
+        <div className="bg-white/5 rounded-lg p-4">
           {emojisLoading ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
-              <div className="text-sm text-gray-600 mt-2">Loading contract emojis...</div>
+            <div className="text-center py-8">
+              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-white/70">Loading emojis from contract...</p>
             </div>
           ) : emojisError ? (
-            <div className="bg-orange-500/20 border border-orange-500 rounded-lg p-3 mb-4">
-              <div className="text-orange-700 text-sm">
-                ⚠️ {emojisError}
-              </div>
+            <div className="text-center py-8">
+              <p className="text-red-400 mb-2">⚠️ {emojisError}</p>
+              <p className="text-white/70 text-sm">Using fallback emojis</p>
             </div>
           ) : (
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
               {emojis.map((emoji, index) => (
                 <button
                   key={index}
                   onClick={() => handleEmojiSelect(emoji)}
+                  disabled={selectedEmojis.length >= 4 || !canBuyTicket || purchaseState.isLoading}
                   className={`
-                    text-2xl p-2 rounded-lg transition-all duration-200
-                    ${canBuyTicket && !isAnyButtonProcessing && selectedEmojis.length < 4
-                      ? 'bg-white/50 hover:bg-white shadow hover:scale-105'
-                      : 'opacity-50 cursor-not-allowed'}
+                    aspect-square bg-white/10 hover:bg-white/20 rounded-lg p-2 transition-all text-2xl
+                    ${selectedEmojis.includes(emoji) 
+                      ? 'bg-purple-500/30 border-2 border-purple-400' 
+                      : 'border border-white/20'
+                    }
+                    ${!canBuyTicket || purchaseState.isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:scale-110 active:scale-95'
+                    }
                   `}
-                  disabled={!canBuyTicket || isAnyButtonProcessing || selectedEmojis.length >= 4}
                 >
                   {emoji}
                 </button>
               ))}
             </div>
           )}
-        </div>
-
-        {/* Confirm Selected Ticket Button */}
-        {(selectedEmojis.length === 4 || isConfirmingTicket) && (
-          <button
-            onClick={handleConfirmSelectedTicket}
-            disabled={!canBuyTicket || isAnyButtonProcessing || selectedEmojis.length !== 4}
-            className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
-                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
-                     ${isConfirmingTicket 
-                       ? 'bg-green-600 scale-95 shadow-2xl animate-pulse ring-4 ring-green-400/50 text-white' 
-                       : canBuyTicket && selectedEmojis.length === 4
-                         ? 'bg-green-500 hover:bg-green-600 hover:scale-105 hover:shadow-xl active:scale-95 text-white' 
-                         : 'bg-gray-500 text-gray-300'
-                     }`}
-          >
-            <CheckCircle size={20} className={isConfirmingTicket ? 'animate-spin' : ''} />
-            {isConfirmingTicket ? 'Processing ticket...' :
-             !userData.canBuyTicket ? 'Insufficient USDC' :
-             selectedEmojis.length !== 4 ? `Select ${4 - selectedEmojis.length} more` :
-             'Confirm Ticket (2 USDC)'}
-          </button>
-        )}
-
-        {/* Status messages */}
-        <div className="text-center space-y-2">
-          <div className="text-white/80">
-            Tickets owned: {userData.ticketsOwned.toString()}
-          </div>
-          
-          <div className="text-white/70 text-sm">
-            {selectedEmojis.length === 0 && "Select 4 emojis to create a custom ticket"}
-            {selectedEmojis.length > 0 && selectedEmojis.length < 4 && `Select ${4 - selectedEmojis.length} more emoji${4 - selectedEmojis.length !== 1 ? 's' : ''}`}
-            {selectedEmojis.length === 4 && "Ready! Click 'Confirm Ticket' to buy your ticket"}
-          </div>
         </div>
       </div>
     </div>
