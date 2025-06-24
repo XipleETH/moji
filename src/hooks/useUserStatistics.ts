@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { getUserStatistics } from '../firebase/game';
 import { useBlockchainTickets } from './useBlockchainTickets';
 import { useWallet } from '../contexts/WalletContext';
 
-interface UserStatistics {
+interface BlockchainUserStatistics {
   totalTickets: number;
-  freeTickets: number;
   paidTickets: number;
+  freeTickets: number;
+  recentTickets: number;
   wins: {
     firstPrize: number;
     secondPrize: number;
@@ -14,109 +14,95 @@ interface UserStatistics {
     freePrize: number;
   };
   totalWins: number;
-}
-
-interface EnhancedUserStatistics extends UserStatistics {
-  blockchainTickets: number;
-  recentTickets: number;
   lastUpdated: number;
-  isLoadingBlockchain: boolean;
-  isLoadingFirebase: boolean;
+  isLoading: boolean;
 }
 
 export const useUserStatistics = (userId: string | null) => {
-  const [firebaseStats, setFirebaseStats] = useState<UserStatistics | null>(null);
-  const [enhancedStats, setEnhancedStats] = useState<EnhancedUserStatistics | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [statistics, setStatistics] = useState<BlockchainUserStatistics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number>(0);
 
   const { user, isConnected } = useWallet();
   const { userData: blockchainData, isLoadingTickets, refreshData } = useBlockchainTickets();
 
-  // Función para combinar datos de Firebase y blockchain
-  const combineStatistics = (firebase: UserStatistics | null, blockchainTickets: number, isLoadingBC: boolean, isLoadingFB: boolean): EnhancedUserStatistics | null => {
-    if (!firebase && isLoadingFB) return null;
+  // Función para calcular estadísticas basadas solo en datos blockchain
+  const calculateBlockchainStats = (): BlockchainUserStatistics => {
+    const tickets = blockchainData.userTickets;
+    const totalTickets = Number(blockchainData.ticketsOwned);
+    
+    // Calcular premios ganados basado en matches de los tickets
+    let firstPrizeWins = 0;
+    let secondPrizeWins = 0;
+    let thirdPrizeWins = 0;
+    let freePrizeWins = 0;
 
-    // Si no hay datos de Firebase, crear estructura básica
-    const baseStats = firebase || {
-      totalTickets: 0,
-      freeTickets: 0,
-      paidTickets: 0,
+    tickets.forEach(ticket => {
+      if (ticket.matches !== undefined && ticket.matches > 0) {
+        switch (ticket.matches) {
+          case 4:
+            firstPrizeWins++;
+            break;
+          case 3:
+            secondPrizeWins++;
+            break;
+          case 2:
+            thirdPrizeWins++;
+            break;
+          case 1:
+            freePrizeWins++;
+            break;
+        }
+      }
+    });
+
+    // Calcular tickets recientes (últimos 3 días)
+    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+    const recentTickets = tickets.filter(ticket => ticket.purchaseTime >= threeDaysAgo).length;
+
+    return {
+      totalTickets: totalTickets,
+      paidTickets: totalTickets, // Todos los tickets blockchain son pagados (USDC)
+      freeTickets: 0, // No hay tickets gratuitos en blockchain
+      recentTickets: recentTickets,
       wins: {
-        firstPrize: 0,
-        secondPrize: 0,
-        thirdPrize: 0,
-        freePrize: 0
+        firstPrize: firstPrizeWins,
+        secondPrize: secondPrizeWins,
+        thirdPrize: thirdPrizeWins,
+        freePrize: freePrizeWins
       },
-      totalWins: 0
-    };
-
-    // Combinar datos de Firebase con datos blockchain
-    const combinedStats: EnhancedUserStatistics = {
-      ...baseStats,
-      // Usar el máximo entre Firebase y blockchain para total de tickets
-      totalTickets: Math.max(baseStats.totalTickets, blockchainTickets),
-      // Si blockchain tiene más tickets, la diferencia son tickets pagados
-      paidTickets: Math.max(baseStats.paidTickets, blockchainTickets - baseStats.freeTickets),
-      // Información adicional del blockchain
-      blockchainTickets: blockchainTickets,
-      recentTickets: blockchainData.userTickets.length,
+      totalWins: firstPrizeWins + secondPrizeWins + thirdPrizeWins + freePrizeWins,
       lastUpdated: Date.now(),
-      isLoadingBlockchain: isLoadingBC,
-      isLoadingFirebase: isLoadingFB
+      isLoading: isLoadingTickets
     };
-
-    return combinedStats;
   };
 
-  // Cargar datos de Firebase
+  // Actualizar estadísticas cuando cambian los datos blockchain
   useEffect(() => {
-    if (!userId) {
-      setFirebaseStats(null);
-      setEnhancedStats(null);
-      return;
-    }
-
-    const fetchFirebaseStats = async () => {
-      setLoading(true);
-      setError(null);
+    if (isConnected && user?.walletAddress) {
       try {
-        console.log('[useUserStatistics] Loading Firebase stats for:', userId);
-        const stats = await getUserStatistics(userId);
-        setFirebaseStats(stats);
+        const stats = calculateBlockchainStats();
+        setStatistics(stats);
+        setError(null);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[useUserStatistics] Blockchain-only stats updated:', {
+            totalTickets: stats.totalTickets,
+            recentTickets: stats.recentTickets,
+            totalWins: stats.totalWins,
+            userTicketsLength: blockchainData.userTickets.length
+          });
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load statistics');
-        console.error('Error fetching user statistics:', err);
-      } finally {
-        setLoading(false);
+        console.error('Error calculating blockchain stats:', err);
+        setError(err instanceof Error ? err.message : 'Failed to calculate statistics');
       }
-    };
-
-    fetchFirebaseStats();
-  }, [userId]);
-
-  // Actualizar estadísticas combinadas cuando cambian los datos
-  useEffect(() => {
-    const combined = combineStatistics(
-      firebaseStats,
-      Number(blockchainData.ticketsOwned),
-      isLoadingTickets,
-      loading
-    );
-    
-    if (combined) {
-      setEnhancedStats(combined);
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useUserStatistics] Enhanced stats updated:', {
-          firebase: firebaseStats,
-          blockchain: Number(blockchainData.ticketsOwned),
-          combined: combined
-        });
-      }
+    } else {
+      // Reset cuando no está conectado
+      setStatistics(null);
+      setError(null);
     }
-  }, [firebaseStats, blockchainData.ticketsOwned, blockchainData.userTickets.length, isLoadingTickets, loading]);
+  }, [blockchainData.ticketsOwned, blockchainData.userTickets, isLoadingTickets, isConnected, user?.walletAddress]);
 
   // Auto-refresh cada 30 segundos cuando hay un usuario conectado
   useEffect(() => {
@@ -137,31 +123,26 @@ export const useUserStatistics = (userId: string | null) => {
 
   // Función manual de refresh
   const refreshStats = async () => {
-    if (!userId) return;
+    if (!userId || !isConnected) return;
 
-    console.log('[useUserStatistics] Manual refresh initiated');
+    console.log('[useUserStatistics] Manual refresh initiated (blockchain only)');
     setError(null);
     
     try {
-      // Refresh blockchain data
+      // Solo refresh de datos blockchain
       await refreshData();
-      
-      // Refresh Firebase data
-      const stats = await getUserStatistics(userId);
-      setFirebaseStats(stats);
-      
       setLastRefresh(Date.now());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh statistics');
-      console.error('Error refreshing statistics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh blockchain statistics');
+      console.error('Error refreshing blockchain statistics:', err);
     }
   };
 
   return { 
-    statistics: enhancedStats,
-    loading: loading || isLoadingTickets,
+    statistics,
+    loading: isLoadingTickets,
     error,
     refreshStats,
-    lastUpdated: enhancedStats?.lastUpdated || 0
+    lastUpdated: statistics?.lastUpdated || 0
   };
 }; 

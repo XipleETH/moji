@@ -149,8 +149,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                   <Ticket className="mr-2 text-blue-600" size={20} />
-                  Tickets Overview
-                  {(statistics.isLoadingBlockchain || statistics.isLoadingFirebase) && (
+                  Tickets Overview (Blockchain)
+                  {statistics.isLoading && (
                     <div className="ml-2 w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
                   )}
                 </h3>
@@ -158,24 +158,23 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <div className="bg-blue-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-blue-600">{statistics.totalTickets}</div>
                     <div className="text-xs text-blue-700">Total Tickets</div>
-                    {statistics.blockchainTickets > 0 && (
-                      <div className="text-xs text-blue-500 mt-1">
-                        {statistics.blockchainTickets} on-chain
-                      </div>
-                    )}
+                    <div className="text-xs text-blue-500 mt-1">
+                      On-chain (USDC)
+                    </div>
                   </div>
                   <div className="bg-green-50 p-3 rounded-lg text-center">
                     <div className="text-2xl font-bold text-green-600">{statistics.paidTickets}</div>
                     <div className="text-xs text-green-700">Purchased</div>
-                    {statistics.recentTickets > 0 && (
-                      <div className="text-xs text-green-500 mt-1">
-                        {statistics.recentTickets} recent
-                      </div>
-                    )}
+                    <div className="text-xs text-green-500 mt-1">
+                      Blockchain paid
+                    </div>
                   </div>
                   <div className="bg-purple-50 p-3 rounded-lg text-center">
-                    <div className="text-2xl font-bold text-purple-600">{statistics.freeTickets}</div>
-                    <div className="text-xs text-purple-700">Free Tickets</div>
+                    <div className="text-2xl font-bold text-purple-600">{statistics.recentTickets}</div>
+                    <div className="text-xs text-purple-700">Recent (3 days)</div>
+                    <div className="text-xs text-purple-500 mt-1">
+                      Latest activity
+                    </div>
                   </div>
                 </div>
               </div>
@@ -184,13 +183,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                   <Target className="mr-2 text-yellow-600" size={20} />
-                  Prizes Won
+                  Prizes Won (From Blockchain)
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                     <div className="flex items-center">
                       <Trophy className="text-yellow-600 mr-3" size={20} />
-                      <span className="font-medium">First Prize</span>
+                      <div>
+                        <span className="font-medium">First Prize</span>
+                        <div className="text-xs text-yellow-600">4 matches</div>
+                      </div>
                     </div>
                     <span className="text-xl font-bold text-yellow-600">{statistics.wins.firstPrize}</span>
                   </div>
@@ -198,7 +200,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center">
                       <Award className="text-gray-600 mr-3" size={20} />
-                      <span className="font-medium">Second Prize</span>
+                      <div>
+                        <span className="font-medium">Second Prize</span>
+                        <div className="text-xs text-gray-600">3 matches</div>
+                      </div>
                     </div>
                     <span className="text-xl font-bold text-gray-600">{statistics.wins.secondPrize}</span>
                   </div>
@@ -206,7 +211,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
                     <div className="flex items-center">
                       <Medal className="text-orange-600 mr-3" size={20} />
-                      <span className="font-medium">Third Prize</span>
+                      <div>
+                        <span className="font-medium">Third Prize</span>
+                        <div className="text-xs text-orange-600">2 matches</div>
+                      </div>
                     </div>
                     <span className="text-xl font-bold text-orange-600">{statistics.wins.thirdPrize}</span>
                   </div>
@@ -214,7 +222,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                     <div className="flex items-center">
                       <Ticket className="text-green-600 mr-3" size={20} />
-                      <span className="font-medium">Free Tickets Won</span>
+                      <div>
+                        <span className="font-medium">Consolation Prize</span>
+                        <div className="text-xs text-green-600">1 match</div>
+                      </div>
                     </div>
                     <span className="text-xl font-bold text-green-600">{statistics.wins.freePrize}</span>
                   </div>
@@ -234,7 +245,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   </div>
                   {/* Data source indicator */}
                   <div className="text-xs text-purple-400 mt-2">
-                    Combined Firebase + Blockchain data
+                    🔗 Live Blockchain Data Only
                   </div>
                 </div>
               </div>
