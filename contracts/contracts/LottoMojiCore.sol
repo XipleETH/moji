@@ -76,9 +76,9 @@ contract LottoMojiCore is
     
     // Reserve pools
     struct ReservePools {
-        uint256 firstPrizeReserve1;     // Accumulates 20% of first prize daily
-        uint256 secondPrizeReserve2;    // Accumulates 20% of second prize daily
-        uint256 thirdPrizeReserve3;     // Accumulates 20% of third prize daily
+        uint256 firstPrizeReserve1;     // Accumulates 80% of daily reserves (16% of total revenue)
+        uint256 secondPrizeReserve2;    // Accumulates 10% of daily reserves (2% of total revenue)
+        uint256 thirdPrizeReserve3;     // Accumulates 10% of daily reserves (2% of total revenue)
     }
     
     ReservePools public reserves;
@@ -165,6 +165,12 @@ contract LottoMojiCore is
         uint256 oldTime,
         uint256 newTime,
         uint256 newGameDay
+    );
+    
+    event ReserveUsedForRefill(
+        uint256 indexed gameDay,
+        uint8 prizeLevel,
+        uint256 amountTransferred
     );
     
     constructor(
@@ -378,20 +384,49 @@ contract LottoMojiCore is
             else if (matches == 2) hasThirdPrizeWinner = true;
         }
         
-        // Accumulate pools if no winners
+        // Process prize distribution and auto-refill from reserves
         DailyPool storage pool = dailyPools[gameDay];
         
         if (!hasFirstPrizeWinner) {
+            // No winner: accumulate to main pool
             mainPools.firstPrizeAccumulated += pool.firstPrizeDaily;
-        }
-        if (!hasSecondPrizeWinner) {
-            mainPools.secondPrizeAccumulated += pool.secondPrizeDaily;
-        }
-        if (!hasThirdPrizeWinner) {
-            mainPools.thirdPrizeAccumulated += pool.thirdPrizeDaily;
+        } else {
+            // Has winner: check if main pool needs refill from reserve
+            if (mainPools.firstPrizeAccumulated == 0 && reserves.firstPrizeReserve1 > 0) {
+                // Auto-refill from reserve when main pool is empty
+                mainPools.firstPrizeAccumulated = reserves.firstPrizeReserve1;
+                reserves.firstPrizeReserve1 = 0;
+                emit ReserveUsedForRefill(gameDay, 1, mainPools.firstPrizeAccumulated);
+            }
         }
         
-        // Development always gets paid
+        if (!hasSecondPrizeWinner) {
+            // No winner: accumulate to main pool
+            mainPools.secondPrizeAccumulated += pool.secondPrizeDaily;
+        } else {
+            // Has winner: check if main pool needs refill from reserve
+            if (mainPools.secondPrizeAccumulated == 0 && reserves.secondPrizeReserve2 > 0) {
+                // Auto-refill from reserve when main pool is empty
+                mainPools.secondPrizeAccumulated = reserves.secondPrizeReserve2;
+                reserves.secondPrizeReserve2 = 0;
+                emit ReserveUsedForRefill(gameDay, 2, mainPools.secondPrizeAccumulated);
+            }
+        }
+        
+        if (!hasThirdPrizeWinner) {
+            // No winner: accumulate to main pool
+            mainPools.thirdPrizeAccumulated += pool.thirdPrizeDaily;
+        } else {
+            // Has winner: check if main pool needs refill from reserve
+            if (mainPools.thirdPrizeAccumulated == 0 && reserves.thirdPrizeReserve3 > 0) {
+                // Auto-refill from reserve when main pool is empty
+                mainPools.thirdPrizeAccumulated = reserves.thirdPrizeReserve3;
+                reserves.thirdPrizeReserve3 = 0;
+                emit ReserveUsedForRefill(gameDay, 3, mainPools.thirdPrizeAccumulated);
+            }
+        }
+        
+        // Development always gets paid (no reserve for development)
         mainPools.developmentAccumulated += pool.developmentDaily;
         
         pool.distributed = true;
@@ -401,15 +436,19 @@ contract LottoMojiCore is
     function _sendDailyReserves(uint256 gameDay) internal {
         DailyPool storage pool = dailyPools[gameDay];
         
-        uint256 reservePerPrize = pool.reservePortion / 3;
+        // Distribute reserves proportionally to prize percentages
+        uint256 firstPrizeReserve = (pool.reservePortion * FIRST_PRIZE_PERCENTAGE) / 100;  // 80% of reserves
+        uint256 secondPrizeReserve = (pool.reservePortion * SECOND_PRIZE_PERCENTAGE) / 100; // 10% of reserves  
+        uint256 thirdPrizeReserve = (pool.reservePortion * THIRD_PRIZE_PERCENTAGE) / 100;   // 10% of reserves
+        // No reserve for development (5% remains in contract as buffer)
         
-        reserves.firstPrizeReserve1 += reservePerPrize;
-        reserves.secondPrizeReserve2 += reservePerPrize;
-        reserves.thirdPrizeReserve3 += reservePerPrize;
+        reserves.firstPrizeReserve1 += firstPrizeReserve;
+        reserves.secondPrizeReserve2 += secondPrizeReserve;
+        reserves.thirdPrizeReserve3 += thirdPrizeReserve;
         
         pool.reservesSent = true;
         
-        emit DailyReservesSent(gameDay, reservePerPrize, reservePerPrize, reservePerPrize, pool.reservePortion);
+        emit DailyReservesSent(gameDay, firstPrizeReserve, secondPrizeReserve, thirdPrizeReserve, pool.reservePortion);
     }
     
     function _countMatches(uint256 ticketId) internal view returns (uint8) {

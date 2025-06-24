@@ -3,8 +3,11 @@
   "scripts": {
     "deploy": "npx hardhat run scripts/deploy.js --network base-sepolia",
     "deploy-v2": "npx hardhat run scripts/deploy-v2.js --network base-sepolia",
+    "deploy-v3": "npx hardhat run scripts/deploy-v3.js --network base-sepolia",
     "fix-timing": "npx hardhat run scripts/fix-contract-timing.js --network base-sepolia",
     "add-consumer": "npx hardhat run scripts/add-consumer-to-vrf.js --network base-sepolia",
+    "test-payments": "npx hardhat run scripts/test-payment-system.js --network base-sepolia",
+    "test-payments-v3": "npx hardhat run scripts/test-payment-system-v3.js --network base-sepolia",
     "test-all": "npx hardhat run scripts/test-all-functions.js --network base-sepolia"
   },
   "devDependencies": {
