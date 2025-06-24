@@ -14,6 +14,7 @@ import { sdk } from '@farcaster/frame-sdk';
 import { useAuth } from './components/AuthProvider';
 import { useWallet } from './contexts/WalletContext';
 import { WinnerAnnouncement } from './components/WinnerAnnouncement';
+import { ContractWinnerResults } from './components/ContractWinnerResults';
 import { TicketHistoryModal } from './components/TicketHistoryModal';
 import { WalletInfo } from './components/WalletInfo';
 import { PrizePoolSummary, PrizePoolDisplay } from './components/PrizePoolDisplay';
@@ -2980,14 +2981,7 @@ function AppContent() {
           <ContractPoolsDisplay />
         </div>
 
-        <WinnerAnnouncement 
-          winningNumbers={gameState.winningNumbers || []}
-          firstPrize={gameState.lastResults?.firstPrize || []}
-          secondPrize={gameState.lastResults?.secondPrize || []}
-          thirdPrize={gameState.lastResults?.thirdPrize || []}
-          freePrize={gameState.lastResults?.freePrize || []}
-          currentUserId={user?.id}
-        />
+        <ContractWinnerResults />
 
         {import.meta.env.DEV && (
           <div className="flex justify-center gap-4 mb-6">
