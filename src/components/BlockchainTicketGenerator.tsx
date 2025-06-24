@@ -59,27 +59,49 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
       }
       setSelectedEmojis([]);
       
-      // Múltiples refreshes para asegurar actualización
+      // Resetear estados de botones cuando la compra es exitosa
+      setIsGeneratingRandom(false);
+      setIsConfirmingTicket(false);
+      
+      // Simplificar los refreshes - solo uno inicial y uno de seguimiento
       setTimeout(() => {
-        console.log('[BlockchainTicketGenerator] First refresh after purchase');
+        console.log('[BlockchainTicketGenerator] Refreshing data after purchase');
         refreshData();
-      }, 500);
+      }, 1000);
       
       setTimeout(() => {
-        console.log('[BlockchainTicketGenerator] Second refresh after purchase');
+        console.log('[BlockchainTicketGenerator] Final refresh and reset state');
         refreshData();
-      }, 2000);
-      
-      setTimeout(() => {
-        console.log('[BlockchainTicketGenerator] Third refresh after purchase');
-        refreshData();
-      }, 4000);
-      
-      setTimeout(() => {
         resetPurchaseState();
-      }, 5000);
+      }, 3000);
     }
-  }, [purchaseState.step, purchaseState.txHash, refreshData, resetPurchaseState]);
+  }, [purchaseState.step, purchaseState.txHash, refreshData, resetPurchaseState, onTicketPurchased]);
+
+  // Resetear estados de botones cuando hay errores
+  useEffect(() => {
+    if (purchaseState.error) {
+      console.log('[BlockchainTicketGenerator] Purchase error detected, resetting button states');
+      setIsGeneratingRandom(false);
+      setIsConfirmingTicket(false);
+    }
+  }, [purchaseState.error]);
+
+  // Resetear estados cuando el usuario se desconecta o el componente se desmonta
+  useEffect(() => {
+    if (!isConnected || !user) {
+      setIsGeneratingRandom(false);
+      setIsConfirmingTicket(false);
+      setSelectedEmojis([]);
+    }
+  }, [isConnected, user]);
+
+  // Cleanup al desmontar el componente
+  useEffect(() => {
+    return () => {
+      setIsGeneratingRandom(false);
+      setIsConfirmingTicket(false);
+    };
+  }, []);
 
   const handleEmojiSelect = (emoji: string) => {
     if (purchaseState.isLoading || selectedEmojis.length >= 4 || !userData.canBuyTicket) return;
@@ -94,38 +116,45 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   };
 
   const generateRandomTicket = async () => {
-    if (!userData.canBuyTicket || purchaseState.isLoading || !emojis || emojis.length === 0) return;
+    if (!userData.canBuyTicket || purchaseState.isLoading || !emojis || emojis.length === 0 || isGeneratingRandom) return;
     
     setIsGeneratingRandom(true);
     
     try {
       const shuffled = [...emojis].sort(() => 0.5 - Math.random());
       const randomEmojis = shuffled.slice(0, 4);
-      await buyTicket(randomEmojis);
+      const result = await buyTicket(randomEmojis);
+      
+      // Si el buyTicket falló (devuelve null), resetear el estado inmediatamente
+      if (result === null) {
+        setIsGeneratingRandom(false);
+      }
+      // Si fue exitoso, el estado se resetea en el useEffect cuando purchaseState.step === 'success'
     } catch (error) {
       console.error('Error buying random ticket:', error);
-    } finally {
-      setTimeout(() => {
-        setIsGeneratingRandom(false);
-      }, 500);
+      setIsGeneratingRandom(false);
     }
+    // Removemos el finally con setTimeout ya que manejamos el estado de forma más específica
   };
 
   const handleConfirmSelectedTicket = async () => {
-    if (selectedEmojis.length !== 4 || isConfirmingTicket || !userData.canBuyTicket) return;
+    if (selectedEmojis.length !== 4 || isConfirmingTicket || !userData.canBuyTicket || purchaseState.isLoading) return;
     
     setIsConfirmingTicket(true);
     
     try {
-      await buyTicket(selectedEmojis);
+      const result = await buyTicket(selectedEmojis);
+      
+      // Si el buyTicket falló (devuelve null), resetear el estado inmediatamente
+      if (result === null) {
+        setIsConfirmingTicket(false);
+      }
+      // Si fue exitoso, el estado se resetea en el useEffect cuando purchaseState.step === 'success'
     } catch (error) {
       console.error('Error buying selected ticket:', error);
-    } finally {
-      setTimeout(() => {
-        setIsConfirmingTicket(false);
-        setSelectedEmojis([]);
-      }, 500);
+      setIsConfirmingTicket(false);
     }
+    // Removemos el finally con setTimeout y setSelectedEmojis([]) ya que se maneja en el useEffect
   };
 
   const getStepMessage = () => {
