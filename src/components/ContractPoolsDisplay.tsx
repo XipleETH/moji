@@ -151,7 +151,7 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   const renderMainPool = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-h-[120px]">
+      <div className="grid grid-cols-2 gap-3 min-h-[120px]">
         <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-lg p-3 border border-yellow-500/20 text-center">
           <div className="text-yellow-400 text-2xl mb-1">🥇</div>
           <div className="text-yellow-100 text-xs mb-1">80%</div>

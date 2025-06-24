@@ -187,22 +187,22 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
-                    <div className="text-yellow-600 text-xs mb-1">First Prize</div>
+                    <div className="text-yellow-600 text-xs mb-1">🥇 First Prize</div>
                     <div className="text-yellow-600 text-xs mb-1">4 in exact order</div>
                     <div className="text-2xl font-bold text-yellow-700">{statistics.wins.firstPrize}</div>
                   </div>
                   <div className="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
-                    <div className="text-gray-600 text-xs mb-1">Second Prize</div>
+                    <div className="text-gray-600 text-xs mb-1">🥈 Second Prize</div>
                     <div className="text-gray-600 text-xs mb-1">4 in any order</div>
                     <div className="text-2xl font-bold text-gray-700">{statistics.wins.secondPrize}</div>
                   </div>
                   <div className="bg-orange-50 p-3 rounded-lg text-center border border-orange-200">
-                    <div className="text-orange-600 text-xs mb-1">Third Prize</div>
+                    <div className="text-orange-600 text-xs mb-1">🥉 Third Prize</div>
                     <div className="text-orange-600 text-xs mb-1">3 in exact order</div>
                     <div className="text-2xl font-bold text-orange-700">{statistics.wins.thirdPrize}</div>
                   </div>
                   <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
-                    <div className="text-blue-600 text-xs mb-1">Free Ticket</div>
+                    <div className="text-blue-600 text-xs mb-1">🎫 Free Ticket</div>
                     <div className="text-blue-600 text-xs mb-1">3 in any order</div>
                     <div className="text-2xl font-bold text-blue-700">{statistics.wins.freePrize}</div>
                   </div>
