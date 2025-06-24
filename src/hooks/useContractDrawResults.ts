@@ -21,7 +21,7 @@ interface UseContractDrawResultsReturn {
 
 // ABI mínimo para obtener resultados de sorteos
 const DRAW_RESULTS_ABI = [
-  "function lastWinningNumbers() view returns (uint8[4])",
+  "function lastWinningNumbers(uint256) view returns (uint8)",
   "function getCurrentDay() view returns (uint256)",
   "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)",
   "function lastDrawTime() view returns (uint256)",
@@ -45,17 +45,23 @@ export function useContractDrawResults(): UseContractDrawResultsReturn {
 
       // Obtener datos básicos
       const [
-        lastWinningNumbers,
         currentGameDay,
         lastDrawTime,
         totalDrawsExecuted,
         gameActive
       ] = await Promise.all([
-        contract.lastWinningNumbers(),
         contract.getCurrentDay(),
         contract.lastDrawTime(),
         contract.totalDrawsExecuted(),
         contract.gameActive()
+      ]);
+
+      // Obtener números ganadores individualmente (array de 4 elementos)
+      const lastWinningNumbers = await Promise.all([
+        contract.lastWinningNumbers(0),
+        contract.lastWinningNumbers(1),
+        contract.lastWinningNumbers(2),
+        contract.lastWinningNumbers(3)
       ]);
 
       // Determinar qué día revisar para el último sorteo
