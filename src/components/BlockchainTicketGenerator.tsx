@@ -24,7 +24,8 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     userData,
     purchaseState,
     buyTicket,
-    resetPurchaseState
+    resetPurchaseState,
+    refreshData
   } = useBlockchainTickets();
   
   const [emojis, setEmojis] = useState<string[]>(getEmojis());
@@ -57,11 +58,17 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
         onTicketPurchased(purchaseState.txHash);
       }
       setSelectedEmojis([]);
+      
+      // Refresh user data after successful purchase
+      setTimeout(() => {
+        refreshData();
+      }, 2000);
+      
       setTimeout(() => {
         resetPurchaseState();
       }, 3000);
     }
-  }, [purchaseState.step, purchaseState.txHash]);
+  }, [purchaseState.step, purchaseState.txHash, refreshData]);
 
   const handleEmojiSelect = (emoji: string) => {
     if (purchaseState.isLoading || selectedEmojis.length >= 4 || !userData.canBuyTicket) return;
@@ -255,10 +262,10 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
               ))}
             </div>
             
-            {selectedEmojis.length === 4 && (
-              <button
-                onClick={handleConfirmSelectedTicket}
-                disabled={!canBuyTicket || isConfirmingTicket}
+                          {selectedEmojis.length === 4 && (
+                <button
+                  onClick={handleConfirmSelectedTicket}
+                  disabled={!canBuyTicket || isConfirmingTicket}
                 className={`
                   w-full py-3 px-4 rounded-lg font-bold transition-all
                   ${canBuyTicket && !isConfirmingTicket

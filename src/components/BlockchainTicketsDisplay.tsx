@@ -1,5 +1,5 @@
 import React from 'react';
-import { TicketIcon, History, Clock, CheckCircle, X } from 'lucide-react';
+import { TicketIcon, History, Clock, CheckCircle, X, RefreshCw } from 'lucide-react';
 import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
 import { formatUnits } from 'viem';
 
@@ -10,7 +10,26 @@ interface BlockchainTicketsDisplayProps {
 export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> = ({ 
   onViewHistory 
 }) => {
-  const { userData } = useBlockchainTickets();
+  const { userData, isConnected, userAddress, refreshData } = useBlockchainTickets();
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  // Debug logs for development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[BlockchainTicketsDisplay] Debug data:', {
+      isConnected,
+      userAddress,
+      ticketsOwned: userData.ticketsOwned.toString(),
+      userTicketsLength: userData.userTickets.length,
+      userTickets: userData.userTickets,
+      usdcBalance: userData.usdcBalance.toString()
+    });
+  }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshData();
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -59,6 +78,44 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
 
   const todayTickets = getTodayTickets();
 
+  // Show loading state if connected but no data yet
+  if (isConnected && userData.ticketsOwned > 0n && userData.userTickets.length === 0) {
+    return (
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white flex items-center">
+            <TicketIcon className="mr-2" size={24} />
+            My Blockchain Tickets
+            <span className="ml-2 bg-purple-600 text-white text-sm px-2 py-1 rounded-full">
+              {userData.ticketsOwned.toString()}
+            </span>
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={onViewHistory}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <History size={16} />
+              View History
+            </button>
+          </div>
+        </div>
+
+        <div className="text-center py-8 bg-white/10 rounded-lg">
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white/70">Loading your tickets...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-4">
@@ -71,20 +128,44 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
             </span>
           )}
         </h2>
-        <button
-          onClick={onViewHistory}
-          className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-        >
-          <History size={16} />
-          View History
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={onViewHistory}
+            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <History size={16} />
+            View History
+          </button>
+        </div>
       </div>
 
       {todayTickets.length === 0 ? (
         <div className="text-center py-8 bg-white/10 rounded-lg">
           <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
           <p className="text-white/70">Your blockchain tickets will appear here</p>
-          <p className="text-white/50 text-sm mt-2">Buy your first USDC ticket above!</p>
+          <p className="text-white/50 text-sm mt-2">
+            {userData.ticketsOwned > 0n 
+              ? `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days. Try refreshing!`
+              : 'Buy your first USDC ticket above!'
+            }
+          </p>
+          {userData.ticketsOwned > 0n && (
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="mt-3 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              Refresh Tickets
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

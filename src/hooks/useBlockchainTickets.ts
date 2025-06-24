@@ -177,7 +177,12 @@ export const useBlockchainTickets = () => {
   }, [isConnected, user?.walletAddress]);
 
   const loadUserData = async () => {
-    if (!user?.walletAddress || !isConnected) return;
+    if (!user?.walletAddress || !isConnected) {
+      console.log('[useBlockchainTickets] No user or not connected:', { user: !!user, isConnected });
+      return;
+    }
+
+    console.log('[useBlockchainTickets] Loading data for:', user.walletAddress);
 
     try {
       const [balance, allowance, ticketPrice, lastDrawTime, drawInterval, ticketsOwned, userTicketIds] = await Promise.all([
@@ -222,6 +227,16 @@ export const useBlockchainTickets = () => {
         })
       ]);
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useBlockchainTickets] Contract data loaded:', {
+          ticketsOwned: ticketsOwned.toString(),
+          userTicketIds: userTicketIds,
+          userTicketIdsLength: userTicketIds.length,
+          balance: balance.toString(),
+          allowance: allowance.toString()
+        });
+      }
+
       // Calcular tiempo hasta próximo sorteo
       const currentTime = BigInt(Math.floor(Date.now() / 1000));
       const nextDrawTime = lastDrawTime + drawInterval;
@@ -232,6 +247,10 @@ export const useBlockchainTickets = () => {
       
       // Limitar a los últimos 20 tickets para evitar demasiadas llamadas
       const ticketIdsToLoad = userTicketIds.slice(-20);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useBlockchainTickets] Loading ticket details for IDs:', ticketIdsToLoad);
+      }
       
       for (const ticketId of ticketIdsToLoad) {
         try {
@@ -253,7 +272,7 @@ export const useBlockchainTickets = () => {
           const numbers = Array.from(ticketInfo[1]);
           const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
           
-          userTickets.push({
+          const ticket: UserTicket = {
             tokenId: ticketId.toString(),
             numbers: numbers,
             emojis: emojis,
@@ -261,7 +280,8 @@ export const useBlockchainTickets = () => {
             isActive: ticketInfo[3],
             purchaseTime: Number(ticketDetails[5]) * 1000, // Convert to milliseconds
             matches: ticketInfo[4]
-          });
+          };
+          userTickets.push(ticket);
         } catch (error) {
           console.warn(`Error loading ticket ${ticketId}:`, error);
         }
@@ -272,7 +292,7 @@ export const useBlockchainTickets = () => {
 
       const canBuy = balance >= ticketPrice && allowance >= ticketPrice;
 
-      setUserData({
+      const finalData = {
         usdcBalance: balance,
         usdcAllowance: allowance,
         ticketPrice: ticketPrice,
@@ -280,10 +300,16 @@ export const useBlockchainTickets = () => {
         timeUntilNextDraw: timeUntilDraw,
         ticketsOwned: ticketsOwned,
         userTickets: userTickets
-      });
+      };
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useBlockchainTickets] Final user data:', finalData);
+      }
+
+      setUserData(finalData);
 
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('[useBlockchainTickets] Error loading user data:', error);
     }
   };
 
