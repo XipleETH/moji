@@ -76,6 +76,7 @@ export const ContractPoolsDisplay: React.FC = () => {
             <span className="text-3xl">🏆</span>
             <span className="text-white font-semibold">Main Pool</span>
             <span className="text-3xl">💰</span>
+            <span className="text-purple-300 font-semibold">80%</span>
             {loading && (
               <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
             )}
@@ -120,56 +121,56 @@ export const ContractPoolsDisplay: React.FC = () => {
             <span className="text-2xl">🛡️</span>
             <span className="text-white font-semibold">Reserve Pool</span>
             <span className="text-2xl">💰</span>
-            <span className="bg-blue-500 text-xs px-2 py-1 rounded-full text-white">+20%</span>
+            <span className="text-blue-300 font-semibold">20%</span>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-white">{formatUSDC(reserveTotalUSDC)}</div>
             {parseFloat(reserveTotalUSDC) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
               <div className="text-xs text-yellow-400">
-                + {formatUSDC(dailyPool.reservePortion)} pendiente
+                + {formatUSDC(dailyPool.reservePortion)} pending
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-yellow-400 text-2xl">🥇</span>
-              <span className="text-blue-400 text-2xl">🛡️</span>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <span className="text-yellow-400 text-lg">🥇</span>
+              <span className="text-blue-400 text-lg">🛡️</span>
             </div>
-            <div className="text-white text-lg font-bold">
+            <div className="text-white text-sm font-bold">
               {formatUSDC(reserves.firstPrizeReserve1)}
-              {parseFloat(reserves.firstPrizeReserve1) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
-                <div className="text-xs text-yellow-400 mt-1">⏳ Pendiente</div>
-              )}
             </div>
+            {parseFloat(reserves.firstPrizeReserve1) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
+              <div className="text-xs text-yellow-400 mt-1">⏳ Pending</div>
+            )}
           </div>
 
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-gray-300 text-2xl">🥈</span>
-              <span className="text-blue-400 text-2xl">🛡️</span>
+          <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <span className="text-gray-300 text-lg">🥈</span>
+              <span className="text-blue-400 text-lg">🛡️</span>
             </div>
-            <div className="text-white text-lg font-bold">
+            <div className="text-white text-sm font-bold">
               {formatUSDC(reserves.secondPrizeReserve2)}
-              {parseFloat(reserves.secondPrizeReserve2) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
-                <div className="text-xs text-yellow-400 mt-1">⏳ Pendiente</div>
-              )}
             </div>
+            {parseFloat(reserves.secondPrizeReserve2) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
+              <div className="text-xs text-yellow-400 mt-1">⏳ Pending</div>
+            )}
           </div>
 
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-amber-400 text-2xl">🥉</span>
-              <span className="text-blue-400 text-2xl">🛡️</span>
+          <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <span className="text-amber-400 text-lg">🥉</span>
+              <span className="text-blue-400 text-lg">🛡️</span>
             </div>
-            <div className="text-white text-lg font-bold">
+            <div className="text-white text-sm font-bold">
               {formatUSDC(reserves.thirdPrizeReserve3)}
-              {parseFloat(reserves.thirdPrizeReserve3) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
-                <div className="text-xs text-yellow-400 mt-1">⏳ Pendiente</div>
-              )}
             </div>
+            {parseFloat(reserves.thirdPrizeReserve3) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
+              <div className="text-xs text-yellow-400 mt-1">⏳ Pending</div>
+            )}
           </div>
         </div>
       </div>
