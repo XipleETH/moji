@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
-import { GAME_CONFIG } from '../utils/emojiData';
+import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
 
 interface ContractDrawResult {
   gameDay: string;
