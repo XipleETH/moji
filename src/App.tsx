@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Timer } from './components/Timer';
 import { Ticket as TicketComponent } from './components/Ticket';
-import { TicketGenerator } from './components/TicketGenerator';
+
 import { HybridTicketSystem } from './components/HybridTicketSystem';
 import { GameHistoryButton } from './components/GameHistoryButton';
 import { EmojiChat } from './components/chat/EmojiChat';
@@ -2994,82 +2994,59 @@ function AppContent() {
           </div>
         )}
 
-        <HybridTicketSystem
-          onGenerateTicket={generateTicket}
-          disabled={false}
-          ticketCount={gameState.tickets.length}
-          maxTickets={999}
-          userTokens={gameState.userTokens}
-          tokensUsed={1000 - gameState.userTokens}
-          queueStatus={queueStatus}
-          rateLimitStatus={rateLimitStatus}
-        />
+        <HybridTicketSystem />
 
-                  {/* Today's tickets with history button */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center">
-                <TicketIcon className="mr-2" size={24} />
-                My Tickets Today ({gameState.tickets.length})
-              </h2>
-              <button
-                onClick={() => setShowTicketHistory(true)}
-                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <History size={16} />
-                View History
-              </button>
-            </div>
-          
+        {/* Blockchain Tickets Section */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <TicketIcon className="mr-2" size={24} />
+              My Blockchain Tickets
+            </h2>
+            <button
+              onClick={() => setShowTicketHistory(true)}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <History size={16} />
+              View History
+            </button>
+          </div>
 
-          
-          {gameState.tickets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {gameState.tickets.map(ticket => (
-                <TicketComponent
-                  key={ticket.id}
-                  ticket={ticket}
-                  isWinner={
-                    gameState.lastResults?.firstPrize?.some(t => t.id === ticket.id) ? 'first' :
-                    gameState.lastResults?.secondPrize?.some(t => t.id === ticket.id) ? 'second' :
-                    gameState.lastResults?.thirdPrize?.some(t => t.id === ticket.id) ? 'third' : 
-                    gameState.lastResults?.freePrize?.some(t => t.id === ticket.id) ? 'free' : null
-                  }
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-white/10 rounded-lg">
-              <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
-              <p className="text-white/70">You haven't bought any tickets today</p>
-              <p className="text-white/50 text-sm mt-2">Generate your first ticket above!</p>
-            </div>
-          )}
+          <div className="text-center py-8 bg-white/10 rounded-lg">
+            <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
+            <p className="text-white/70">Your blockchain tickets will appear here</p>
+            <p className="text-white/50 text-sm mt-2">Buy your first USDC ticket above!</p>
+          </div>
         </div>
 
         <div className="mt-8 space-y-6">
           <div className="bg-white/10 rounded-lg p-6 text-white">
             <h3 className="text-2xl font-bold mb-4 flex items-center">
               <Trophy className="mr-2" size={24} />
-              Premio Structure
+              Prize Structure
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span>🥇 First Prize (4 exact matches):</span>
-                <span className="font-bold">1000 tokens</span>
+                <span>🥇 First Prize (4 exact matches in order):</span>
+                <span className="font-bold">80% of main pool</span>
               </div>
               <div className="flex justify-between">
-                <span>🥈 Second Prize (4 any order):</span>
-                <span className="font-bold">500 tokens</span>
+                <span>🥈 Second Prize (3 exact matches in order):</span>
+                <span className="font-bold">10% of main pool</span>
               </div>
               <div className="flex justify-between">
-                <span>🥉 Third Prize (3 exact matches):</span>
-                <span className="font-bold">100 tokens</span>
+                <span>🥉 Third Prize (2 exact matches in order):</span>
+                <span className="font-bold">5% of main pool</span>
               </div>
               <div className="flex justify-between">
-                <span>🎫 Free Ticket (3 any order):</span>
-                <span className="font-bold">Free ticket</span>
+                <span>💎 Development Fund:</span>
+                <span className="font-bold">5% of main pool</span>
               </div>
+            </div>
+            <div className="mt-4 text-sm text-gray-300">
+              <p>• Pool accumulates when no winners are found</p>
+              <p>• 20% daily reserve for future backup</p>
+              <p>• All prizes paid in USDC</p>
             </div>
           </div>
           
