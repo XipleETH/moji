@@ -68,110 +68,81 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-500/20">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              🏆 Enhanced Pool System
-            </h2>
-            <p className="text-purple-300 text-sm">🔗 Chainlink Automation + Reserves</p>
+      {/* Header simplificado */}
+      <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-xl p-4 border border-purple-500/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🏆</span>
+            <span className="text-3xl">💰</span>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold text-white">{formatUSDC(totalUSDC)}</div>
-            <div className="text-purple-300 text-sm">USDC Total</div>
           </div>
-        </div>
-
-        {/* Status indicators */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className={`flex items-center gap-1 ${gameActive ? 'text-green-400' : 'text-red-400'}`}>
-            <div className={`w-2 h-2 rounded-full ${gameActive ? 'bg-green-400' : 'bg-red-400'}`}></div>
-            {gameActive ? 'Active' : 'Paused'}
-          </div>
-          <div className={`flex items-center gap-1 ${automationActive ? 'text-blue-400' : 'text-gray-400'}`}>
-            ⛓️ Chainlink {automationActive ? 'ON' : 'OFF'}
-          </div>
-          <div className="text-yellow-400">
-            🕒 {formatTime(timeToNextDraw)}
-          </div>
-          {upkeepNeeded && (
-            <div className="text-orange-400 animate-pulse">
-              🔄 Upkeep Ready
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Main Pools */}
+      {/* Main Pools simplificados */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-xl p-4 border border-yellow-500/20">
-          <div className="text-yellow-400 text-2xl mb-2">🥇</div>
-          <div className="text-yellow-100 text-sm mb-1">80% 1st Prize</div>
+        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-xl p-4 border border-yellow-500/20 text-center">
+          <div className="text-yellow-400 text-3xl mb-2">🥇</div>
+          <div className="text-yellow-100 text-sm mb-1">80%</div>
           <div className="text-white text-xl font-bold">{formatUSDC(totalFirstPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-xl p-4 border border-gray-500/20">
-          <div className="text-gray-300 text-2xl mb-2">🥈</div>
-          <div className="text-gray-200 text-sm mb-1">10% 2nd Prize</div>
+        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-xl p-4 border border-gray-500/20 text-center">
+          <div className="text-gray-300 text-3xl mb-2">🥈</div>
+          <div className="text-gray-200 text-sm mb-1">10%</div>
           <div className="text-white text-xl font-bold">{formatUSDC(totalSecondPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-xl p-4 border border-amber-500/20">
-          <div className="text-amber-400 text-2xl mb-2">🥉</div>
-          <div className="text-amber-200 text-sm mb-1">5% 3rd Prize</div>
+        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-xl p-4 border border-amber-500/20 text-center">
+          <div className="text-amber-400 text-3xl mb-2">🥉</div>
+          <div className="text-amber-200 text-sm mb-1">5%</div>
           <div className="text-white text-xl font-bold">{formatUSDC(totalThirdPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-xl p-4 border border-purple-500/20">
-          <div className="text-purple-400 text-2xl mb-2">🛠️</div>
-          <div className="text-purple-200 text-sm mb-1">5% Development</div>
+        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-xl p-4 border border-purple-500/20 text-center">
+          <div className="text-purple-400 text-3xl mb-2">🛠️</div>
+          <div className="text-purple-200 text-sm mb-1">5%</div>
           <div className="text-white text-xl font-bold">{formatUSDC(totalDevelopment.toString())}</div>
         </div>
       </div>
 
-      {/* Reserve Pools */}
-      <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 rounded-xl p-6 border border-blue-500/20">
+      {/* Reserve Pools simplificados */}
+      <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 rounded-xl p-4 border border-blue-500/20">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              Reserve Pools (20% daily) <span className="bg-blue-500 text-xs px-2 py-1 rounded-full">NEW</span>
-            </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🛡️</span>
+            <span className="bg-blue-500 text-xs px-2 py-1 rounded-full text-white">+20%</span>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-white">{formatUSDC(reserveTotalUSDC)} USDC</div>
+            <div className="text-2xl font-bold text-white">{formatUSDC(reserveTotalUSDC)}</div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-blue-400 text-xl">🛡️</div>
-              <div className="text-green-400 text-sm font-bold">+20%</div>
+          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-yellow-400 text-2xl">🥇</span>
+              <span className="text-blue-400 text-2xl">🛡️</span>
             </div>
-            <div className="text-blue-200 text-sm mb-1">Reserve Pool 1</div>
-            <div className="text-white text-lg font-bold mb-1">{formatUSDC(reserves.firstPrizeReserve1)}</div>
-            <div className="text-blue-300 text-xs">1st Prize Backup</div>
+            <div className="text-white text-lg font-bold">{formatUSDC(reserves.firstPrizeReserve1)}</div>
           </div>
 
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-blue-400 text-xl">🛡️</div>
-              <div className="text-green-400 text-sm font-bold">+20%</div>
+          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-gray-300 text-2xl">🥈</span>
+              <span className="text-blue-400 text-2xl">🛡️</span>
             </div>
-            <div className="text-blue-200 text-sm mb-1">Reserve Pool 2</div>
-            <div className="text-white text-lg font-bold mb-1">{formatUSDC(reserves.secondPrizeReserve2)}</div>
-            <div className="text-blue-300 text-xs">2nd Prize Backup</div>
+            <div className="text-white text-lg font-bold">{formatUSDC(reserves.secondPrizeReserve2)}</div>
           </div>
 
-          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-blue-400 text-xl">🛡️</div>
-              <div className="text-green-400 text-sm font-bold">+20%</div>
+          <div className="bg-blue-800/20 rounded-lg p-4 border border-blue-400/20 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-amber-400 text-2xl">🥉</span>
+              <span className="text-blue-400 text-2xl">🛡️</span>
             </div>
-            <div className="text-blue-200 text-sm mb-1">Reserve Pool 3</div>
-            <div className="text-white text-lg font-bold mb-1">{formatUSDC(reserves.thirdPrizeReserve3)}</div>
-            <div className="text-blue-300 text-xs">3rd Prize Backup</div>
+            <div className="text-white text-lg font-bold">{formatUSDC(reserves.thirdPrizeReserve3)}</div>
           </div>
         </div>
       </div>
