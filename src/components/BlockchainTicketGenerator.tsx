@@ -59,16 +59,16 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
       }
       setSelectedEmojis([]);
       
-      // Refresh user data after successful purchase
+      // Un solo refresh adicional para asegurar actualización
       setTimeout(() => {
         refreshData();
-      }, 2000);
+      }, 1000);
       
       setTimeout(() => {
         resetPurchaseState();
-      }, 3000);
+      }, 4000);
     }
-  }, [purchaseState.step, purchaseState.txHash, refreshData]);
+  }, [purchaseState.step, purchaseState.txHash, refreshData, resetPurchaseState]);
 
   const handleEmojiSelect = (emoji: string) => {
     if (purchaseState.isLoading || selectedEmojis.length >= 4 || !userData.canBuyTicket) return;

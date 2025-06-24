@@ -161,12 +161,17 @@ export const useBlockchainTickets = () => {
   // Cargar datos cuando cambia la conexión o dirección
   useEffect(() => {
     if (isConnected && user?.walletAddress) {
+      console.log('[useBlockchainTickets] Loading initial data for:', user.walletAddress);
       loadUserData();
       // Actualizar datos cada 30 segundos
-      const interval = setInterval(loadUserData, 30000);
+      const interval = setInterval(() => {
+        console.log('[useBlockchainTickets] Periodic refresh');
+        loadUserData();
+      }, 30000);
       return () => clearInterval(interval);
     } else {
       // Reset data when disconnected
+      console.log('[useBlockchainTickets] Resetting data - user disconnected');
       setUserData({
         usdcBalance: 0n,
         usdcAllowance: 0n,
@@ -324,7 +329,12 @@ export const useBlockchainTickets = () => {
       };
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('[useBlockchainTickets] Final user data:', finalData);
+        console.log('[useBlockchainTickets] Final user data:', {
+          ...finalData,
+          ticketsOwned: finalData.ticketsOwned.toString(),
+          userTicketsCount: finalData.userTickets.length,
+          usdcBalance: finalData.usdcBalance.toString()
+        });
       }
 
       setUserData(finalData);
@@ -382,9 +392,13 @@ export const useBlockchainTickets = () => {
       });
 
       setPurchaseState(prev => ({ ...prev, step: 'confirming', txHash: hash }));
-      await publicClient.waitForTransactionReceipt({ hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      // Recargar datos del usuario
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[buyTicket] Transaction confirmed:', receipt);
+      }
+
+      // Actualización inmediata después de confirmación
       await loadUserData();
 
       setPurchaseState(prev => ({ ...prev, isLoading: false, step: 'success' }));
