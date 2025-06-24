@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 
-// ABI mínimo para las funciones que necesitamos
+// ABI mínimo para las funciones que necesitamos (basado en el ABI compilado real)
 const LOTTO_MOJI_ABI = [
   "function mainPools() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
   "function reserves() view returns (uint256 firstPrizeReserve1, uint256 secondPrizeReserve2, uint256 thirdPrizeReserve3)",
-  "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, uint8[4] winningNumbers, bool drawn, bool reservesSent)",
+  "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)",
   "function getCurrentDay() view returns (uint256)",
   "function DRAW_INTERVAL() view returns (uint256)",
   "function drawTimeUTC() view returns (uint256)",
@@ -39,7 +39,6 @@ interface DailyPool {
   developmentDaily: string;
   distributed: boolean;
   distributionTime: string;
-  winningNumbers: number[];
   drawn: boolean;
   reservesSent: boolean;
 }
@@ -82,7 +81,6 @@ export const useContractPools = () => {
       developmentDaily: '0',
       distributed: false,
       distributionTime: '0',
-      winningNumbers: [0, 0, 0, 0],
       drawn: false,
       reservesSent: false
     },
@@ -143,7 +141,6 @@ export const useContractPools = () => {
           developmentDaily: 0,
           distributed: false,
           distributionTime: 0,
-          winningNumbers: [0, 0, 0, 0],
           drawn: false,
           reservesSent: false
         };
@@ -198,7 +195,6 @@ export const useContractPools = () => {
           developmentDaily: ethers.formatUnits(dailyPool.developmentDaily, 6),
           distributed: dailyPool.distributed,
           distributionTime: dailyPool.distributionTime.toString(),
-          winningNumbers: Array.from(dailyPool.winningNumbers).map(Number),
           drawn: dailyPool.drawn,
           reservesSent: dailyPool.reservesSent
         },
