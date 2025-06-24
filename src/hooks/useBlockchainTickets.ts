@@ -310,7 +310,8 @@ export const useBlockchainTickets = () => {
       // Ordenar tickets por tiempo de compra (más recientes primero)
       userTickets.sort((a, b) => b.purchaseTime - a.purchaseTime);
 
-      const canBuy = balance >= ticketPrice && allowance >= ticketPrice;
+      // Permitir comprar si tiene suficiente balance (el allowance se maneja en buyTicket)
+      const canBuy = balance >= ticketPrice;
 
       const finalData = {
         usdcBalance: balance,

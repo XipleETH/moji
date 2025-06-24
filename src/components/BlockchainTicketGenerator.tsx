@@ -166,6 +166,16 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
             </div>
           </div>
           
+          {/* Allowance info */}
+          {userData.usdcAllowance < userData.ticketPrice && (
+            <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
+              <div className="text-yellow-300 text-sm flex items-center gap-2">
+                <span>⚠️</span>
+                <span>First purchase requires USDC approval</span>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-center justify-between text-sm">
             <div>
               <div className="text-blue-300">Next Draw</div>
