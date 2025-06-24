@@ -316,12 +316,12 @@ export const useBlockchainTickets = () => {
 
       // Usar Promise.allSettled sin timeout tan estricto
       const results = await Promise.allSettled(ticketPromises);
-      
-      results.forEach((result) => {
-        if (result.status === 'fulfilled' && result.value) {
-          userTickets.push(result.value);
-        }
-      });
+
+          results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value) {
+              userTickets.push(result.value);
+            }
+          });
 
       // Ordenar tickets por tiempo de compra (más recientes primero)
       userTickets.sort((a, b) => b.purchaseTime - a.purchaseTime);
@@ -431,7 +431,7 @@ export const useBlockchainTickets = () => {
       while (retryCount < maxRetries) {
         try {
           await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Esperar 1s, 2s, 3s
-          await loadUserData();
+      await loadUserData();
           break;
         } catch (error) {
           retryCount++;

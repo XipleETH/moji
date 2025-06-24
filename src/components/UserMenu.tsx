@@ -79,12 +79,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               >
                 <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
               </button>
-              <button
-                onClick={onClose}
-                className="text-white/80 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </button>
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
             </div>
           </div>
           <div className="mt-4">
@@ -101,7 +101,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   {user.walletProvider === 'injected' && 'Browser Wallet'}
                 </div>
               )}
-              <div className="text-xs text-white/70">
+                <div className="text-xs text-white/70">
                 Network: {getNetworkName(user.chainId)}
               </div>
             </div>
@@ -115,8 +115,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <div className="flex items-center text-xs text-white/70">
                   <Clock size={12} className="mr-1" />
                   {formatLastUpdated(lastUpdated)}
-                </div>
-              )}
+              </div>
+            )}
             </div>
           </div>
         </div>
@@ -190,7 +190,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     <div className="text-yellow-600 text-xs mb-1">🥇 First Prize</div>
                     <div className="text-yellow-600 text-xs mb-1">4 in exact order</div>
                     <div className="text-2xl font-bold text-yellow-700">{statistics.wins.firstPrize}</div>
-                  </div>
+                    </div>
                   <div className="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
                     <div className="text-gray-600 text-xs mb-1">🥈 Second Prize</div>
                     <div className="text-gray-600 text-xs mb-1">4 in any order</div>
@@ -206,7 +206,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     <div className="text-blue-600 text-xs mb-1">3 in any order</div>
                     <div className="text-2xl font-bold text-blue-700">{statistics.wins.freePrize}</div>
                   </div>
-                </div>
+                    </div>
                 <div className="mt-3 text-center">
                   <div className="text-2xl font-bold text-gray-800">{statistics.totalWins}</div>
                   <div className="text-xs text-gray-600">Total Wins</div>

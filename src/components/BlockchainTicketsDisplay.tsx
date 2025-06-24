@@ -47,11 +47,11 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
     setIsRefreshing(true);
     setLoadingTimeout(false);
     try {
-      await refreshData();
+    await refreshData();
     } catch (error) {
       console.error('[BlockchainTicketsDisplay] Error during refresh:', error);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 1000);
+    setTimeout(() => setIsRefreshing(false), 1000);
     }
   };
 
@@ -208,11 +208,11 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
           {/* Mostrar tickets de hoy primero si los hay */}
           {todayTickets.length > 0 && (
             <div>
-              <div className="text-white/80 text-sm mb-3">
-                Today's tickets ({todayTickets.length})
-              </div>
-              {todayTickets.map((ticket) => (
-                <div
+          <div className="text-white/80 text-sm mb-3">
+            Today's tickets ({todayTickets.length})
+          </div>
+          {todayTickets.map((ticket) => (
+            <div
                   key={`today-${ticket.tokenId}`}
                   className="bg-white/10 rounded-lg p-4 border border-white/20 mb-3"
                 >
@@ -272,47 +272,47 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
                 <div
                   key={`recent-${ticket.tokenId}`}
                   className="bg-white/10 rounded-lg p-4 border border-white/20 mb-3"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-white/60 text-sm">#{ticket.tokenId}</span>
-                      <span className="text-white/60 text-sm">{formatGameDay(ticket.gameDay)}</span>
-                      {getStatusIcon(ticket.isActive, ticket.matches)}
-                      <span className="text-white/80 text-sm">
-                        {getStatusText(ticket.isActive, ticket.matches)}
-                      </span>
-                    </div>
-                    <span className="text-white/60 text-sm">
-                      {formatDate(ticket.purchaseTime)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-center gap-2 bg-black/20 rounded-lg p-3">
-                    {ticket.emojis.map((emoji, index) => (
-                      <span 
-                        key={index} 
-                        className="text-3xl bg-white/10 rounded-lg w-12 h-12 flex items-center justify-center"
-                      >
-                        {emoji}
-                      </span>
-                    ))}
-                  </div>
-                  
-                  {ticket.matches !== undefined && ticket.matches > 0 && (
-                    <div className="mt-3 text-center">
-                      <span className={`text-sm px-2 py-1 rounded-full ${
-                        ticket.matches >= 4 ? 'bg-yellow-500/20 text-yellow-300' :
-                        ticket.matches >= 3 ? 'bg-blue-500/20 text-blue-300' :
-                        ticket.matches >= 2 ? 'bg-green-500/20 text-green-300' :
-                        'bg-gray-500/20 text-gray-300'
-                      }`}>
-                        {ticket.matches} match{ticket.matches !== 1 ? 'es' : ''}
-                        {ticket.matches >= 2 ? ' - Prize available!' : ''}
-                      </span>
-                    </div>
-                  )}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-white/60 text-sm">#{ticket.tokenId}</span>
+                  <span className="text-white/60 text-sm">{formatGameDay(ticket.gameDay)}</span>
+                  {getStatusIcon(ticket.isActive, ticket.matches)}
+                  <span className="text-white/80 text-sm">
+                    {getStatusText(ticket.isActive, ticket.matches)}
+                  </span>
                 </div>
-              ))}
+                <span className="text-white/60 text-sm">
+                  {formatDate(ticket.purchaseTime)}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-center gap-2 bg-black/20 rounded-lg p-3">
+                {ticket.emojis.map((emoji, index) => (
+                  <span 
+                    key={index} 
+                    className="text-3xl bg-white/10 rounded-lg w-12 h-12 flex items-center justify-center"
+                  >
+                    {emoji}
+                  </span>
+                ))}
+              </div>
+              
+              {ticket.matches !== undefined && ticket.matches > 0 && (
+                <div className="mt-3 text-center">
+                  <span className={`text-sm px-2 py-1 rounded-full ${
+                    ticket.matches >= 4 ? 'bg-yellow-500/20 text-yellow-300' :
+                    ticket.matches >= 3 ? 'bg-blue-500/20 text-blue-300' :
+                    ticket.matches >= 2 ? 'bg-green-500/20 text-green-300' :
+                    'bg-gray-500/20 text-gray-300'
+                  }`}>
+                    {ticket.matches} match{ticket.matches !== 1 ? 'es' : ''}
+                    {ticket.matches >= 2 ? ' - Prize available!' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
             </div>
           )}
           
