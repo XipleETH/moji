@@ -254,16 +254,38 @@ export const useBlockchainTickets = () => {
       // Obtener información detallada de los tickets
       const userTickets: UserTicket[] = [];
       
-      // Limitar a los últimos 10 tickets para evitar demasiadas llamadas
-      const ticketIdsToLoad = userTicketIds.slice(-10);
+      // Cargar más tickets pero con límite razonable - últimos 25 tickets
+      const ticketIdsToLoad = userTicketIds.slice(-25);
       
       if (process.env.NODE_ENV === 'development') {
         console.log('[useBlockchainTickets] Loading ticket details for IDs:', ticketIdsToLoad);
       }
 
-      // Cargar tickets en paralelo pero con límite
-      const ticketPromises = ticketIdsToLoad.map(async (ticketId) => {
+      // Intentar cargar desde localStorage primero para tickets recientes
+      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
+      let cachedTickets: UserTicket[] = [];
+      
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          cachedTickets = JSON.parse(cached);
+          // Solo usar cache si es reciente (últimas 2 horas)
+          const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+          cachedTickets = cachedTickets.filter(ticket => ticket.purchaseTime > twoHoursAgo);
+        }
+      } catch (error) {
+        console.warn('Error loading cached tickets:', error);
+      }
+
+      // Cargar tickets en paralelo pero con mejor manejo de errores
+      const ticketPromises = ticketIdsToLoad.map(async (ticketId, index) => {
         try {
+          // Verificar si ya tenemos este ticket en cache
+          const cachedTicket = cachedTickets.find(t => t.tokenId === ticketId.toString());
+          if (cachedTicket) {
+            return cachedTicket;
+          }
+
           // Usar getFullTicketInfo para obtener toda la información incluyendo purchaseTime
           const ticketInfo = await publicClient.readContract({
             address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
@@ -275,7 +297,7 @@ export const useBlockchainTickets = () => {
           const numbers = Array.from(ticketInfo[1]);
           const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
           
-          return {
+          const ticket = {
             tokenId: ticketId.toString(),
             numbers: numbers,
             emojis: emojis,
@@ -284,36 +306,32 @@ export const useBlockchainTickets = () => {
             purchaseTime: Number(ticketInfo[4]) * 1000, // Convert from seconds to milliseconds
             matches: ticketInfo[6]
           };
+
+          return ticket;
         } catch (error) {
           console.warn(`Error loading ticket ${ticketId}:`, error);
           return null;
         }
       });
 
-      // Usar Promise.allSettled con timeout
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Ticket loading timeout')), 8000)
-      );
-
-      try {
-        const results = await Promise.race([
-          Promise.allSettled(ticketPromises),
-          timeoutPromise
-        ]);
-
-        if (Array.isArray(results)) {
-          results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value) {
-              userTickets.push(result.value);
-            }
-          });
+      // Usar Promise.allSettled sin timeout tan estricto
+      const results = await Promise.allSettled(ticketPromises);
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          userTickets.push(result.value);
         }
-      } catch (error) {
-        console.warn('Ticket loading timed out, continuing with basic data');
-      }
+      });
 
       // Ordenar tickets por tiempo de compra (más recientes primero)
       userTickets.sort((a, b) => b.purchaseTime - a.purchaseTime);
+
+      // Guardar en localStorage para próximas cargas
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(userTickets));
+      } catch (error) {
+        console.warn('Error caching tickets:', error);
+      }
 
       // Permitir comprar si tiene suficiente balance (el allowance se maneja en buyTicket)
       const canBuy = balance >= ticketPrice;
@@ -398,8 +416,31 @@ export const useBlockchainTickets = () => {
         console.log('[buyTicket] Transaction confirmed:', receipt);
       }
 
-      // Actualización inmediata después de confirmación
-      await loadUserData();
+      // Limpiar cache para forzar recarga completa
+      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
+      try {
+        localStorage.removeItem(cacheKey);
+      } catch (error) {
+        console.warn('Error clearing cache:', error);
+      }
+
+      // Actualización inmediata después de confirmación con retry
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Esperar 1s, 2s, 3s
+          await loadUserData();
+          break;
+        } catch (error) {
+          retryCount++;
+          console.warn(`Retry ${retryCount} loading data after purchase:`, error);
+          if (retryCount >= maxRetries) {
+            console.error('Failed to reload data after purchase, but transaction was successful');
+          }
+        }
+      }
 
       setPurchaseState(prev => ({ ...prev, isLoading: false, step: 'success' }));
       return hash;
@@ -425,6 +466,23 @@ export const useBlockchainTickets = () => {
     });
   };
 
+  const clearCache = () => {
+    if (user?.walletAddress) {
+      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
+      try {
+        localStorage.removeItem(cacheKey);
+        console.log('[useBlockchainTickets] Cache cleared for:', user.walletAddress);
+      } catch (error) {
+        console.warn('Error clearing cache:', error);
+      }
+    }
+  };
+
+  const refreshDataWithClearCache = async () => {
+    clearCache();
+    await loadUserData();
+  };
+
   return {
     userData,
     userAddress: user?.walletAddress,
@@ -432,7 +490,8 @@ export const useBlockchainTickets = () => {
     purchaseState,
     buyTicket,
     resetPurchaseState,
-    refreshData: loadUserData,
-    isLoadingTickets
+    refreshData: refreshDataWithClearCache,
+    isLoadingTickets,
+    clearCache
   };
 }; 
