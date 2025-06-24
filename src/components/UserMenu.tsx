@@ -182,52 +182,39 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               {/* Prizes Won */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                  <Target className="mr-2 text-yellow-600" size={20} />
+                  <Trophy className="mr-2 text-yellow-600" size={20} />
                   Prizes Won (From Blockchain)
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                    <div className="flex items-center">
-                      <Trophy className="text-yellow-600 mr-3" size={20} />
-                      <div>
-                        <span className="font-medium">First Prize</span>
-                        <div className="text-xs text-yellow-600">4 matches</div>
-                      </div>
-                    </div>
-                    <span className="text-xl font-bold text-yellow-600">{statistics.wins.firstPrize}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                    <div className="text-yellow-600 text-xs mb-1">First Prize</div>
+                    <div className="text-yellow-600 text-xs mb-1">4 in exact order</div>
+                    <div className="text-2xl font-bold text-yellow-700">{statistics.wins.firstPrize}</div>
                   </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center">
-                      <Award className="text-gray-600 mr-3" size={20} />
-                      <div>
-                        <span className="font-medium">Second Prize</span>
-                        <div className="text-xs text-gray-600">3 matches</div>
-                      </div>
-                    </div>
-                    <span className="text-xl font-bold text-gray-600">{statistics.wins.secondPrize}</span>
+                  <div className="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
+                    <div className="text-gray-600 text-xs mb-1">Second Prize</div>
+                    <div className="text-gray-600 text-xs mb-1">4 in any order</div>
+                    <div className="text-2xl font-bold text-gray-700">{statistics.wins.secondPrize}</div>
                   </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                    <div className="flex items-center">
-                      <Medal className="text-orange-600 mr-3" size={20} />
-                      <div>
-                        <span className="font-medium">Third Prize</span>
-                        <div className="text-xs text-orange-600">2 matches</div>
-                      </div>
-                    </div>
-                    <span className="text-xl font-bold text-orange-600">{statistics.wins.thirdPrize}</span>
+                  <div className="bg-orange-50 p-3 rounded-lg text-center border border-orange-200">
+                    <div className="text-orange-600 text-xs mb-1">Third Prize</div>
+                    <div className="text-orange-600 text-xs mb-1">3 in exact order</div>
+                    <div className="text-2xl font-bold text-orange-700">{statistics.wins.thirdPrize}</div>
                   </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                    <div className="flex items-center">
-                      <Ticket className="text-green-600 mr-3" size={20} />
-                      <div>
-                        <span className="font-medium">Consolation Prize</span>
-                        <div className="text-xs text-green-600">1 match</div>
-                      </div>
-                    </div>
-                    <span className="text-xl font-bold text-green-600">{statistics.wins.freePrize}</span>
+                  <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                    <div className="text-blue-600 text-xs mb-1">Free Ticket</div>
+                    <div className="text-blue-600 text-xs mb-1">3 in any order</div>
+                    <div className="text-2xl font-bold text-blue-700">{statistics.wins.freePrize}</div>
+                  </div>
+                </div>
+                <div className="mt-3 text-center">
+                  <div className="text-2xl font-bold text-gray-800">{statistics.totalWins}</div>
+                  <div className="text-xs text-gray-600">Total Wins</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {statistics.totalTickets > 0 
+                      ? `${((statistics.totalWins / statistics.totalTickets) * 100).toFixed(1)}% win rate`
+                      : '0.0% win rate'
+                    }
                   </div>
                 </div>
               </div>

@@ -3010,16 +3010,20 @@ function AppContent() {
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span>🥇 First Prize (4 exact matches in order):</span>
+                <span>🥇 First Prize (4 in exact order):</span>
                 <span className="font-bold">80% of main pool</span>
               </div>
               <div className="flex justify-between">
-                <span>🥈 Second Prize (3 exact matches in order):</span>
+                <span>🥈 Second Prize (4 in any order):</span>
                 <span className="font-bold">10% of main pool</span>
               </div>
               <div className="flex justify-between">
-                <span>🥉 Third Prize (2 exact matches in order):</span>
+                <span>🥉 Third Prize (3 in exact order):</span>
                 <span className="font-bold">5% of main pool</span>
+              </div>
+              <div className="flex justify-between">
+                <span>🎫 Free Ticket (3 in any order):</span>
+                <span className="font-bold">New ticket for next draw</span>
               </div>
               <div className="flex justify-between">
                 <span>💎 Development Fund:</span>

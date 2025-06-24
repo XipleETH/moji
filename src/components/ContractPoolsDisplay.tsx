@@ -151,29 +151,29 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   const renderMainPool = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-xl p-4 border border-yellow-500/20 text-center">
-          <div className="text-yellow-400 text-3xl mb-2">🥇</div>
-          <div className="text-yellow-100 text-sm mb-1">80%</div>
-          <div className="text-white text-xl font-bold">{formatUSDC(totalFirstPrize.toString())}</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-h-[120px]">
+        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-lg p-3 border border-yellow-500/20 text-center">
+          <div className="text-yellow-400 text-2xl mb-1">🥇</div>
+          <div className="text-yellow-100 text-xs mb-1">80%</div>
+          <div className="text-white text-lg font-bold">{formatUSDC(totalFirstPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-xl p-4 border border-gray-500/20 text-center">
-          <div className="text-gray-300 text-3xl mb-2">🥈</div>
-          <div className="text-gray-200 text-sm mb-1">10%</div>
-          <div className="text-white text-xl font-bold">{formatUSDC(totalSecondPrize.toString())}</div>
+        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-lg p-3 border border-gray-500/20 text-center">
+          <div className="text-gray-300 text-2xl mb-1">🥈</div>
+          <div className="text-gray-200 text-xs mb-1">10%</div>
+          <div className="text-white text-lg font-bold">{formatUSDC(totalSecondPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-xl p-4 border border-amber-500/20 text-center">
-          <div className="text-amber-400 text-3xl mb-2">🥉</div>
-          <div className="text-amber-200 text-sm mb-1">5%</div>
-          <div className="text-white text-xl font-bold">{formatUSDC(totalThirdPrize.toString())}</div>
+        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-lg p-3 border border-amber-500/20 text-center">
+          <div className="text-amber-400 text-2xl mb-1">🥉</div>
+          <div className="text-amber-200 text-xs mb-1">5%</div>
+          <div className="text-white text-lg font-bold">{formatUSDC(totalThirdPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-xl p-4 border border-purple-500/20 text-center">
-          <div className="text-purple-400 text-3xl mb-2">🛠️</div>
-          <div className="text-purple-200 text-sm mb-1">5%</div>
-          <div className="text-white text-xl font-bold">{formatUSDC(totalDevelopment.toString())}</div>
+        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-lg p-3 border border-purple-500/20 text-center">
+          <div className="text-purple-400 text-2xl mb-1">🛠️</div>
+          <div className="text-purple-200 text-xs mb-1">5%</div>
+          <div className="text-white text-lg font-bold">{formatUSDC(totalDevelopment.toString())}</div>
         </div>
       </div>
     </div>
@@ -181,13 +181,14 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   const renderReservePool = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      {/* Spacer para mantener la misma altura que Main Pool */}
+      <div className="grid grid-cols-3 gap-3 min-h-[120px]">
         <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
             <span className="text-yellow-400 text-lg">🥇</span>
             <span className="text-blue-400 text-lg">🛡️</span>
           </div>
-          <div className="text-white text-sm font-bold">
+          <div className="text-white text-lg font-bold">
             {formatUSDC(reserves.firstPrizeReserve1)}
           </div>
           {parseFloat(reserves.firstPrizeReserve1) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -200,7 +201,7 @@ export const ContractPoolsDisplay: React.FC = () => {
             <span className="text-gray-300 text-lg">🥈</span>
             <span className="text-blue-400 text-lg">🛡️</span>
           </div>
-          <div className="text-white text-sm font-bold">
+          <div className="text-white text-lg font-bold">
             {formatUSDC(reserves.secondPrizeReserve2)}
           </div>
           {parseFloat(reserves.secondPrizeReserve2) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -213,7 +214,7 @@ export const ContractPoolsDisplay: React.FC = () => {
             <span className="text-amber-400 text-lg">🥉</span>
             <span className="text-blue-400 text-lg">🛡️</span>
           </div>
-          <div className="text-white text-sm font-bold">
+          <div className="text-white text-lg font-bold">
             {formatUSDC(reserves.thirdPrizeReserve3)}
           </div>
           {parseFloat(reserves.thirdPrizeReserve3) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -234,22 +235,22 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   const renderTodayPool = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-h-[120px]">
         <div className="bg-green-800/20 rounded-lg p-3 border border-green-400/20 text-center">
-          <div className="text-green-300 text-xs">Collected</div>
+          <div className="text-green-300 text-xs mb-1">Collected</div>
           <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.totalCollected)}</div>
         </div>
         <div className="bg-purple-800/20 rounded-lg p-3 border border-purple-400/20 text-center">
-          <div className="text-purple-300 text-xs">Main (80%)</div>
+          <div className="text-purple-300 text-xs mb-1">Main (80%)</div>
           <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.mainPoolPortion)}</div>
         </div>
         <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
-          <div className="text-blue-300 text-xs">Reserve (20%)</div>
+          <div className="text-blue-300 text-xs mb-1">Reserve (20%)</div>
           <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.reservePortion)}</div>
         </div>
         <div className="bg-gray-800/20 rounded-lg p-3 border border-gray-400/20 text-center">
-          <div className="text-gray-300 text-xs">Status</div>
-          <div className={`font-bold text-sm ${dailyPool.drawn ? 'text-blue-400' : 'text-yellow-400'}`}>
+          <div className="text-gray-300 text-xs mb-1">Status</div>
+          <div className={`font-bold text-lg ${dailyPool.drawn ? 'text-blue-400' : 'text-yellow-400'}`}>
             {dailyPool.drawn ? 'Drawn' : 'Active'}
           </div>
         </div>
