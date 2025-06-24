@@ -5,7 +5,7 @@ async function main() {
   console.log("========================================");
   
   // Configuration - V2 CONTRACT ADDRESS FROM DEPLOYMENT
-  const CONTRACT_ADDRESS = "0x8F6A8D8E1408d53D1C06Ed0664CC334Fa533480c"; // V2 contract address
+  const CONTRACT_ADDRESS = "0xD72976F365415F098736F9F4F9AD1Af3fE15B0d5"; // V3 contract address
   
   // Contract address is already set to V2 deployment
   

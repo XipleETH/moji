@@ -6,7 +6,7 @@ async function main() {
   
   // Configuration for Base Sepolia
   const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
-  const VRF_SUBSCRIPTION_ID = "33088903064086928793253033021668227318"; // Your subscription ID as string
+  const VRF_SUBSCRIPTION_ID = "105961847727705490544354750783936451991128107961690295417839588082464327658827"; // Correct subscription ID
   
   console.log("📋 Deployment Configuration:");
   console.log("- Network: Base Sepolia");

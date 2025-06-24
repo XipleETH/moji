@@ -5,8 +5,8 @@ async function main() {
   console.log("=====================================");
   console.log("V3 Features: Proportional Reserves + Auto-Refill");
   
-  // Contract address - UPDATE THIS with your V3 deployment
-  const CONTRACT_ADDRESS = ""; // Will be filled after deployment
+  // Contract address - V3 deployment
+  const CONTRACT_ADDRESS = "0xD72976F365415F098736F9F4F9AD1Af3fE15B0d5"; // V3 deployed address
   
   if (!CONTRACT_ADDRESS) {
     console.log("⚠️ Please update CONTRACT_ADDRESS with your V3 deployment address");
@@ -66,14 +66,14 @@ async function main() {
     console.log("====================");
     
     const currentGameDay = await contract.getCurrentDay();
-    const totalTickets = await contract.totalTickets();
+    const totalTickets = await contract.ticketCounter();
     
     console.log("🗓️ Current Game Day:", Number(currentGameDay));
-    console.log("🎫 Total Tickets Sold:", Number(totalTickets));
+    console.log("🎫 Total Tickets Created:", Number(totalTickets));
     
     // Get current pools state
-    const mainPools = await contract.getMainPools();
-    const reserves = await contract.getReservePools();
+    const mainPools = await contract.mainPools();
+    const reserves = await contract.reserves();
     
     console.log("\n🏆 Main Prize Pools (Accumulated)");
     console.log("=================================");

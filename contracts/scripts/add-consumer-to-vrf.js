@@ -1,18 +1,18 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  console.log("🔗 Adding LottoMoji V2 as VRF Consumer...");
+  console.log("🔗 Adding LottoMoji V3 as VRF Consumer...");
   console.log("=========================================");
   
   // Configuration
   const VRF_COORDINATOR = "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE"; // Base Sepolia
-  const SUBSCRIPTION_ID = "33088903064086928793253033021668227318";
-  const CONTRACT_V2_ADDRESS = "0x8F6A8D8E1408d53D1C06Ed0664CC334Fa533480c";
+  const SUBSCRIPTION_ID = "105961847727705490544354750783936451991128107961690295417839588082464327658827";
+  const CONTRACT_V3_ADDRESS = "0xD72976F365415F098736F9F4F9AD1Af3fE15B0d5";
   
   console.log("📋 Configuration:");
   console.log("- VRF Coordinator:", VRF_COORDINATOR);
   console.log("- Subscription ID:", SUBSCRIPTION_ID);
-  console.log("- Contract V2:", CONTRACT_V2_ADDRESS);
+  console.log("- Contract V3:", CONTRACT_V3_ADDRESS);
   
   // Get deployer account
   const [deployer] = await ethers.getSigners();
@@ -50,11 +50,11 @@ async function main() {
         console.log(`  ${i + 1}. ${subscription.consumers[i]}`);
       }
       
-      // Check if V2 contract is already a consumer
-      const isAlreadyConsumer = subscription.consumers.includes(CONTRACT_V2_ADDRESS);
+      // Check if V3 contract is already a consumer
+      const isAlreadyConsumer = subscription.consumers.includes(CONTRACT_V3_ADDRESS);
       
       if (isAlreadyConsumer) {
-        console.log("\n✅ Contract V2 is already a consumer!");
+        console.log("\n✅ Contract V3 is already a consumer!");
         console.log("No action needed.");
         return;
       }
@@ -73,11 +73,11 @@ async function main() {
       process.exit(1);
     }
     
-    // Add V2 contract as consumer
-    console.log("\n⚡ Adding V2 contract as consumer...");
-    console.log(`Calling addConsumer(${SUBSCRIPTION_ID}, ${CONTRACT_V2_ADDRESS})`);
+    // Add V3 contract as consumer
+    console.log("\n⚡ Adding V3 contract as consumer...");
+    console.log(`Calling addConsumer(${SUBSCRIPTION_ID}, ${CONTRACT_V3_ADDRESS})`);
     
-    const tx = await vrfCoordinator.addConsumer(SUBSCRIPTION_ID, CONTRACT_V2_ADDRESS, {
+    const tx = await vrfCoordinator.addConsumer(SUBSCRIPTION_ID, CONTRACT_V3_ADDRESS, {
       gasLimit: 100000
     });
     
@@ -94,19 +94,19 @@ async function main() {
     console.log("Updated subscription state:");
     console.log("- Total Consumers:", updatedSubscription.consumers.length);
     
-    const isNowConsumer = updatedSubscription.consumers.includes(CONTRACT_V2_ADDRESS);
+    const isNowConsumer = updatedSubscription.consumers.includes(CONTRACT_V3_ADDRESS);
     
     if (isNowConsumer) {
-      console.log("✅ SUCCESS: V2 contract added as consumer!");
+      console.log("✅ SUCCESS: V3 contract added as consumer!");
       
       console.log("\nUpdated consumer list:");
       for (let i = 0; i < updatedSubscription.consumers.length; i++) {
         const consumer = updatedSubscription.consumers[i];
-        const isV2 = consumer === CONTRACT_V2_ADDRESS;
-        console.log(`  ${i + 1}. ${consumer} ${isV2 ? '← V2 Contract' : ''}`);
+        const isV3 = consumer === CONTRACT_V3_ADDRESS;
+        console.log(`  ${i + 1}. ${consumer} ${isV3 ? '← V3 Contract' : ''}`);
       }
     } else {
-      console.log("❌ FAILED: V2 contract was not added as consumer");
+      console.log("❌ FAILED: V3 contract was not added as consumer");
       process.exit(1);
     }
     
@@ -128,10 +128,10 @@ async function main() {
     
     console.log("\n🎉 VRF Consumer setup completed!");
     console.log("\n🔄 Next Steps:");
-    console.log("1. Create Chainlink Automation Upkeep (see UPKEEP_V2_SETUP_GUIDE.md)");
+    console.log("1. Create Chainlink Automation Upkeep for V3 contract");
     console.log("2. Test contract functions:");
     console.log("   await window.checkContractDrawTime()");
-    console.log("3. Wait for first automated draw");
+    console.log("3. Wait for first automated draw with V3 proportional reserves");
     
   } catch (error) {
     console.error("❌ Error adding consumer:", error);
