@@ -38,6 +38,8 @@ interface DailyPool {
   thirdPrizeDaily: string;
   developmentDaily: string;
   distributed: boolean;
+  distributionTime: string;
+  winningNumbers: number[];
   drawn: boolean;
   reservesSent: boolean;
 }
@@ -79,6 +81,8 @@ export const useContractPools = () => {
       thirdPrizeDaily: '0',
       developmentDaily: '0',
       distributed: false,
+      distributionTime: '0',
+      winningNumbers: [0, 0, 0, 0],
       drawn: false,
       reservesSent: false
     },
@@ -101,7 +105,7 @@ export const useContractPools = () => {
       const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, LOTTO_MOJI_ABI, provider);
 
-      // Obtener todos los datos en paralelo
+      // Obtener datos básicos primero
       const [
         mainPools,
         reserves,
@@ -110,8 +114,7 @@ export const useContractPools = () => {
         drawTimeUTC,
         lastDrawTime,
         automationActive,
-        gameActive,
-        checkUpkeepResult
+        gameActive
       ] = await Promise.all([
         contract.mainPools(),
         contract.reserves(),
@@ -120,12 +123,39 @@ export const useContractPools = () => {
         contract.drawTimeUTC(),
         contract.lastDrawTime(),
         contract.automationActive(),
-        contract.gameActive(),
-        contract.checkUpkeep('0x').catch(() => [false, '0x'])
+        contract.gameActive()
       ]);
 
-      // Obtener datos del pool diario actual
-      const dailyPool = await contract.dailyPools(currentGameDay);
+      // Obtener datos del pool diario actual con manejo de errores
+      let dailyPool;
+      try {
+        dailyPool = await contract.dailyPools(currentGameDay);
+      } catch (poolError) {
+        console.warn('Error fetching daily pool, using defaults:', poolError);
+        // Usar valores por defecto si hay error
+        dailyPool = {
+          totalCollected: 0,
+          mainPoolPortion: 0,
+          reservePortion: 0,
+          firstPrizeDaily: 0,
+          secondPrizeDaily: 0,
+          thirdPrizeDaily: 0,
+          developmentDaily: 0,
+          distributed: false,
+          distributionTime: 0,
+          winningNumbers: [0, 0, 0, 0],
+          drawn: false,
+          reservesSent: false
+        };
+      }
+
+      // Verificar upkeep separadamente
+      let checkUpkeepResult = [false, '0x'];
+      try {
+        checkUpkeepResult = await contract.checkUpkeep('0x');
+      } catch (upkeepError) {
+        console.warn('Error checking upkeep:', upkeepError);
+      }
 
       // Calcular tiempo hasta próximo sorteo
       const now = Math.floor(Date.now() / 1000);
@@ -167,6 +197,8 @@ export const useContractPools = () => {
           thirdPrizeDaily: ethers.formatUnits(dailyPool.thirdPrizeDaily, 6),
           developmentDaily: ethers.formatUnits(dailyPool.developmentDaily, 6),
           distributed: dailyPool.distributed,
+          distributionTime: dailyPool.distributionTime.toString(),
+          winningNumbers: Array.from(dailyPool.winningNumbers).map(Number),
           drawn: dailyPool.drawn,
           reservesSent: dailyPool.reservesSent
         },
