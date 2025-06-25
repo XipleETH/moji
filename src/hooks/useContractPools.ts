@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
-import { getUserTimezone } from '../utils/timezone';
+import { verifyBlockchainPools, forcePoolSync } from '../utils/blockchainVerification';
 
 // ABI mínimo para las funciones que necesitamos (basado en el ABI compilado real)
 const LOTTO_MOJI_ABI = [
@@ -194,191 +194,71 @@ export const useContractPools = () => {
         }));
       }
 
-      console.log('[useContractPools] Iniciando sincronización con blockchain...');
+      console.log('[useContractPools] Iniciando sincronización robusta con blockchain...');
 
-      // Configurar provider con múltiples endpoints de respaldo
-      const providers = [
-        'https://sepolia.base.org',
-        'https://base-sepolia.g.alchemy.com/v2/demo',
-        'https://base-sepolia-rpc.publicnode.com'
-      ];
-
-      let provider: ethers.JsonRpcProvider | null = null;
-      let contract: ethers.Contract | null = null;
-
-      // Intentar conectar con diferentes providers
-      for (const providerUrl of providers) {
-        try {
-          provider = new ethers.JsonRpcProvider(providerUrl);
-          contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, LOTTO_MOJI_ABI, provider);
-          
-          // Test de conexión rápido
-          await contract.gameActive();
-          console.log(`[useContractPools] Conectado exitosamente a: ${providerUrl}`);
-          break;
-        } catch (providerError) {
-          console.warn(`[useContractPools] Error con provider ${providerUrl}:`, providerError);
-          provider = null;
-          contract = null;
-        }
-      }
-
-      if (!contract || !provider) {
-        throw new Error('No se pudo conectar a ningún provider RPC');
-      }
-
-      // Obtener datos básicos con timeout
-      const contractPromises = [
-        contract.mainPools(),
-        contract.reserves(),
-        contract.getCurrentDay(),
-        contract.DRAW_INTERVAL(),
-        contract.drawTimeUTC(),
-        contract.lastDrawTime(),
-        contract.automationActive(),
-        contract.gameActive()
-      ];
-
-      // Aplicar timeout a las promesas
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout en llamadas al contrato')), 10000); // 10 segundos
-      });
-
-      const [
-        mainPools,
-        reserves,
-        currentGameDay,
-        drawInterval,
-        drawTimeUTC,
-        lastDrawTime,
-        automationActive,
-        gameActive
-      ] = await Promise.race([
-        Promise.all(contractPromises),
-        timeoutPromise
-      ]) as any[];
-
-      console.log('[useContractPools] Datos básicos obtenidos:', {
-        currentGameDay: Number(currentGameDay),
-        gameActive,
-        automationActive
-      });
-
-      // Obtener pool diario con manejo robusto de errores
-      let dailyPool;
+      // USAR EL SISTEMA DE VERIFICACIÓN ROBUSTO
       try {
-        dailyPool = await contract.dailyPools(currentGameDay);
-        console.log('[useContractPools] Pool diaria obtenida:', {
-          totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
-          drawn: dailyPool.drawn,
-          distributed: dailyPool.distributed
-        });
-      } catch (poolError) {
-        console.warn('[useContractPools] Error obteniendo pool diaria, usando defaults:', poolError);
-        dailyPool = {
-          totalCollected: 0,
-          mainPoolPortion: 0,
-          reservePortion: 0,
-          firstPrizeDaily: 0,
-          secondPrizeDaily: 0,
-          thirdPrizeDaily: 0,
-          developmentDaily: 0,
-          distributed: false,
-          distributionTime: 0,
-          drawn: false,
-          reservesSent: false
+        const blockchainData = await verifyBlockchainPools();
+        
+        // Convertir datos del sistema de verificación al formato del hook
+        const newData: ContractPoolsData = {
+          mainPools: {
+            firstPrizeAccumulated: blockchainData.mainPools.firstPrize,
+            secondPrizeAccumulated: blockchainData.mainPools.secondPrize,
+            thirdPrizeAccumulated: blockchainData.mainPools.thirdPrize,
+            developmentAccumulated: blockchainData.mainPools.development
+          },
+          reserves: {
+            firstPrizeReserve1: blockchainData.reserves.firstPrize,
+            secondPrizeReserve2: blockchainData.reserves.secondPrize,
+            thirdPrizeReserve3: blockchainData.reserves.thirdPrize
+          },
+          dailyPool: {
+            totalCollected: blockchainData.dailyPool.totalCollected,
+            mainPoolPortion: blockchainData.dailyPool.mainPortion,
+            reservePortion: blockchainData.dailyPool.reservePortion,
+            firstPrizeDaily: '0', // No disponible en el sistema de verificación
+            secondPrizeDaily: '0',
+            thirdPrizeDaily: '0',
+            developmentDaily: '0',
+            distributed: blockchainData.dailyPool.distributed,
+            distributionTime: '0',
+            drawn: blockchainData.dailyPool.drawn,
+            reservesSent: false
+          },
+          currentGameDay: blockchainData.contractInfo.currentGameDay,
+          timeToNextDraw: 0, // Calcular después si es necesario
+          automationActive: blockchainData.contractInfo.automationActive,
+          gameActive: blockchainData.contractInfo.gameActive,
+          upkeepNeeded: false,
+          totalUSDC: blockchainData.totals.mainTotal,
+          reserveTotalUSDC: blockchainData.totals.reserveTotal,
+          loading: false,
+          error: null,
+          lastSyncTime: blockchainData.timestamp,
+          syncAttempts: 0 // Reset attempts on success
         };
+
+        // Actualizar estado
+        setData(newData);
+
+        // Guardar en cache
+        saveToCache(newData);
+
+        console.log('[useContractPools] ✅ Sincronización robusta exitosa:', {
+          totalUSDC: newData.totalUSDC,
+          reserveTotalUSDC: newData.reserveTotalUSDC,
+          dailyCollected: newData.dailyPool.totalCollected,
+          gameDay: newData.currentGameDay,
+          blockNumber: blockchainData.blockNumber
+        });
+
+      } catch (verificationError) {
+        console.warn('[useContractPools] Sistema de verificación falló, intentando método legacy:', verificationError);
+        
+        // FALLBACK AL MÉTODO LEGACY SI EL SISTEMA ROBUSTO FALLA
+        await fetchContractDataLegacy();
       }
-
-      // Verificar upkeep
-      let checkUpkeepResult = [false, '0x'];
-      try {
-        checkUpkeepResult = await contract.checkUpkeep('0x');
-      } catch (upkeepError) {
-        console.warn('[useContractPools] Error verificando upkeep:', upkeepError);
-      }
-
-      // Validar datos antes de procesar
-      if (!validatePoolData(mainPools, reserves, dailyPool)) {
-        throw new Error('Datos del contrato inválidos o corruptos');
-      }
-
-      // Calcular tiempo hasta próximo sorteo
-      const now = Math.floor(Date.now() / 1000);
-      const currentDayStart = Number(currentGameDay) * Number(drawInterval) - Number(drawTimeUTC);
-      const nextDrawTime = currentDayStart + Number(drawInterval);
-      const timeToNextDraw = Math.max(0, nextDrawTime - now);
-
-      // Procesar y formatear datos
-      const processedMainPools = {
-        firstPrizeAccumulated: ethers.formatUnits(mainPools.firstPrizeAccumulated, 6),
-        secondPrizeAccumulated: ethers.formatUnits(mainPools.secondPrizeAccumulated, 6),
-        thirdPrizeAccumulated: ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6),
-        developmentAccumulated: ethers.formatUnits(mainPools.developmentAccumulated, 6)
-      };
-
-      const processedReserves = {
-        firstPrizeReserve1: ethers.formatUnits(reserves.firstPrizeReserve1, 6),
-        secondPrizeReserve2: ethers.formatUnits(reserves.secondPrizeReserve2, 6),
-        thirdPrizeReserve3: ethers.formatUnits(reserves.thirdPrizeReserve3, 6)
-      };
-
-      const processedDailyPool = {
-        totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
-        mainPoolPortion: ethers.formatUnits(dailyPool.mainPoolPortion, 6),
-        reservePortion: ethers.formatUnits(dailyPool.reservePortion, 6),
-        firstPrizeDaily: ethers.formatUnits(dailyPool.firstPrizeDaily, 6),
-        secondPrizeDaily: ethers.formatUnits(dailyPool.secondPrizeDaily, 6),
-        thirdPrizeDaily: ethers.formatUnits(dailyPool.thirdPrizeDaily, 6),
-        developmentDaily: ethers.formatUnits(dailyPool.developmentDaily, 6),
-        distributed: dailyPool.distributed,
-        distributionTime: dailyPool.distributionTime.toString(),
-        drawn: dailyPool.drawn,
-        reservesSent: dailyPool.reservesSent
-      };
-
-      // Calcular totales
-      const totalMainPools = 
-        Number(processedMainPools.firstPrizeAccumulated) +
-        Number(processedMainPools.secondPrizeAccumulated) +
-        Number(processedMainPools.thirdPrizeAccumulated) +
-        Number(processedMainPools.developmentAccumulated) +
-        Number(processedDailyPool.mainPoolPortion);
-
-      const totalReserves = 
-        Number(processedReserves.firstPrizeReserve1) +
-        Number(processedReserves.secondPrizeReserve2) +
-        Number(processedReserves.thirdPrizeReserve3);
-
-      const newData: ContractPoolsData = {
-        mainPools: processedMainPools,
-        reserves: processedReserves,
-        dailyPool: processedDailyPool,
-        currentGameDay: currentGameDay.toString(),
-        timeToNextDraw,
-        automationActive,
-        gameActive,
-        upkeepNeeded: checkUpkeepResult[0],
-        totalUSDC: totalMainPools.toFixed(1),
-        reserveTotalUSDC: totalReserves.toFixed(1),
-        loading: false,
-        error: null,
-        lastSyncTime: Date.now(),
-        syncAttempts: 0 // Reset attempts on success
-      };
-
-      // Actualizar estado
-      setData(newData);
-
-      // Guardar en cache
-      saveToCache(newData);
-
-      console.log('[useContractPools] ✅ Sincronización exitosa:', {
-        totalUSDC: newData.totalUSDC,
-        reserveTotalUSDC: newData.reserveTotalUSDC,
-        dailyCollected: processedDailyPool.totalCollected,
-        gameDay: newData.currentGameDay
-      });
 
     } catch (error) {
       console.error('[useContractPools] Error en sincronización:', error);
@@ -414,6 +294,195 @@ export const useContractPools = () => {
     }
   };
 
+  // Método legacy como fallback
+  const fetchContractDataLegacy = async () => {
+    console.log('[useContractPools] Ejecutando método legacy...');
+
+    // Configurar provider con múltiples endpoints de respaldo
+    const providers = [
+      'https://sepolia.base.org',
+      'https://base-sepolia.g.alchemy.com/v2/demo',
+      'https://base-sepolia-rpc.publicnode.com'
+    ];
+
+    let provider: ethers.JsonRpcProvider | null = null;
+    let contract: ethers.Contract | null = null;
+
+    // Intentar conectar con diferentes providers
+    for (const providerUrl of providers) {
+      try {
+        provider = new ethers.JsonRpcProvider(providerUrl);
+        contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, LOTTO_MOJI_ABI, provider);
+        
+        // Test de conexión rápido
+        await contract.gameActive();
+        console.log(`[useContractPools] Conectado exitosamente a: ${providerUrl}`);
+        break;
+      } catch (providerError) {
+        console.warn(`[useContractPools] Error con provider ${providerUrl}:`, providerError);
+        provider = null;
+        contract = null;
+      }
+    }
+
+    if (!contract || !provider) {
+      throw new Error('No se pudo conectar a ningún provider RPC');
+    }
+
+    // Obtener datos básicos con timeout
+    const contractPromises = [
+      contract.mainPools(),
+      contract.reserves(),
+      contract.getCurrentDay(),
+      contract.DRAW_INTERVAL(),
+      contract.drawTimeUTC(),
+      contract.lastDrawTime(),
+      contract.automationActive(),
+      contract.gameActive()
+    ];
+
+    // Aplicar timeout a las promesas
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout en llamadas al contrato')), 10000); // 10 segundos
+    });
+
+    const [
+      mainPools,
+      reserves,
+      currentGameDay,
+      drawInterval,
+      drawTimeUTC,
+      lastDrawTime,
+      automationActive,
+      gameActive
+    ] = await Promise.race([
+      Promise.all(contractPromises),
+      timeoutPromise
+    ]) as any[];
+
+    console.log('[useContractPools] Datos básicos obtenidos:', {
+      currentGameDay: Number(currentGameDay),
+      gameActive,
+      automationActive
+    });
+
+    // Obtener pool diario con manejo robusto de errores
+    let dailyPool;
+    try {
+      dailyPool = await contract.dailyPools(currentGameDay);
+      console.log('[useContractPools] Pool diaria obtenida:', {
+        totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
+        drawn: dailyPool.drawn,
+        distributed: dailyPool.distributed
+      });
+    } catch (poolError) {
+      console.warn('[useContractPools] Error obteniendo pool diaria, usando defaults:', poolError);
+      dailyPool = {
+        totalCollected: 0,
+        mainPoolPortion: 0,
+        reservePortion: 0,
+        firstPrizeDaily: 0,
+        secondPrizeDaily: 0,
+        thirdPrizeDaily: 0,
+        developmentDaily: 0,
+        distributed: false,
+        distributionTime: 0,
+        drawn: false,
+        reservesSent: false
+      };
+    }
+
+    // Verificar upkeep
+    let checkUpkeepResult = [false, '0x'];
+    try {
+      checkUpkeepResult = await contract.checkUpkeep('0x');
+    } catch (upkeepError) {
+      console.warn('[useContractPools] Error verificando upkeep:', upkeepError);
+    }
+
+    // Validar datos antes de procesar
+    if (!validatePoolData(mainPools, reserves, dailyPool)) {
+      throw new Error('Datos del contrato inválidos o corruptos');
+    }
+
+    // Calcular tiempo hasta próximo sorteo
+    const now = Math.floor(Date.now() / 1000);
+    const currentDayStart = Number(currentGameDay) * Number(drawInterval) - Number(drawTimeUTC);
+    const nextDrawTime = currentDayStart + Number(drawInterval);
+    const timeToNextDraw = Math.max(0, nextDrawTime - now);
+
+    // Procesar y formatear datos
+    const processedMainPools = {
+      firstPrizeAccumulated: ethers.formatUnits(mainPools.firstPrizeAccumulated, 6),
+      secondPrizeAccumulated: ethers.formatUnits(mainPools.secondPrizeAccumulated, 6),
+      thirdPrizeAccumulated: ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6),
+      developmentAccumulated: ethers.formatUnits(mainPools.developmentAccumulated, 6)
+    };
+
+    const processedReserves = {
+      firstPrizeReserve1: ethers.formatUnits(reserves.firstPrizeReserve1, 6),
+      secondPrizeReserve2: ethers.formatUnits(reserves.secondPrizeReserve2, 6),
+      thirdPrizeReserve3: ethers.formatUnits(reserves.thirdPrizeReserve3, 6)
+    };
+
+    const processedDailyPool = {
+      totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
+      mainPoolPortion: ethers.formatUnits(dailyPool.mainPoolPortion, 6),
+      reservePortion: ethers.formatUnits(dailyPool.reservePortion, 6),
+      firstPrizeDaily: ethers.formatUnits(dailyPool.firstPrizeDaily, 6),
+      secondPrizeDaily: ethers.formatUnits(dailyPool.secondPrizeDaily, 6),
+      thirdPrizeDaily: ethers.formatUnits(dailyPool.thirdPrizeDaily, 6),
+      developmentDaily: ethers.formatUnits(dailyPool.developmentDaily, 6),
+      distributed: dailyPool.distributed,
+      distributionTime: dailyPool.distributionTime.toString(),
+      drawn: dailyPool.drawn,
+      reservesSent: dailyPool.reservesSent
+    };
+
+    // Calcular totales
+    const totalMainPools = 
+      Number(processedMainPools.firstPrizeAccumulated) +
+      Number(processedMainPools.secondPrizeAccumulated) +
+      Number(processedMainPools.thirdPrizeAccumulated) +
+      Number(processedMainPools.developmentAccumulated) +
+      Number(processedDailyPool.mainPoolPortion);
+
+    const totalReserves = 
+      Number(processedReserves.firstPrizeReserve1) +
+      Number(processedReserves.secondPrizeReserve2) +
+      Number(processedReserves.thirdPrizeReserve3);
+
+    const newData: ContractPoolsData = {
+      mainPools: processedMainPools,
+      reserves: processedReserves,
+      dailyPool: processedDailyPool,
+      currentGameDay: currentGameDay.toString(),
+      timeToNextDraw,
+      automationActive,
+      gameActive,
+      upkeepNeeded: checkUpkeepResult[0],
+      totalUSDC: totalMainPools.toFixed(1),
+      reserveTotalUSDC: totalReserves.toFixed(1),
+      loading: false,
+      error: null,
+      lastSyncTime: Date.now(),
+      syncAttempts: 0 // Reset attempts on success
+    };
+
+    // Actualizar estado
+    setData(newData);
+
+    // Guardar en cache
+    saveToCache(newData);
+
+    console.log('[useContractPools] ✅ Sincronización legacy exitosa:', {
+      totalUSDC: newData.totalUSDC,
+      reserveTotalUSDC: newData.reserveTotalUSDC,
+      dailyCollected: processedDailyPool.totalCollected,
+      gameDay: newData.currentGameDay
+    });
+  };
+
   // Hook de efecto para inicializar y mantener sincronización
   useEffect(() => {
     // Sincronización inicial
@@ -436,8 +505,55 @@ export const useContractPools = () => {
       fetchContractData(false);
     };
 
+    // Listener para eventos de sincronización del sistema de verificación
+    const handleBlockchainSync = (event: CustomEvent) => {
+      console.log('[useContractPools] Evento de sincronización blockchain recibido');
+      const blockchainData = event.detail;
+      
+      const syncedData: ContractPoolsData = {
+        mainPools: {
+          firstPrizeAccumulated: blockchainData.mainPools.firstPrize,
+          secondPrizeAccumulated: blockchainData.mainPools.secondPrize,
+          thirdPrizeAccumulated: blockchainData.mainPools.thirdPrize,
+          developmentAccumulated: blockchainData.mainPools.development
+        },
+        reserves: {
+          firstPrizeReserve1: blockchainData.reserves.firstPrize,
+          secondPrizeReserve2: blockchainData.reserves.secondPrize,
+          thirdPrizeReserve3: blockchainData.reserves.thirdPrize
+        },
+        dailyPool: {
+          totalCollected: blockchainData.dailyPool.totalCollected,
+          mainPoolPortion: blockchainData.dailyPool.mainPortion,
+          reservePortion: blockchainData.dailyPool.reservePortion,
+          firstPrizeDaily: '0',
+          secondPrizeDaily: '0',
+          thirdPrizeDaily: '0',
+          developmentDaily: '0',
+          distributed: blockchainData.dailyPool.distributed,
+          distributionTime: '0',
+          drawn: blockchainData.dailyPool.drawn,
+          reservesSent: false
+        },
+        currentGameDay: blockchainData.contractInfo.currentGameDay,
+        timeToNextDraw: 0,
+        automationActive: blockchainData.contractInfo.automationActive,
+        gameActive: blockchainData.contractInfo.gameActive,
+        upkeepNeeded: false,
+        totalUSDC: blockchainData.totals.mainTotal,
+        reserveTotalUSDC: blockchainData.totals.reserveTotal,
+        loading: false,
+        error: null,
+        lastSyncTime: blockchainData.timestamp,
+        syncAttempts: 0
+      };
+      
+      setData(syncedData);
+    };
+
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
+    window.addEventListener('blockchainPoolsSync', handleBlockchainSync as EventListener);
 
     return () => {
       if (intervalRef.current) {
@@ -445,14 +561,28 @@ export const useContractPools = () => {
       }
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('blockchainPoolsSync', handleBlockchainSync as EventListener);
     };
   }, []);
 
-  // Función manual de refresh
-  const refreshPools = () => {
-    console.log('[useContractPools] Refresh manual solicitado');
-    fetchContractData(true);
+  // Función manual de refresh mejorada
+  const refreshPools = async () => {
+    console.log('[useContractPools] Refresh manual solicitado - usando forcePoolSync');
+    try {
+      await forcePoolSync();
+    } catch (error) {
+      console.error('[useContractPools] Error en forcePoolSync, usando fetchContractData:', error);
+      fetchContractData(true);
+    }
   };
+
+  // Exponer refreshPools globalmente para el sistema de verificación
+  useEffect(() => {
+    (window as any).refreshPools = refreshPools;
+    return () => {
+      delete (window as any).refreshPools;
+    };
+  }, []);
 
   return {
     ...data,

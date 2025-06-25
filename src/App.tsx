@@ -27,6 +27,7 @@ import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
 import { EmojiDebugger } from './components/EmojiDebugger';
+import { BlockchainDebugPanel } from './components/BlockchainDebugPanel';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -3733,6 +3734,7 @@ function AppContent() {
   const { user: walletUser, isConnected: isWalletConnected } = useWallet();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [showTicketHistory, setShowTicketHistory] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const hasTriedSignIn = useRef(false);
   
   // Usar wallet user si está disponible, sino usar auth user
@@ -3814,6 +3816,19 @@ function AppContent() {
   useEffect(() => {
     handleWin();
   }, [gameState.lastResults, handleWin]);
+
+  // Keyboard shortcut for debug panel (Ctrl+Shift+D)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+        event.preventDefault();
+        setShowDebugPanel(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Pantalla de carga con animación
   if (isLoading && !initialLoadComplete) {
@@ -3994,6 +4009,12 @@ function AppContent() {
       {showTicketHistory && (
         <TicketHistoryModal onClose={() => setShowTicketHistory(false)} />
       )}
+
+      {/* Blockchain Debug Panel */}
+      <BlockchainDebugPanel 
+        isVisible={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
+      />
     </div>
   );
 }
