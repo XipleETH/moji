@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
-import { isInProblematicResetWindow, getUserTimezone } from '../utils/timezone';
+import { getUserTimezone } from '../utils/timezone';
 
 // ABI mínimo para las funciones que necesitamos (basado en el ABI compilado real)
 const LOTTO_MOJI_ABI = [

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { subscribeToGameState } from '../firebase/gameServer';
-import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo, isInProblematicResetWindow, getUserTimezone } from '../utils/timezone';
+import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo, getUserTimezone } from '../utils/timezone';
 import { distributePrizePool, getDailyPrizePool } from '../firebase/prizePools';
 
 export function useRealTimeTimer(onTimeEnd: () => void) {
@@ -23,11 +23,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
     
     // Función para calcular tiempo usando timezone de São Paulo
     const updateSaoPauloTime = () => {
-      // Verificar si estamos en una ventana problemática antes de proceder
-      if (isInProblematicResetWindow()) {
-        console.log('[useRealTimeTimer] [PROTECCIÓN] En ventana problemática - evitando cambios de día');
-        return timeRemaining; // Mantener el tiempo actual sin cambios
-      }
+      // Removed problematic reset window protection - let normal sync happen
       
       const spTime = getTimeUntilNextDrawSaoPaulo();
       const currentGameDay = getCurrentGameDaySaoPaulo();
@@ -37,9 +33,9 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       
       setTimeRemaining(spTime);
       
-      // Detectar cambio de día en São Paulo con protección adicional
+      // Detectar cambio de día en São Paulo
       if (currentGameDay !== lastDayRef.current && lastDayRef.current !== '') {
-        if (!processingRef.current && !isInProblematicResetWindow()) {
+        if (!processingRef.current) {
           processingRef.current = true;
           console.log(`[useRealTimeTimer] [SP Sync] Cambio de día detectado: ${lastDayRef.current} → ${currentGameDay}`);
           
@@ -48,8 +44,6 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
             onTimeEnd();
             processingRef.current = false;
           }, 1000);
-        } else if (isInProblematicResetWindow()) {
-          console.log(`[useRealTimeTimer] [PROTECCIÓN] Cambio de día detectado pero bloqueado por ventana problemática`);
         }
       }
       
@@ -70,11 +64,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       console.log(`[useRealTimeTimer] [Firebase] nextDrawTime: ${formatTimeSaoPaulo(new Date(nextDrawTime))}`);
       console.log(`[useRealTimeTimer] [Firebase] remaining: ${firebaseRemaining}s vs [SP Calc] ${saoPauloRemaining}s`);
       
-      // Protección adicional contra resets durante ventana problemática
-      if (isInProblematicResetWindow()) {
-        console.log(`[useRealTimeTimer] [PROTECCIÓN] Ignorando update de Firebase durante ventana problemática`);
-        return;
-      }
+      // Normal Firebase sync processing
       
       // Usar el tiempo de São Paulo como fuente de verdad, pero sincronizar con Firebase
       // Solo ajustar si hay una diferencia significativa (más de 10 segundos)
@@ -96,7 +86,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
         if (firebaseRemaining > 86000) { // Más de 23.8 horas = nuevo sorteo
           const currentGameDay = getCurrentGameDaySaoPaulo();
           
-          if (currentGameDay !== lastDayRef.current && !processingRef.current && !isInProblematicResetWindow()) {
+          if (currentGameDay !== lastDayRef.current && !processingRef.current) {
             lastDayRef.current = currentGameDay;
             processingRef.current = true;
             
@@ -107,8 +97,6 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
               onTimeEnd();
               processingRef.current = false;
             }, 1000);
-          } else if (isInProblematicResetWindow()) {
-            console.log(`[useRealTimeTimer] [PROTECCIÓN] Nuevo sorteo detectado pero bloqueado por ventana problemática`);
           }
         }
       }
@@ -121,11 +109,6 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
     
     // Temporizador principal - actualizar cada segundo usando cálculo de São Paulo
     timerRef.current = setInterval(() => {
-      // Protección durante ventana problemática
-      if (isInProblematicResetWindow()) {
-        console.log(`[useRealTimeTimer] [PROTECCIÓN] Timer pausado durante ventana problemática`);
-        return;
-      }
       
       const currentSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
       
@@ -147,11 +130,6 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
 
     // Temporizador de respaldo - recalcular cada 30 segundos para mayor precisión
     fallbackTimerRef.current = setInterval(() => {
-      // Protección durante ventana problemática
-      if (isInProblematicResetWindow()) {
-        console.log(`[useRealTimeTimer] [PROTECCIÓN] Fallback timer pausado durante ventana problemática`);
-        return;
-      }
       
       const preciseSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
       console.log(`[useRealTimeTimer] [Fallback] Recálculo preciso: ${preciseSaoPauloTime}s`);
@@ -175,11 +153,6 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
 
     // Temporizador para distribución automática de pools (cada minuto)
     poolCheckTimerRef.current = setInterval(async () => {
-      // Protección adicional: no distribuir durante ventana problemática
-      if (isInProblematicResetWindow()) {
-        console.log(`[useRealTimeTimer] [PROTECCIÓN] Pool distribution pausada durante ventana problemática`);
-        return;
-      }
       
       const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
       const currentGameDay = getCurrentGameDaySaoPaulo();
