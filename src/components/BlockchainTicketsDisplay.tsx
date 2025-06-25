@@ -199,11 +199,11 @@ const TicketModal: React.FC<TicketModalProps> = ({
                 </span>
               </div>
               
-              <div className="flex items-center justify-center gap-2 bg-black/20 rounded-lg p-3">
+              <div className="flex items-center justify-center gap-2 bg-purple-900/30 rounded-lg p-3">
                 {ticket.emojis.map((emoji: string, index: number) => (
                   <span 
                     key={index} 
-                    className="text-3xl bg-white/10 rounded-lg w-12 h-12 flex items-center justify-center"
+                    className="text-3xl bg-purple-100 border border-purple-200 rounded-lg w-12 h-12 flex items-center justify-center shadow-sm"
                   >
                     {emoji}
                   </span>
@@ -468,11 +468,11 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
                   </div>
                 </div>
                 
-                <div className="flex items-center justify-center gap-2 bg-black/20 rounded-lg p-3">
+                <div className="flex items-center justify-center gap-2 bg-purple-900/30 rounded-lg p-3">
                   {latestTicket.emojis.map((emoji: string, index: number) => (
                     <span 
                       key={index} 
-                      className="text-3xl bg-white/10 rounded-lg w-12 h-12 flex items-center justify-center"
+                      className="text-3xl bg-purple-100 border border-purple-200 rounded-lg w-12 h-12 flex items-center justify-center shadow-sm"
                     >
                       {emoji}
                     </span>

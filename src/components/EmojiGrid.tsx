@@ -84,15 +84,15 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
               <button
                 key={`emoji-${index}`}
                 onClick={() => canSelect && onEmojiSelect(emoji, index)}
-                className={`
-                  relative aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
-                  font-medium shadow-sm border-2
-                  ${canSelect 
-                    ? selectionCount > 0
-                      ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
-                      : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-purple-100 hover:to-purple-200 hover:border-purple-300 hover:scale-105 hover:shadow-md'
-                    : 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'}
-                `}
+                                  className={`
+                    relative aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
+                    font-medium shadow-sm border-2
+                    ${canSelect 
+                      ? selectionCount > 0
+                        ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
+                        : 'bg-purple-100 border-purple-200 hover:bg-gradient-to-br hover:from-purple-200 hover:to-purple-300 hover:border-purple-400 hover:scale-105 hover:shadow-md'
+                      : 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'}
+                  `}
                 disabled={!canSelect}
               >
                 {emoji}

@@ -635,7 +635,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                               ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
                               : isDisabled
                                 ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
-                                : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-purple-100 hover:to-purple-200 hover:border-purple-300 hover:scale-105 hover:shadow-md'
+                                : 'bg-purple-100 border-purple-200 hover:bg-gradient-to-br hover:from-purple-200 hover:to-purple-300 hover:border-purple-400 hover:scale-105 hover:shadow-md'
                             }
                           `}
                         >
