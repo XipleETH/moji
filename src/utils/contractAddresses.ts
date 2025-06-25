@@ -34,7 +34,7 @@ export const GAME_CONFIG = {
   
   // Mapeo de índices a emojis (personalizable)
   EMOJI_MAP: [
-    '🎮', '🎲', '🎯', '🎪', '🎨', // Gaming & Art (0-4)
+    '🎮', '🎲', '🎯', '🎸', '🎨', // Gaming & Art (0-4)
     '💎', '💰', '💸', '🏆', '🎁', // Money & Prizes (5-9)
     '🚀', '🌙', '⭐', '✨', '🌟', // Space & Stars (10-14)
     '🎭', '🎪', '🎢', '🎡', '🎠', // Entertainment (15-19)
