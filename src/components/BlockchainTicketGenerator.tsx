@@ -23,6 +23,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   className = ''
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [isConfirmingTicket, setIsConfirmingTicket] = useState(false);
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
   
@@ -130,6 +131,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
       
       // Cleanup normal para tickets individuales
       setSelectedEmojis([]);
+      setSelectedIndices([]);
       setIsGeneratingRandom(false);
       setIsConfirmingTicket(false);
       
@@ -183,16 +185,19 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     generateNextBulkTicket();
   };
 
-  const handleEmojiSelect = (emoji: string) => {
-    if (purchaseState.isLoading || selectedEmojis.length >= 4 || !userData.canBuyTicket || isBulkGenerating) return;
+  const handleEmojiSelect = (emoji: string, emojiIndex: number) => {
+    if (purchaseState.isLoading || selectedEmojis.length >= 4 || selectedIndices.includes(emojiIndex) || isBulkGenerating) return;
     
     const newSelection = [...selectedEmojis, emoji];
+    const newIndices = [...selectedIndices, emojiIndex];
     setSelectedEmojis(newSelection);
+    setSelectedIndices(newIndices);
   };
 
   const handleEmojiDeselect = (index: number) => {
     if (purchaseState.isLoading || isBulkGenerating) return;
     setSelectedEmojis(prev => prev.filter((_, i) => i !== index));
+    setSelectedIndices(prev => prev.filter((_, i) => i !== index));
   };
 
   const generateRandomTicket = async () => {
@@ -615,13 +620,13 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                 <>
                   <div className="grid grid-cols-5 gap-3 max-w-md mx-auto">
                     {emojis.slice(0, 25).map((emoji, index) => {
-                      const isSelected = selectedEmojis.includes(emoji);
+                      const isSelected = selectedIndices.includes(index);
                       const isDisabled = selectedEmojis.length >= 4 || (!showWalletPrompt && !canBuyTicket) || purchaseState.isLoading;
                       
                       return (
                         <button
                           key={`emoji-${index}`}
-                          onClick={() => handleEmojiSelect(emoji)}
+                          onClick={() => handleEmojiSelect(emoji, index)}
                           disabled={isDisabled && !isSelected}
                           className={`
                             aspect-square text-2xl p-3 rounded-xl transition-all duration-200 

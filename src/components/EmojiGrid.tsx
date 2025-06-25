@@ -4,16 +4,18 @@ import { X } from 'lucide-react';
 
 interface EmojiGridProps {
   selectedEmojis: string[];
-  onEmojiSelect: (emoji: string) => void;
+  onEmojiSelect: (emoji: string, index: number) => void;
   onEmojiDeselect: (index: number) => void;
   maxSelections: number;
+  selectedIndices?: number[]; // Add this to track which positions are selected
 }
 
 export const EmojiGrid: React.FC<EmojiGridProps> = ({ 
   selectedEmojis, 
   onEmojiSelect, 
   onEmojiDeselect,
-  maxSelections 
+  maxSelections,
+  selectedIndices = []
 }) => {
   const [emojis, setEmojis] = useState<string[]>(getEmojis());
   const [isLoading, setIsLoading] = useState(false);
@@ -77,11 +79,11 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
       ) : (
         <div className="grid grid-cols-5 gap-3 max-w-md mx-auto">
           {gridEmojis.map((emoji, index) => {
-            const isSelected = selectedEmojis.includes(emoji);
+            const isSelected = selectedIndices.includes(index);
             return (
               <button
-                key={`${emoji}-${index}`}
-                onClick={() => canSelect && onEmojiSelect(emoji)}
+                key={`emoji-${index}`}
+                onClick={() => canSelect && onEmojiSelect(emoji, index)}
                 className={`
                   aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
                   font-medium shadow-sm border-2
