@@ -3557,6 +3557,130 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para diagnosticar problemas de pools para usuarios en Colombia
+(window as any).diagnosePoolResetIssue = async () => {
+  try {
+    console.log('🔍 DIAGNÓSTICO DE PROBLEMA DE POOLS (COLOMBIA)');
+    console.log('='.repeat(50));
+    
+    const { 
+      getUserTimezone, 
+      getCurrentDateColombia,
+      getCurrentDateSaoPaulo,
+      formatTimeColombia,
+      formatTimeSaoPaulo,
+      isInProblematicResetWindow,
+      debugTimezone
+    } = await import('./utils/timezone');
+    
+    const now = new Date();
+    const userTz = getUserTimezone();
+    const colombiaTime = getCurrentDateColombia();
+    const saoPauloTime = getCurrentDateSaoPaulo();
+    
+    console.log('👤 INFORMACIÓN DEL USUARIO:');
+    console.log('- Timezone detectado:', userTz);
+    console.log('- Hora local:', now.toLocaleString());
+    console.log('- Hora Colombia:', formatTimeColombia(now));
+    console.log('- Hora São Paulo:', formatTimeSaoPaulo(now));
+    console.log('- En ventana problemática:', isInProblematicResetWindow());
+    
+    // Calcular 16:00 Colombia en diferentes timezones
+    const sixteenColombia = new Date(colombiaTime);
+    sixteenColombia.setHours(16, 0, 0, 0);
+    const sixteenColombiaUTC = new Date(sixteenColombia.getTime() + 5 * 60 * 60 * 1000); // Colombia is UTC-5
+    const sixteenColombiaSP = new Date(sixteenColombiaUTC.getTime() - 3 * 60 * 60 * 1000); // São Paulo is UTC-3
+    
+    console.log('\n⏰ ANÁLISIS DE 16:00 COLOMBIA:');
+    console.log('- 16:00 Colombia en UTC:', sixteenColombiaUTC.toISOString());
+    console.log('- 16:00 Colombia en São Paulo:', formatTimeSaoPaulo(sixteenColombiaUTC));
+    console.log('- Diferencia con medianoche SP:', Math.floor((sixteenColombiaUTC.getTime() - sixteenColombiaSP.getTime()) / (1000 * 60 * 60)), 'horas');
+    
+    // Verificar estado de pools actual
+    console.log('\n💰 ESTADO ACTUAL DE POOLS:');
+    const poolElements = document.querySelectorAll('[class*="pool"], [class*="Pool"]');
+    console.log('- Elementos de pool encontrados:', poolElements.length);
+    
+    // Intentar obtener datos de los hooks si están disponibles
+    try {
+      const { useContractPools } = await import('./hooks/useContractPools');
+      console.log('- Hook useContractPools disponible ✅');
+    } catch (e) {
+      console.log('- Hook useContractPools no disponible ❌');
+    }
+    
+    // Verificar patrón de reset
+    const currentHour = colombiaTime.getHours();
+    const isNearSixteen = Math.abs(currentHour - 16) <= 1;
+    
+    console.log('\n🚨 EVALUACIÓN DEL PROBLEMA:');
+    console.log('- Hora actual Colombia:', currentHour + ':00');
+    console.log('- Cerca de las 16:00:', isNearSixteen ? '⚠️ SÍ' : '✅ NO');
+    console.log('- Debería estar protegido:', isInProblematicResetWindow() ? '✅ SÍ' : '❌ NO');
+    
+    if (isNearSixteen && !isInProblematicResetWindow()) {
+      console.log('\n❌ PROBLEMA DETECTADO:');
+      console.log('- Estás cerca de las 16:00 Colombia pero la protección no está activa');
+      console.log('- Esto puede causar el reset problemático');
+      console.log('- SOLUCIÓN: Refresca la página para aplicar las correcciones');
+    } else if (isInProblematicResetWindow()) {
+      console.log('\n✅ PROTECCIÓN ACTIVA:');
+      console.log('- Las protecciones están funcionando correctamente');
+      console.log('- Los pools no deberían resetearse ahora');
+    } else {
+      console.log('\n✅ FUERA DE VENTANA PROBLEMÁTICA:');
+      console.log('- No hay riesgo de reset problemático en este momento');
+    }
+    
+    // Debug completo de timezone
+    console.log('\n🔧 DEBUG COMPLETO:');
+    const timezoneDebug = debugTimezone();
+    console.table(timezoneDebug);
+    
+    return {
+      userTimezone: userTz,
+      currentTime: {
+        local: now.toISOString(),
+        colombia: formatTimeColombia(now),
+        saoPaulo: formatTimeSaoPaulo(now)
+      },
+      problemWindow: {
+        inProblematicWindow: isInProblematicResetWindow(),
+        nearSixteen: isNearSixteen,
+        currentHourColombia: currentHour
+      },
+      sixteenColombiaAnalysis: {
+        utc: sixteenColombiaUTC.toISOString(),
+        saoPaulo: formatTimeSaoPaulo(sixteenColombiaUTC)
+      },
+      recommendation: isNearSixteen && !isInProblematicResetWindow() 
+        ? 'REFRESH_PAGE_TO_APPLY_FIXES'
+        : 'SYSTEM_OK'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para forzar protección manual si es necesario
+(window as any).forcePoolProtection = () => {
+  console.log('🛡️ Forzando protección de pools...');
+  
+  // Limpiar todos los intervalos que podrían estar causando resets
+  const highestId = setTimeout(() => {}, 0);
+  for (let i = 0; i < highestId; i++) {
+    clearTimeout(i);
+    clearInterval(i);
+  }
+  
+  console.log('✅ Intervalos limpiados');
+  console.log('💡 Refresca la página para aplicar todas las protecciones');
+  
+  return { cleared: highestId, action: 'REFRESH_REQUIRED' };
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus, timerInfo } = useGameState();
   const { context } = useMiniKit();

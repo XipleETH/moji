@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
+import { isInProblematicResetWindow, getUserTimezone } from '../utils/timezone';
 
 // ABI mínimo para las funciones que necesitamos (basado en el ABI compilado real)
 const LOTTO_MOJI_ABI = [
@@ -97,6 +98,15 @@ export const useContractPools = () => {
 
   const fetchContractData = async (showLoading = true) => {
     try {
+      // Protección: evitar resets durante ventana problemática
+      if (isInProblematicResetWindow()) {
+        console.log('[useContractPools] [PROTECCIÓN] Evitando fetch durante ventana problemática');
+        if (showLoading) {
+          setData(prev => ({ ...prev, loading: false }));
+        }
+        return;
+      }
+
       if (showLoading) {
         setData(prev => ({ ...prev, loading: true, error: null }));
       }
@@ -175,6 +185,20 @@ export const useContractPools = () => {
         Number(ethers.formatUnits(reserves.secondPrizeReserve2, 6)) +
         Number(ethers.formatUnits(reserves.thirdPrizeReserve3, 6));
 
+      // Validar que los datos no sean cero de manera sospechosa
+      const userTimezone = getUserTimezone();
+      if (totalMainPools === 0 && totalReserves === 0 && Number(ethers.formatUnits(dailyPool.totalCollected, 6)) === 0) {
+        console.warn('[useContractPools] [VALIDACIÓN] Todos los pools en cero - posible reset problemático');
+        console.warn('[useContractPools] [VALIDACIÓN] Usuario en timezone:', userTimezone);
+        
+        // Si estamos en ventana problemática Y todos los pools están en cero, usar datos previos
+        if (isInProblematicResetWindow() && (data.totalUSDC !== '0' || data.reserveTotalUSDC !== '0')) {
+          console.log('[useContractPools] [PROTECCIÓN] Manteniendo datos previos durante ventana problemática');
+          setData(prev => ({ ...prev, loading: false, error: 'Protected during problematic window' }));
+          return;
+        }
+      }
+
       setData({
         mainPools: {
           firstPrizeAccumulated: ethers.formatUnits(mainPools.firstPrizeAccumulated, 6),
@@ -211,6 +235,8 @@ export const useContractPools = () => {
         error: null
       });
 
+      console.log('[useContractPools] Datos actualizados exitosamente');
+
     } catch (error) {
       console.error('Error fetching contract data:', error);
       setData(prev => ({
@@ -222,10 +248,19 @@ export const useContractPools = () => {
   };
 
   useEffect(() => {
+    const userTimezone = getUserTimezone();
+    console.log('[useContractPools] Inicializando con timezone:', userTimezone);
+    
     fetchContractData(true);
     
-    // Actualizar cada 60 segundos en background (sin loading)
-    const interval = setInterval(() => fetchContractData(false), 60000);
+    // Actualizar cada 60 segundos en background (sin loading), pero con protección
+    const interval = setInterval(() => {
+      if (!isInProblematicResetWindow()) {
+        fetchContractData(false);
+      } else {
+        console.log('[useContractPools] [PROTECCIÓN] Intervalo pausado durante ventana problemática');
+      }
+    }, 60000);
     
     return () => clearInterval(interval);
   }, []);

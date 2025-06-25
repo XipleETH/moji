@@ -1,5 +1,16 @@
 // Constantes para timezone de São Paulo
 export const SAO_PAULO_TIMEZONE = 'America/Sao_Paulo';
+export const COLOMBIA_TIMEZONE = 'America/Bogota';
+
+// Función para detectar el timezone del usuario
+export const getUserTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch (error) {
+    console.warn('[getUserTimezone] Error detecting timezone:', error);
+    return 'UTC';
+  }
+};
 
 // Función para obtener la fecha actual en timezone de São Paulo
 export const getCurrentDateSaoPaulo = (): Date => {
@@ -28,13 +39,12 @@ export const getCurrentDateSaoPaulo = (): Date => {
   return new Date(year, month, day, hour, minute, second);
 };
 
-// Función para obtener la medianoche del siguiente día en São Paulo
-export const getNextMidnightSaoPaulo = (): Date => {
+// Función para obtener la fecha actual en timezone de Colombia
+export const getCurrentDateColombia = (): Date => {
   const now = new Date();
   
-  // Crear fecha en timezone de São Paulo
-  const saoPauloFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: SAO_PAULO_TIMEZONE,
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: COLOMBIA_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -44,42 +54,38 @@ export const getNextMidnightSaoPaulo = (): Date => {
     hour12: false
   });
 
-  const parts = saoPauloFormatter.formatToParts(now);
-  const currentSaoPauloYear = parseInt(parts.find(p => p.type === 'year')?.value || '0');
-  const currentSaoPauloMonth = parseInt(parts.find(p => p.type === 'month')?.value || '0') - 1;
-  const currentSaoPauloDay = parseInt(parts.find(p => p.type === 'day')?.value || '0');
-  const currentSaoPauloHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-  const currentSaoPauloMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-  const currentSaoPauloSecond = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '0') - 1;
+  const day = parseInt(parts.find(p => p.type === 'day')?.value || '0');
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+  const second = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+
+  return new Date(year, month, day, hour, minute, second);
+};
+
+// Función para obtener la medianoche del siguiente día en São Paulo
+export const getNextMidnightSaoPaulo = (): Date => {
+  const now = new Date();
   
-  // Crear medianoche del día siguiente en São Paulo
-  let targetDay = currentSaoPauloDay + 1;
-  let targetMonth = currentSaoPauloMonth;
-  let targetYear = currentSaoPauloYear;
+  // Calcular la próxima medianoche en São Paulo usando la biblioteca de fechas nativa
+  const saoPauloTime = new Date(now.toLocaleString("en-US", {timeZone: SAO_PAULO_TIMEZONE}));
+  const nextMidnight = new Date(saoPauloTime);
   
-  // Si ya pasó medianoche (o estamos muy cerca), calcular la próxima medianoche
-  if (currentSaoPauloHour === 0 && currentSaoPauloMinute === 0 && currentSaoPauloSecond < 5) {
-    // Si estamos en los primeros 5 segundos de medianoche, la próxima medianoche es mañana
-    targetDay = currentSaoPauloDay + 1;
+  // Si es después de las 23:59, ir al día siguiente
+  if (nextMidnight.getHours() === 23 && nextMidnight.getMinutes() >= 59) {
+    nextMidnight.setDate(nextMidnight.getDate() + 1);
+  } else if (nextMidnight.getHours() < 23) {
+    // Si no es el final del día, ir al día siguiente
+    nextMidnight.setDate(nextMidnight.getDate() + 1);
   }
   
-  // Manejar cambio de mes/año
-  const tempDate = new Date(targetYear, targetMonth, targetDay);
-  if (tempDate.getMonth() !== targetMonth) {
-    targetMonth++;
-    targetDay = 1;
-    if (targetMonth > 11) {
-      targetMonth = 0;
-      targetYear++;
-    }
-  }
+  nextMidnight.setHours(0, 0, 0, 0);
   
-  // Crear la fecha objetivo en São Paulo (medianoche)
-  const nextMidnightSP = new Date(targetYear, targetMonth, targetDay, 0, 0, 0, 0);
-  
-  // Convertir a UTC usando el offset de São Paulo
-  const saoPauloOffset = getSaoPauloOffset();
-  const nextMidnightUTC = new Date(nextMidnightSP.getTime() - (saoPauloOffset * 60 * 60 * 1000));
+  // Convertir de vuelta a UTC
+  const timezoneOffset = getSaoPauloOffset();
+  const nextMidnightUTC = new Date(nextMidnight.getTime() - (timezoneOffset * 60 * 60 * 1000));
   
   return nextMidnightUTC;
 };
@@ -133,38 +139,44 @@ export const getCurrentGameDaySaoPaulo = (): string => {
   return `${year}-${month}-${day}`;
 };
 
-// Función para calcular el tiempo restante hasta la medianoche de São Paulo
+// Función para calcular el tiempo restante hasta la medianoche de São Paulo (CORREGIDA)
 export const getTimeUntilNextDrawSaoPaulo = (): number => {
   try {
     const now = new Date();
     
-    // Usar cálculo simplificado que funciona correctamente
-    // São Paulo está en UTC-3 (horario estándar) durante junio
-    const saoPauloOffset = -3;
-    const saoPauloNow = new Date(now.getTime() + (saoPauloOffset * 60 * 60 * 1000));
+    // Obtener medianoche São Paulo de manera más precisa
+    const nextMidnightSP = new Date(now.toLocaleString("en-US", {timeZone: SAO_PAULO_TIMEZONE}));
     
-    const saoPauloMidnight = new Date(saoPauloNow);
-    saoPauloMidnight.setUTCDate(saoPauloMidnight.getUTCDate() + 1);
-    saoPauloMidnight.setUTCHours(0, 0, 0, 0);
+    // Ajustar a la próxima medianoche
+    nextMidnightSP.setDate(nextMidnightSP.getDate() + 1);
+    nextMidnightSP.setHours(0, 0, 0, 0);
     
-    const saoPauloMidnightUTC = new Date(saoPauloMidnight.getTime() - (saoPauloOffset * 60 * 60 * 1000));
-    const secondsUntil = Math.floor((saoPauloMidnightUTC.getTime() - now.getTime()) / 1000);
+    // Convertir la hora de São Paulo a UTC para la comparación
+    // São Paulo normalmente está en UTC-3, pero puede variar con horario de verano
+    const saoPauloOffsetMs = (nextMidnightSP.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000;
+    const nextMidnightUTC = new Date(nextMidnightSP.getTime() - saoPauloOffsetMs);
     
-    // Validar que el resultado esté en rango razonable (0-24 horas)
-    if (secondsUntil < 0 || secondsUntil > 24 * 60 * 60) {
-      console.warn('[getTimeUntilNextDrawSaoPaulo] Resultado fuera de rango:', secondsUntil, 'usando fallback');
+    // Agregar el offset de São Paulo manualmente (esto es más confiable)
+    const manualOffset = getSaoPauloOffset();
+    const correctedMidnight = new Date(nextMidnightSP.getTime() - (manualOffset * 60 * 60 * 1000));
+    
+    const secondsUntil = Math.floor((correctedMidnight.getTime() - now.getTime()) / 1000);
+    
+    // Validar que el resultado esté en rango razonable (0-25 horas para considerar DST)
+    if (secondsUntil < 0 || secondsUntil > 25 * 60 * 60) {
+      console.warn('[getTimeUntilNextDrawSaoPaulo] Resultado fuera de rango:', secondsUntil, 'usando fallback mejorado');
       
-      // Fallback: calcular medianoche local + diferencia de timezone
-      const localMidnight = new Date(now);
-      localMidnight.setDate(localMidnight.getDate() + 1);
-      localMidnight.setHours(0, 0, 0, 0);
+      // Fallback mejorado: usar la API nativa de timezone
+      const saoPauloNow = new Date(now.toLocaleString("en-US", {timeZone: SAO_PAULO_TIMEZONE}));
+      const tomorrow = new Date(saoPauloNow);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
       
-      const localSeconds = Math.floor((localMidnight.getTime() - now.getTime()) / 1000);
-      // Ajustar por diferencia de timezone (tu zona - São Paulo)
-      const timezoneOffset = now.getTimezoneOffset() / 60; // Tu offset en horas
-      const adjustment = (timezoneOffset - saoPauloOffset) * 3600; // Diferencia en segundos
+      // Convertir de vuelta considerando la diferencia de timezone
+      const offsetDiff = (saoPauloNow.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000;
+      const tomorrowUTC = new Date(tomorrow.getTime() - offsetDiff);
       
-      return Math.max(0, localSeconds - adjustment);
+      return Math.max(0, Math.floor((tomorrowUTC.getTime() - now.getTime()) / 1000));
     }
     
     return Math.max(0, secondsUntil);
@@ -172,13 +184,38 @@ export const getTimeUntilNextDrawSaoPaulo = (): number => {
   } catch (error) {
     console.error('[getTimeUntilNextDrawSaoPaulo] Error:', error);
     
-    // Fallback simple
+    // Fallback simple pero robusto
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
     
     return Math.max(0, Math.floor((tomorrow.getTime() - now.getTime()) / 1000));
+  }
+};
+
+// Función para validar que no estamos en una ventana de reset problemática
+export const isInProblematicResetWindow = (): boolean => {
+  try {
+    const userTimezone = getUserTimezone();
+    const now = new Date();
+    
+    // Si el usuario está en Colombia o timezone similar (UTC-5)
+    if (userTimezone.includes('Bogota') || userTimezone.includes('America/Colombia')) {
+      const colombiaTime = getCurrentDateColombia();
+      const hour = colombiaTime.getHours();
+      
+      // Evitar resets entre 15:00 y 17:00 Colombia (problematic window)
+      if (hour >= 15 && hour < 17) {
+        console.warn('[isInProblematicResetWindow] En ventana problemática para Colombia:', hour + ':00');
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('[isInProblematicResetWindow] Error:', error);
+    return false;
   }
 };
 
@@ -197,30 +234,53 @@ export const formatTimeSaoPaulo = (date: Date): string => {
   }).format(date);
 };
 
+// Función para formatear tiempo en timezone de Colombia
+export const formatTimeColombia = (date: Date): string => {
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: COLOMBIA_TIMEZONE,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  }).format(date);
+};
+
 // Función de debug para mostrar información de timezone
 export const debugTimezone = () => {
   const now = new Date();
   const saoPauloNow = getCurrentDateSaoPaulo();
+  const colombiaNow = getCurrentDateColombia();
   const nextMidnight = getNextMidnightSaoPaulo();
   const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
   const offset = getSaoPauloOffset();
+  const userTz = getUserTimezone();
   
   console.log('🕐 Timezone Debug Info:');
+  console.log('User timezone:', userTz);
   console.log('Local time:', now.toLocaleString());
   console.log('São Paulo time:', formatTimeSaoPaulo(now));
+  console.log('Colombia time:', formatTimeColombia(now));
   console.log('São Paulo offset:', offset, 'hours');
   console.log('Game day (SP):', getCurrentGameDaySaoPaulo());
   console.log('Next midnight (UTC):', nextMidnight.toISOString());
   console.log('Next midnight (SP):', formatTimeSaoPaulo(nextMidnight));
   console.log('Time until draw:', Math.floor(timeUntilDraw / 3600), 'h', Math.floor((timeUntilDraw % 3600) / 60), 'm', timeUntilDraw % 60, 's');
+  console.log('In problematic window:', isInProblematicResetWindow());
   
   return {
+    userTimezone: userTz,
     localTime: now,
     saoPauloTime: saoPauloNow,
+    colombiaTime: colombiaNow,
     nextMidnight,
     timeUntilDraw,
     offset,
-    gameDay: getCurrentGameDaySaoPaulo()
+    gameDay: getCurrentGameDaySaoPaulo(),
+    inProblematicWindow: isInProblematicResetWindow()
   };
 };
 
