@@ -61,7 +61,7 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
       const interval = Number(contractDrawInterval);
 
       // Calcular el próximo sorteo basado en la lógica del contrato
-      // nextDrawTime = lastDrawTime + DRAW_INTERVAL (ahora correcto en V2)
+      // nextDrawTime = lastDrawTime + DRAW_INTERVAL (ahora correcto en V4)
       const nextDraw = lastDraw + interval;
       const now = Math.floor(Date.now() / 1000);
       const remaining = Math.max(0, nextDraw - now);

@@ -26,7 +26,7 @@ export const Timer: React.FC<TimerProps> = ({
     return formatTimeSaoPaulo(date);
   };
 
-  // V2 contract should always be at midnight, no need to check anymore
+  // V4 contract should always be at midnight, no need to check anymore
   const isNextDrawAtMidnight = () => true;
 
   return (
@@ -47,7 +47,7 @@ export const Timer: React.FC<TimerProps> = ({
       <div className="mt-2 flex items-center justify-center gap-2">
         <div className={`w-2 h-2 rounded-full ${isContractConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
         <span className={`text-xs ${isContractConnected ? 'text-green-300' : 'text-red-300'}`}>
-          {isContractConnected ? 'Contract V2 Synced' : 'Contract Offline'}
+          {isContractConnected ? 'Contract V4 Synced' : 'Contract Offline'}
         </span>
       </div>
 

@@ -2831,22 +2831,24 @@ const checkUserTicketsFunction = async () => {
 // Función para diagnosticar el timer híbrido
 (window as any).diagnoseHybridTimer = () => {
   try {
-    console.log('🔍 Diagnóstico del Timer Híbrido:');
-    console.log('===============================');
+    console.log('🔍 Diagnóstico del Timer Híbrido V4:');
+    console.log('====================================');
     
     // Intentar acceder a los datos del timer desde el estado global (si está disponible)
     // Esta función será útil para debugging una vez que el componente esté montado
     
     console.log('📋 Instrucciones de uso:');
     console.log('1. Asegúrate de que el componente esté cargado');
-    console.log('2. El timer híbrido debería mostrar estado de conexión con el contrato');
+    console.log('2. El timer híbrido debería mostrar estado de conexión con el contrato V4');
     console.log('3. Verifica que los logs muestren sincronización cada 60 segundos');
-    console.log('4. El indicador visual debería mostrar "Contract Synced" cuando esté conectado');
+    console.log('4. El indicador visual debería mostrar "Contract V4 Synced" cuando esté conectado');
     
-    console.log('⚙️ Configuración esperada:');
+    console.log('⚙️ Configuración esperada para V4:');
+    console.log('- Contract Address: 0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D');
     console.log('- drawTimeUTC: 3 hours (03:00 UTC = 00:00 São Paulo)');
     console.log('- drawInterval: 24 hours (86400 seconds)');
     console.log('- Timer source: "contract" cuando conectado, "local" como fallback');
+    console.log('- V4 Features: Sin mantenimiento, sorteos solo cada 24h');
     
     console.log('🎯 Logs a observar:');
     console.log('- [useContractTimer] Contract data');
@@ -2854,12 +2856,61 @@ const checkUserTicketsFunction = async () => {
     console.log('- [useContractTimer] Syncing with contract');
     
     return {
-      message: 'Diagnóstico completado. Revisa los logs de la consola.',
+      message: 'Diagnóstico V4 completado. Revisa los logs de la consola.',
+      contractVersion: 'V4',
+      contractAddress: '0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D',
       timestamp: new Date().toISOString()
     };
     
   } catch (error) {
     console.error('[diagnoseHybridTimer] Error:', error);
+    return { error: error.message };
+  }
+};
+
+// Función específica para verificar sincronización V4
+(window as any).verifyV4TimerSync = async () => {
+  try {
+    console.log('🔄 Verificando Sincronización Timer V4...');
+    console.log('=========================================');
+    
+    // Verificar contrato V4
+    const contractData = await (window as any).checkContractDrawTime();
+    if (contractData.error) {
+      console.error('❌ Error conectando al contrato V4:', contractData.error);
+      return { error: contractData.error };
+    }
+    
+    // Verificar frontend vs contrato
+    const comparison = await (window as any).compareFrontendVsContract();
+    if (comparison.error) {
+      console.error('❌ Error comparando frontend vs contrato:', comparison.error);
+      return { error: comparison.error };
+    }
+    
+    console.log('✅ Resultados de Sincronización V4:');
+    console.log('===================================');
+    console.log('📊 Contrato V4 conectado:', !contractData.error);
+    console.log('⏰ Diferencia de tiempo:', comparison.difference, 'segundos');
+    console.log('🎯 Sincronizado:', comparison.synced ? '✅ SÍ' : '❌ NO');
+    console.log('🕐 Próximo sorteo (contrato):', new Date(contractData.nextDrawTime * 1000).toLocaleString());
+    
+    if (comparison.synced) {
+      console.log('🎉 ¡Timer V4 perfectamente sincronizado!');
+    } else {
+      console.log('⚠️ Timer V4 necesita ajuste. Diferencia:', comparison.difference, 'segundos');
+    }
+    
+    return {
+      contractV4: !contractData.error,
+      synced: comparison.synced,
+      difference: comparison.difference,
+      nextDrawTime: contractData.nextDrawTime,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[verifyV4TimerSync] Error:', error);
     return { error: error.message };
   }
 };
@@ -3731,8 +3782,9 @@ function App() {
       console.log('- window.forceDistributePrizes() - Forzar distribución de premios específicos');
       console.log('- window.repairZeroFinalPools() - Reparar pools con finalPools en 0');
       console.log('- window.investigateGameResults() - Investigador resultados de sorteo');
-              console.log('- window.diagnoseHybridTimer() - Diagnosticar el timer híbrido');
-        console.log('- window.checkContractDrawTime() - Ver hora exacta del sorteo según contrato');
+              console.log('- window.diagnoseHybridTimer() - Diagnosticar el timer híbrido V4');
+        console.log('- window.verifyV4TimerSync() - Verificar sincronización completa del timer V4');
+        console.log('- window.checkContractDrawTime() - Ver hora exacta del sorteo según contrato V4');
         console.log('- window.verifyContractLogic() - Verificar lógica de cálculo del contrato');
         console.log('- window.compareFrontendVsContract() - Comparar timer frontend vs contrato');
       console.log('- window.checkContractDrawTime() - Verificar hora exacta del sorteo según el contrato');
