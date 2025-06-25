@@ -3460,6 +3460,103 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para verificar sincronización completa del timer V4
+(window as any).verifyV4TimerSync = async () => {
+  try {
+    console.log('🔄 VERIFICANDO SINCRONIZACIÓN TIMER V4');
+    console.log('=====================================');
+    
+    // Obtener datos del contrato directamente
+    const { ethers } = await import('ethers');
+    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const CONTRACT_ADDRESS = "0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D";
+    const ABI = [
+      "function getCurrentDay() view returns (uint256)",
+      "function lastDrawTime() view returns (uint256)",
+      "function drawTimeUTC() view returns (uint256)",
+      "function DRAW_INTERVAL() view returns (uint256)"
+    ];
+    
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    
+    const [gameDay, lastDraw, drawTime, interval] = await Promise.all([
+      contract.getCurrentDay(),
+      contract.lastDrawTime(),
+      contract.drawTimeUTC(),
+      contract.DRAW_INTERVAL()
+    ]);
+    
+    const lastDrawNum = Number(lastDraw);
+    const intervalNum = Number(interval);
+    const nextDraw = lastDrawNum + intervalNum;
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = Math.max(0, nextDraw - now);
+    
+    console.log('📊 DATOS DEL CONTRATO V4:');
+    console.log('- Game Day:', Number(gameDay));
+    console.log('- Last Draw:', new Date(lastDrawNum * 1000).toISOString());
+    console.log('- Next Draw:', new Date(nextDraw * 1000).toISOString());
+    console.log('- Draw Time UTC:', Number(drawTime) / 3600 + ' hours');
+    console.log('- Interval:', intervalNum / 3600 + ' hours');
+    console.log('- Time Remaining:', Math.floor(remaining / 3600) + 'h ' + Math.floor((remaining % 3600) / 60) + 'm ' + (remaining % 60) + 's');
+    
+    // Verificar en São Paulo
+    const nextDrawSP = new Date(nextDraw * 1000).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const hourSP = new Date(nextDraw * 1000).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    
+    console.log('🇧🇷 PRÓXIMO SORTEO (SÃO PAULO):');
+    console.log('- Fecha completa:', nextDrawSP);
+    console.log('- Hora:', hourSP);
+    console.log('- ¿Es medianoche?:', hourSP === '00:00' ? '✅ SÍ' : '❌ NO');
+    
+    // Forzar actualización del timer frontend
+    console.log('🔄 Para forzar actualización del frontend, refresca la página');
+    
+    return {
+      gameDay: Number(gameDay),
+      lastDraw: lastDrawNum,
+      nextDraw,
+      remaining,
+      saoPauloTime: nextDrawSP,
+      isMidnight: hourSP === '00:00'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error verificando timer V4:', error);
+  }
+};
+
+// Función para forzar resincronización del timer del frontend
+(window as any).forceTimerResync = () => {
+  console.log('🔄 Forzando resincronización del timer...');
+  console.log('💡 Refresca la página para aplicar los cambios del contrato');
+  
+  // Limpiar localStorage si existe
+  try {
+    localStorage.removeItem('lastTimerSync');
+    localStorage.removeItem('cachedTimerData');
+    console.log('✅ Cache del timer limpiado');
+  } catch (e) {
+    console.log('⚠️ No hay cache para limpiar');
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus, timerInfo } = useGameState();
   const { context } = useMiniKit();
