@@ -251,16 +251,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
 
   const canBuyTicket = userData.canBuyTicket && !purchaseState.isLoading && isConnected && user && !isBulkGenerating;
   const isAnyButtonProcessing = isGeneratingRandom || isConfirmingTicket || purchaseState.isLoading || isBulkGenerating;
-
-  if (!isConnected || !user) {
-    return (
-      <div className={`bg-red-900/50 rounded-lg p-6 text-white text-center ${className}`}>
-        <div className="text-4xl mb-3">🔒</div>
-        <h3 className="text-lg font-bold mb-2">Connect Your Wallet</h3>
-        <p className="text-red-300">You need to connect your wallet to buy tickets</p>
-      </div>
-    );
-  }
+  const showWalletPrompt = !isConnected || !user;
 
   return (
     <div className={`mb-8 space-y-4 ${className}`}>
@@ -271,22 +262,36 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
             <div className="flex items-center space-x-3">
               <span className="text-3xl">🎫</span>
               <div>
-                <h3 className="text-xl font-bold text-white">Buy Ticket</h3>
+                <h3 className="text-xl font-bold text-white">
+                  {showWalletPrompt ? 'Explore Lottery' : 'Buy Ticket'}
+                </h3>
                 <div className="text-sm text-gray-300">
-                  💰 {formatUSDC(userData.ticketPrice)} USDC
+                  {showWalletPrompt 
+                    ? '🎮 Try the game • Connect wallet to play'
+                    : `💰 ${formatUSDC(userData.ticketPrice)} USDC`
+                  }
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-lg font-bold text-green-400">
-                {formatUSDC(userData.usdcBalance)}
-              </div>
-              <div className="text-sm text-gray-300">USDC</div>
+              {showWalletPrompt ? (
+                <div>
+                  <div className="text-lg font-bold text-purple-400">🎲</div>
+                  <div className="text-sm text-gray-300">Demo Mode</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-lg font-bold text-green-400">
+                    {formatUSDC(userData.usdcBalance)}
+                  </div>
+                  <div className="text-sm text-gray-300">USDC</div>
+                </div>
+              )}
             </div>
           </div>
           
           {/* Allowance info */}
-          {userData.usdcAllowance < userData.ticketPrice && (
+          {!showWalletPrompt && userData.usdcAllowance < userData.ticketPrice && (
             <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
               <div className="text-yellow-300 text-sm flex items-center gap-2">
                 <span>⚠️</span>
@@ -299,14 +304,21 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
             <div>
               <div className="text-blue-300">Next Draw</div>
               <div className="text-white font-medium">
-                {userData.timeUntilNextDraw > 0n ? 
-                  new Date(Number(userData.timeUntilNextDraw) * 1000).toLocaleTimeString() : 
-                  'Draw in progress'}
+                {showWalletPrompt 
+                  ? 'Every 24 hours'
+                  : userData.timeUntilNextDraw > 0n 
+                    ? new Date(Number(userData.timeUntilNextDraw) * 1000).toLocaleTimeString()
+                    : 'Draw in progress'
+                }
               </div>
             </div>
             <div className="text-right">
-              <div className="text-blue-300">Your Tickets</div>
-              <div className="text-white font-bold text-center">{userData.ticketsOwned.toString()}</div>
+              <div className="text-blue-300">
+                {showWalletPrompt ? 'Tickets' : 'Your Tickets'}
+              </div>
+              <div className="text-white font-bold text-center">
+                {showWalletPrompt ? '0' : userData.ticketsOwned.toString()}
+              </div>
             </div>
           </div>
         </div>
@@ -373,18 +385,25 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
           
           {!isBulkMode && (
             <button
-              onClick={generateRandomTicket}
-              disabled={!canBuyTicket || isAnyButtonProcessing}
+              onClick={showWalletPrompt ? () => alert('🔒 Connect your wallet to generate random tickets and play!') : generateRandomTicket}
+              disabled={!showWalletPrompt ? (!canBuyTicket || isAnyButtonProcessing) : false}
               className={`
                 flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all
-                ${canBuyTicket && !isAnyButtonProcessing
-                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                ${showWalletPrompt
+                  ? 'bg-gradient-to-r from-amber-500/70 to-orange-500/70 hover:from-amber-500 hover:to-orange-500 text-white border border-amber-400/50'
+                  : canBuyTicket && !isAnyButtonProcessing
+                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }
               `}
             >
               <Dice1 size={18} className={isGeneratingRandom ? 'animate-spin' : ''} />
-              {isGeneratingRandom ? 'Generating...' : '🎲 Random'}
+              {showWalletPrompt 
+                ? '🎲 Try Random (Demo)' 
+                : isGeneratingRandom 
+                  ? 'Generating...' 
+                  : '🎲 Random'
+              }
             </button>
           )}
         </div>
@@ -426,19 +445,27 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                   {[5, 10, 25, 50].map((count) => (
                     <button
                       key={count}
-                      onClick={() => handleBulkGenerate(count)}
-                      disabled={!canBuyTicket}
+                      onClick={showWalletPrompt 
+                        ? () => alert('🔒 Connect your wallet to buy bulk tickets!')
+                        : () => handleBulkGenerate(count)
+                      }
+                      disabled={!showWalletPrompt ? !canBuyTicket : false}
                       className={`
                         py-3 px-4 rounded-lg font-bold transition-all text-center
-                        ${canBuyTicket
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                          : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        ${showWalletPrompt
+                          ? 'bg-gradient-to-r from-purple-500/70 to-pink-500/70 hover:from-purple-500 hover:to-pink-500 text-white border border-purple-400/50'
+                          : canBuyTicket
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         }
                       `}
                     >
                       <div className="text-lg">{count}</div>
                       <div className="text-xs opacity-80">
-                        {formatUSDC(userData.ticketPrice * BigInt(count))} USDC
+                        {showWalletPrompt 
+                          ? 'Demo Mode'
+                          : `${formatUSDC(userData.ticketPrice * BigInt(count))} USDC`
+                        }
                       </div>
                     </button>
                   ))}
@@ -456,23 +483,35 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                     className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
                   />
                   <button
-                    onClick={() => {
-                      const count = parseInt(customBulkCount);
-                      if (count > 0 && count <= 100) {
-                        handleBulkGenerate(count);
-                        setCustomBulkCount('');
-                      }
-                    }}
-                    disabled={!canBuyTicket || !customBulkCount || parseInt(customBulkCount) <= 0 || parseInt(customBulkCount) > 100}
+                    onClick={showWalletPrompt 
+                      ? () => alert('🔒 Connect your wallet to buy custom bulk tickets!')
+                      : () => {
+                          const count = parseInt(customBulkCount);
+                          if (count > 0 && count <= 100) {
+                            handleBulkGenerate(count);
+                            setCustomBulkCount('');
+                          }
+                        }
+                    }
+                    disabled={showWalletPrompt 
+                      ? (!customBulkCount || parseInt(customBulkCount) <= 0 || parseInt(customBulkCount) > 100)
+                      : (!canBuyTicket || !customBulkCount || parseInt(customBulkCount) <= 0 || parseInt(customBulkCount) > 100)
+                    }
                     className={`
                       px-6 py-2 rounded-lg font-medium transition-all
-                      ${canBuyTicket && customBulkCount && parseInt(customBulkCount) > 0 && parseInt(customBulkCount) <= 100
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      ${showWalletPrompt 
+                        ? (customBulkCount && parseInt(customBulkCount) > 0 && parseInt(customBulkCount) <= 100
+                            ? 'bg-gradient-to-r from-green-500/70 to-emerald-500/70 hover:from-green-500 hover:to-emerald-500 text-white border border-green-400/50'
+                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          )
+                        : (canBuyTicket && customBulkCount && parseInt(customBulkCount) > 0 && parseInt(customBulkCount) <= 100
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
+                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          )
                       }
                     `}
                   >
-                    Generate
+                    {showWalletPrompt ? 'Demo' : 'Generate'}
                   </button>
                 </div>
                 
@@ -520,17 +559,27 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                 
                 {selectedEmojis.length === 4 && (
                   <button
-                    onClick={handleConfirmSelectedTicket}
-                    disabled={!canBuyTicket || isConfirmingTicket}
+                    onClick={showWalletPrompt 
+                      ? () => alert('🔒 Connect your wallet to buy tickets and play for real prizes!')
+                      : handleConfirmSelectedTicket
+                    }
+                    disabled={!showWalletPrompt ? (!canBuyTicket || isConfirmingTicket) : false}
                     className={`
                       w-full py-3 px-4 rounded-lg font-bold transition-all
-                      ${canBuyTicket && !isConfirmingTicket
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      ${showWalletPrompt
+                        ? 'bg-gradient-to-r from-blue-500/80 to-purple-500/80 hover:from-blue-500 hover:to-purple-500 text-white border border-blue-400/50 shadow-lg hover:shadow-xl transform hover:scale-105'
+                        : canBuyTicket && !isConfirmingTicket
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                          : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                       }
                     `}
                   >
-                    {isConfirmingTicket ? (
+                    {showWalletPrompt ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-xl">🔒</span>
+                        Connect Wallet to Play
+                      </div>
+                    ) : isConfirmingTicket ? (
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                         Confirming...
@@ -547,40 +596,57 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
             )}
 
             {/* Emoji Grid */}
-            <div className="bg-white/5 rounded-lg p-4">
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg">
+              <div className="mb-4 text-center text-gray-700 font-medium">
+                Choose your lucky emojis
+              </div>
+              
               {emojisLoading ? (
                 <div className="text-center py-8">
-                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-2"></div>
-                  <p className="text-white/70">Loading emojis from contract...</p>
+                  <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-gray-600 font-medium">Loading emojis from contract...</p>
                 </div>
               ) : emojisError ? (
                 <div className="text-center py-8">
-                  <p className="text-red-400 mb-2">⚠️ {emojisError}</p>
-                  <p className="text-white/70 text-sm">Using fallback emojis</p>
+                  <p className="text-red-500 mb-2 font-medium">⚠️ {emojisError}</p>
+                  <p className="text-gray-600 text-sm">Using fallback emojis</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                  {emojis.map((emoji, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleEmojiSelect(emoji)}
-                      disabled={selectedEmojis.length >= 4 || !canBuyTicket || purchaseState.isLoading}
-                      className={`
-                        aspect-square bg-white/10 hover:bg-white/20 rounded-lg p-2 transition-all text-2xl
-                        ${selectedEmojis.includes(emoji) 
-                          ? 'bg-purple-500/30 border-2 border-purple-400' 
-                          : 'border border-white/20'
-                        }
-                        ${!canBuyTicket || purchaseState.isLoading
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:scale-110 active:scale-95'
-                        }
-                      `}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-5 gap-3 max-w-md mx-auto">
+                    {emojis.slice(0, 25).map((emoji, index) => {
+                      const isSelected = selectedEmojis.includes(emoji);
+                      const isDisabled = selectedEmojis.length >= 4 || (!showWalletPrompt && !canBuyTicket) || purchaseState.isLoading;
+                      
+                      return (
+                        <button
+                          key={`emoji-${index}`}
+                          onClick={() => handleEmojiSelect(emoji)}
+                          disabled={isDisabled && !isSelected}
+                          className={`
+                            aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
+                            font-medium shadow-sm border-2
+                            ${isSelected
+                              ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
+                              : isDisabled
+                                ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                                : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-purple-100 hover:to-purple-200 hover:border-purple-300 hover:scale-105 hover:shadow-md'
+                            }
+                          `}
+                        >
+                          {emoji}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Grid info */}
+                  <div className="mt-4 text-center">
+                    <div className="text-xs text-gray-500">
+                      5×5 Emoji Grid • Perfect for any device
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </>
