@@ -184,8 +184,12 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
         lastUpdated: data.lastUpdated?.toMillis() || Date.now()
       };
     } else {
-      // Crear nueva pool del día (temporalmente sin acumulación para debugging)
-      console.log(`[getDailyPrizePool] Creando nueva pool básica para ${currentDay}`);
+      // Crear nueva pool del día CON acumulación de días anteriores
+      console.log(`[getDailyPrizePool] Creando nueva pool con acumulación para ${currentDay}`);
+      
+      // Obtener acumulaciones de días anteriores
+      const accumulatedPools = await getAccumulatedPools(currentDay);
+      console.log(`[getDailyPrizePool] Acumulaciones obtenidas:`, accumulatedPools);
       
       const newPool: PrizePool = {
         gameDay: currentDay,
@@ -205,16 +209,11 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
           secondPrizeActivated: false,
           thirdPrizeActivated: false
         },
-        accumulatedFromPreviousDays: {
-          firstPrize: 0,
-          secondPrize: 0,
-          thirdPrize: 0,
-          totalDaysAccumulated: 0
-        },
+        accumulatedFromPreviousDays: accumulatedPools,
         finalPools: {
-          firstPrize: 0,
-          secondPrize: 0,
-          thirdPrize: 0
+          firstPrize: accumulatedPools.firstPrize,
+          secondPrize: accumulatedPools.secondPrize,
+          thirdPrize: accumulatedPools.thirdPrize
         },
         lastUpdated: Date.now()
       };
@@ -224,7 +223,7 @@ export const getDailyPrizePool = async (gameDay?: string): Promise<PrizePool> =>
         lastUpdated: serverTimestamp()
       });
       
-      console.log(`[getDailyPrizePool] Nueva pool creada para el día ${currentDay}`);
+      console.log(`[getDailyPrizePool] Nueva pool creada para el día ${currentDay} con acumulación de ${accumulatedPools.totalDaysAccumulated} días`);
       return newPool;
     }
   } catch (error) {
@@ -728,9 +727,139 @@ const repairExistingPools = async () => {
   }
 };
 
+/**
+ * Sincronizar pools de Firebase con el estado del contrato blockchain V3
+ */
+export const syncWithBlockchainV3 = async (gameDay?: string): Promise<boolean> => {
+  const currentDay = gameDay || getCurrentGameDaySaoPaulo();
+  
+  try {
+    console.log(`[syncWithBlockchainV3] Sincronizando pools para el día ${currentDay}`);
+    
+    // Importar direcciones y configuración
+    const { CONTRACT_ADDRESSES } = await import('../utils/contractAddresses');
+    const { ethers } = await import('ethers');
+    
+    // Configurar proveedor
+    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const contractAddress = CONTRACT_ADDRESSES.LOTTO_MOJI_CORE;
+    
+    console.log(`[syncWithBlockchainV3] Conectando al contrato V3: ${contractAddress}`);
+    
+    // ABI mínimo necesario
+    const abi = [
+      "function getCurrentDay() view returns (uint256)",
+      "function mainPools() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
+      "function reserves() view returns (uint256 firstPrizeReserve1, uint256 secondPrizeReserve2, uint256 thirdPrizeReserve3)",
+      "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)"
+    ];
+    
+    const contract = new ethers.Contract(contractAddress, abi, provider);
+    
+    // Obtener estado del contrato
+    const [mainPools, reserves, contractGameDay] = await Promise.all([
+      contract.mainPools(),
+      contract.reserves(),
+      contract.getCurrentDay()
+    ]);
+    
+    console.log(`[syncWithBlockchainV3] Estado del contrato:`);
+    console.log('- Game Day del contrato:', Number(contractGameDay));
+    console.log('- Main Pools:', {
+      firstPrize: ethers.formatUnits(mainPools.firstPrizeAccumulated, 6) + ' USDC',
+      secondPrize: ethers.formatUnits(mainPools.secondPrizeAccumulated, 6) + ' USDC',
+      thirdPrize: ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6) + ' USDC',
+      development: ethers.formatUnits(mainPools.developmentAccumulated, 6) + ' USDC'
+    });
+    console.log('- Reserves:', {
+      firstPrize: ethers.formatUnits(reserves.firstPrizeReserve1, 6) + ' USDC',
+      secondPrize: ethers.formatUnits(reserves.secondPrizeReserve2, 6) + ' USDC',
+      thirdPrize: ethers.formatUnits(reserves.thirdPrizeReserve3, 6) + ' USDC'
+    });
+    
+    // Obtener daily pool del contrato
+    const dailyPool = await contract.dailyPools(contractGameDay);
+    
+    console.log('- Daily Pool:', {
+      totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6) + ' USDC',
+      distributed: dailyPool.distributed,
+      drawn: dailyPool.drawn
+    });
+    
+    // Calcular totales reales
+    const totalMainPoolsUSDC = 
+      parseFloat(ethers.formatUnits(mainPools.firstPrizeAccumulated, 6)) +
+      parseFloat(ethers.formatUnits(mainPools.secondPrizeAccumulated, 6)) +
+      parseFloat(ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6)) +
+      parseFloat(ethers.formatUnits(mainPools.developmentAccumulated, 6));
+    
+    const totalReservesUSDC = 
+      parseFloat(ethers.formatUnits(reserves.firstPrizeReserve1, 6)) +
+      parseFloat(ethers.formatUnits(reserves.secondPrizeReserve2, 6)) +
+      parseFloat(ethers.formatUnits(reserves.thirdPrizeReserve3, 6));
+    
+    const dailyCollectedUSDC = parseFloat(ethers.formatUnits(dailyPool.totalCollected, 6));
+    
+    const totalSystemUSDC = totalMainPoolsUSDC + totalReservesUSDC + dailyCollectedUSDC;
+    
+    console.log(`[syncWithBlockchainV3] 💰 TOTALES REALES DEL CONTRATO:`);
+    console.log(`- Main Pools Accumulated: ${totalMainPoolsUSDC.toFixed(2)} USDC`);
+    console.log(`- Reserves Total: ${totalReservesUSDC.toFixed(2)} USDC`);
+    console.log(`- Today's Collection: ${dailyCollectedUSDC.toFixed(2)} USDC`);
+    console.log(`- TOTAL EN SISTEMA: ${totalSystemUSDC.toFixed(2)} USDC`);
+    
+    // Actualizar Firebase con los datos reales del contrato
+    const poolRef = doc(db, PRIZE_POOLS_COLLECTION, currentDay);
+    
+    const blockchainSyncData = {
+      // Datos del contrato
+      blockchainData: {
+        contractGameDay: Number(contractGameDay),
+        mainPools: {
+          firstPrize: parseFloat(ethers.formatUnits(mainPools.firstPrizeAccumulated, 6)),
+          secondPrize: parseFloat(ethers.formatUnits(mainPools.secondPrizeAccumulated, 6)),
+          thirdPrize: parseFloat(ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6)),
+          development: parseFloat(ethers.formatUnits(mainPools.developmentAccumulated, 6))
+        },
+        reserves: {
+          firstPrize: parseFloat(ethers.formatUnits(reserves.firstPrizeReserve1, 6)),
+          secondPrize: parseFloat(ethers.formatUnits(reserves.secondPrizeReserve2, 6)),
+          thirdPrize: parseFloat(ethers.formatUnits(reserves.thirdPrizeReserve3, 6))
+        },
+        dailyPool: {
+          totalCollected: dailyCollectedUSDC,
+          distributed: dailyPool.distributed,
+          drawn: dailyPool.drawn
+        },
+        totals: {
+          mainPools: totalMainPoolsUSDC,
+          reserves: totalReservesUSDC,
+          daily: dailyCollectedUSDC,
+          system: totalSystemUSDC
+        }
+      },
+      blockchainSyncTime: serverTimestamp(),
+      lastUpdated: serverTimestamp()
+    };
+    
+    await updateDoc(poolRef, blockchainSyncData);
+    
+    console.log(`[syncWithBlockchainV3] ✅ Firebase sincronizado con blockchain`);
+    console.log(`[syncWithBlockchainV3] 🎯 Si compraste 200 tickets a 0.2 USDC = 40 USDC esperados`);
+    console.log(`[syncWithBlockchainV3] 💰 Sistema tiene: ${totalSystemUSDC.toFixed(2)} USDC total`);
+    
+    return true;
+    
+  } catch (error) {
+    console.error('[syncWithBlockchainV3] Error sincronizando con blockchain:', error);
+    return false;
+  }
+};
+
 // Hacer funciones disponibles globalmente en desarrollo
 if (import.meta.env.DEV) {
   (window as any).debugPrizePool = debugPrizePool;
   (window as any).distributePrizePool = () => distributePrizePool();
   (window as any).repairExistingPools = repairExistingPools;
+  (window as any).syncWithBlockchainV3 = syncWithBlockchainV3;
 }
