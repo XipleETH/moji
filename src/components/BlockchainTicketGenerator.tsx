@@ -186,7 +186,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
   };
 
   const handleEmojiSelect = (emoji: string, emojiIndex: number) => {
-    if (purchaseState.isLoading || selectedEmojis.length >= 4 || selectedIndices.includes(emojiIndex) || isBulkGenerating) return;
+    if (purchaseState.isLoading || selectedEmojis.length >= 4 || isBulkGenerating) return;
     
     const newSelection = [...selectedEmojis, emoji];
     const newIndices = [...selectedIndices, emojiIndex];
@@ -620,18 +620,18 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                 <>
                   <div className="grid grid-cols-5 gap-3 max-w-md mx-auto">
                     {emojis.slice(0, 25).map((emoji, index) => {
-                      const isSelected = selectedIndices.includes(index);
+                      const selectionCount = selectedIndices.filter(idx => idx === index).length;
                       const isDisabled = selectedEmojis.length >= 4 || (!showWalletPrompt && !canBuyTicket) || purchaseState.isLoading;
                       
                       return (
                         <button
                           key={`emoji-${index}`}
                           onClick={() => handleEmojiSelect(emoji, index)}
-                          disabled={isDisabled && !isSelected}
+                          disabled={isDisabled}
                           className={`
-                            aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
+                            relative aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
                             font-medium shadow-sm border-2
-                            ${isSelected
+                            ${selectionCount > 0
                               ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
                               : isDisabled
                                 ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
@@ -640,6 +640,11 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
                           `}
                         >
                           {emoji}
+                          {selectionCount > 1 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                              {selectionCount}
+                            </span>
+                          )}
                         </button>
                       );
                     })}

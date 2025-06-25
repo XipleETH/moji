@@ -120,7 +120,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiSelect = (emoji: string, emojiIndex: number) => {
-    if (disabled || userTokens < 1 || isAnyButtonProcessing || selectedIndices.includes(emojiIndex)) return;
+    if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
     
     const newSelection = [...selectedEmojis, emoji];
     const newIndices = [...selectedIndices, emojiIndex];

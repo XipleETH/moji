@@ -79,16 +79,16 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
       ) : (
         <div className="grid grid-cols-5 gap-3 max-w-md mx-auto">
           {gridEmojis.map((emoji, index) => {
-            const isSelected = selectedIndices.includes(index);
+            const selectionCount = selectedIndices.filter(idx => idx === index).length;
             return (
               <button
                 key={`emoji-${index}`}
                 onClick={() => canSelect && onEmojiSelect(emoji, index)}
                 className={`
-                  aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
+                  relative aspect-square text-2xl p-3 rounded-xl transition-all duration-200 
                   font-medium shadow-sm border-2
                   ${canSelect 
-                    ? isSelected
+                    ? selectionCount > 0
                       ? 'bg-gradient-to-br from-purple-400 to-purple-500 border-purple-600 text-white scale-110 shadow-lg'
                       : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-purple-100 hover:to-purple-200 hover:border-purple-300 hover:scale-105 hover:shadow-md'
                     : 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'}
@@ -96,6 +96,11 @@ export const EmojiGrid: React.FC<EmojiGridProps> = ({
                 disabled={!canSelect}
               >
                 {emoji}
+                {selectionCount > 1 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {selectionCount}
+                  </span>
+                )}
               </button>
             );
           })}
