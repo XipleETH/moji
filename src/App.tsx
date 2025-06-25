@@ -3723,6 +3723,37 @@ const checkUserTicketsFunction = async () => {
   console.log('monitorPools() - Monitorear pools por 10 minutos');
   console.log('forcePoolSync() - Forzar sincronización con blockchain');
   console.log('stopPoolMonitor() - Detener monitoreo activo');
+  console.log('diagnoseContractIssues() - Diagnóstico completo del contrato');
+  console.log('quickHealthCheck() - Chequeo rápido de salud');
+  console.log('investigateMissingUSDC() - Investigar USDC faltante');
+};
+
+// Comprehensive contract diagnostics
+(window as any).diagnoseContractIssues = async () => {
+  try {
+    const { diagnoseContractIssues } = await import('./utils/contractDiagnostics');
+    return await diagnoseContractIssues();
+  } catch (error) {
+    console.error('❌ Error cargando diagnósticos:', error);
+  }
+};
+
+(window as any).quickHealthCheck = async () => {
+  try {
+    const { quickHealthCheck } = await import('./utils/contractDiagnostics');
+    return await quickHealthCheck();
+  } catch (error) {
+    console.error('❌ Error en chequeo rápido:', error);
+  }
+};
+
+(window as any).investigateMissingUSDC = async () => {
+  try {
+    const { investigateMissingUSDC } = await import('./utils/contractDiagnostics');
+    return await investigateMissingUSDC();
+  } catch (error) {
+    console.error('❌ Error investigando USDC:', error);
+  }
 };
 
 function AppContent() {
