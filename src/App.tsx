@@ -3712,12 +3712,12 @@ function AppContent() {
           </div>
         </div>
 
+        <ContractWinnerResults />
+
         {/* Pool de Premios - Sistema Mejorado con Reservas */}
         <div className="max-w-4xl mx-auto mb-8">
           <ContractPoolsDisplay />
         </div>
-
-        <ContractWinnerResults />
 
         {import.meta.env.DEV && (
           <div className="flex justify-center gap-4 mb-6">
