@@ -11,7 +11,7 @@ export const GameHistoryButton: React.FC = () => {
         onClick={() => setIsModalOpen(true)}
         className="fixed top-4 left-4 bg-purple-600 hover:bg-purple-700 
                    text-white rounded-full p-3 shadow-lg transition-all 
-                   hover:scale-105"
+                   hover:scale-105 z-30"
         aria-label="Game History"
       >
         <History size={24} />

@@ -3662,28 +3662,24 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500">
+      {/* Floating buttons */}
+      <GameHistoryButton />
+      <WalletConnector />
+
       <div className="container mx-auto px-4 py-8">
-        {/* Header con botones en esquinas */}
+        {/* Header */}
         <div className="relative mb-8">
-          {/* Botón historial en esquina superior izquierda */}
-          <div className="absolute top-0 left-0">
-            <GameHistoryButton />
-          </div>
-          
-          {/* Botones de billetera y perfil en esquina superior derecha */}
-          <div className="absolute top-0 right-0 flex items-center gap-4">
-            {context?.client?.added && (
+          {/* Profile button for Farcaster users */}
+          {context?.client?.added && (
+            <div className="absolute top-0 right-0">
               <button
                 onClick={() => viewProfile()}
                 className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Ver Perfil
               </button>
-            )}
-            <div className="relative">
-              <WalletConnector />
             </div>
-          </div>
+          )}
           
           {/* Título centrado */}
           <div className="flex justify-center pt-4">
