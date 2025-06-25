@@ -2,24 +2,44 @@ import React, { useState, useEffect } from 'react';
 import { EmojiGrid } from './EmojiGrid';
 import { generateRandomEmojis } from '../utils/gameLogic';
 import { useWallet } from '../contexts/WalletContext';
-import { WalletIcon, CheckCircle } from 'lucide-react';
+import { WalletIcon, CheckCircle, Coins } from 'lucide-react';
+import { TokenDisplay } from './TokenDisplay';
 
 interface TicketGeneratorProps {
   onGenerateTicket: (numbers: string[]) => void;
   disabled: boolean;
   ticketCount: number;
   maxTickets: number;
+  userTokens: number;
+  tokensUsed?: number;
+  queueStatus?: {
+    isProcessing: boolean;
+    queueLength: number;
+    currentTicket: any;
+    totalProcessed: number;
+    errors: number;
+  };
+  rateLimitStatus?: {
+    isBlocked: boolean;
+    remainingTime: number;
+  };
 }
 
 export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   onGenerateTicket,
   disabled,
   ticketCount,
-  maxTickets
+  maxTickets,
+  userTokens,
+  tokensUsed = 0,
+  queueStatus,
+  rateLimitStatus
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
+  const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
+  const [isConfirmingTicket, setIsConfirmingTicket] = useState(false);
   const { user, isConnected, connect, isConnecting } = useWallet();
 
   // Reset selected emojis when ticket count changes to 0
@@ -45,9 +65,21 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     }
   }, [isConnected, user?.walletAddress, showWalletPrompt, pendingTicket, onGenerateTicket]);
 
-  const handleGenerateTicket = async (numbers: string[]) => {
+  const handleGenerateTicket = async (numbers: string[], fromConfirmButton = false) => {
     console.log('[TicketGenerator] Attempting to generate ticket with numbers:', numbers);
-    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user);
+    console.log('[TicketGenerator] Current state - isConnected:', isConnected, 'user:', user, 'tokens:', userTokens);
+    
+    // Verificar rate limiting
+    if (rateLimitStatus?.isBlocked) {
+      console.warn('[TicketGenerator] Rate limited, remaining time:', rateLimitStatus.remainingTime);
+      return;
+    }
+    
+    // Verificar si hay tokens suficientes
+    if (userTokens < 1) {
+      console.log('[TicketGenerator] Insufficient tokens');
+      return;
+    }
     
     // Si no hay wallet conectada, mostrar prompt y guardar el ticket pendiente
     if (!isConnected || !user?.walletAddress) {
@@ -57,12 +89,20 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
       return;
     }
     
-    // Si hay wallet, generar ticket
-    console.log('[TicketGenerator] Wallet connected, generating ticket');
-    onGenerateTicket(numbers);
-    setSelectedEmojis([]); // Reset selection after generating ticket
-    setPendingTicket(null);
-    setShowWalletPrompt(false);
+    // Si hay wallet y tokens, generar ticket
+    console.log('[TicketGenerator] Wallet connected and tokens available, generating ticket');
+    const result = await onGenerateTicket(numbers);
+    
+    // Solo limpiar si la generación fue exitosa Y no viene del botón de confirmación
+    if (!result || !result.error) {
+      if (!fromConfirmButton) {
+        setSelectedEmojis([]); // Reset selection after generating ticket
+      }
+      setPendingTicket(null);
+      setShowWalletPrompt(false);
+    }
+    
+    return result;
   };
 
   const handleWalletConnect = async () => {
@@ -76,7 +116,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    if (disabled) return;
+    if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
     
     const newSelection = [...selectedEmojis, emoji];
     setSelectedEmojis(newSelection);
@@ -86,18 +126,40 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   };
 
   const handleEmojiDeselect = (index: number) => {
+    if (isAnyButtonProcessing) return;
     setSelectedEmojis(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleRandomGenerate = () => {
-    if (disabled) return;
-    const randomEmojis = generateRandomEmojis(4);
-    handleGenerateTicket(randomEmojis);
+  const handleRandomGenerate = async () => {
+    if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
+    
+    setIsGeneratingRandom(true);
+    
+    try {
+      const randomEmojis = generateRandomEmojis(4);
+      await handleGenerateTicket(randomEmojis);
+    } finally {
+      // Mantener el efecto visual por un momento antes de resetear
+      setTimeout(() => {
+        setIsGeneratingRandom(false);
+      }, 500);
+    }
   };
 
-  const handleConfirmSelectedTicket = () => {
-    if (selectedEmojis.length === 4) {
-      handleGenerateTicket(selectedEmojis);
+  const handleConfirmSelectedTicket = async () => {
+    if (selectedEmojis.length === 4 && !isConfirmingTicket) {
+      setIsConfirmingTicket(true);
+      
+      try {
+        await handleGenerateTicket(selectedEmojis, true); // fromConfirmButton = true
+      } finally {
+        // Mantener el efecto visual por un momento antes de resetear
+        setTimeout(() => {
+          setIsConfirmingTicket(false);
+          // Limpiar los emojis después de la animación
+          setSelectedEmojis([]);
+        }, 500);
+      }
     }
   };
 
@@ -106,9 +168,54 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     setPendingTicket(null);
   };
 
+  const canGenerateTicket = userTokens >= 1 && !disabled && !rateLimitStatus?.isBlocked;
+  const isOutOfTokens = userTokens === 0;
+  const isRateLimited = rateLimitStatus?.isBlocked || false;
+  const isAnyButtonProcessing = isGeneratingRandom || isConfirmingTicket;
+
   return (
     <div className="mb-8 space-y-4">
       <div className="flex flex-col gap-4">
+        {/* Token Display */}
+        <TokenDisplay 
+          tokensAvailable={userTokens}
+          tokensUsed={tokensUsed}
+          totalDailyTokens={1000}
+        />
+
+        {/* Queue Status */}
+        {queueStatus && (queueStatus.isProcessing || queueStatus.queueLength > 0) && (
+          <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-blue-200">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium">
+                {queueStatus.isProcessing ? 'Procesando ticket...' : `${queueStatus.queueLength} tickets en cola`}
+              </span>
+            </div>
+            {queueStatus.totalProcessed > 0 && (
+              <div className="text-xs text-blue-300 mt-1">
+                ✅ {queueStatus.totalProcessed} procesados
+                {queueStatus.errors > 0 && ` • ❌ ${queueStatus.errors} errores`}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rate Limit Warning */}
+        {isRateLimited && rateLimitStatus && (
+          <div className="bg-orange-500/20 border border-orange-500 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-orange-200">
+              <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+              <span className="text-sm font-medium">
+                Muy rápido! Espera {rateLimitStatus.remainingTime} segundos
+              </span>
+            </div>
+            <div className="text-xs text-orange-300 mt-1">
+              Espera 2 segundos entre tickets para evitar errores
+            </div>
+          </div>
+        )}
+        
         <EmojiGrid
           selectedEmojis={selectedEmojis}
           onEmojiSelect={handleEmojiSelect}
@@ -117,27 +224,49 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         />
         
         {/* Botón de confirmación para emojis seleccionados */}
-        {selectedEmojis.length === 4 && (
+        {(selectedEmojis.length === 4 || isConfirmingTicket) && (
           <button
             onClick={handleConfirmSelectedTicket}
-            disabled={disabled}
-            className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 
-                     rounded-xl shadow-lg transform transition hover:scale-105 
-                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+            disabled={!canGenerateTicket || isAnyButtonProcessing}
+            className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
+                     disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
+                     ${isConfirmingTicket 
+                       ? 'bg-green-600 scale-95 shadow-2xl animate-pulse ring-4 ring-green-400/50' 
+                       : canGenerateTicket 
+                         ? 'bg-green-500 hover:bg-green-600 hover:scale-105 hover:shadow-xl active:scale-95 active:shadow-inner text-white' 
+                         : 'bg-gray-500 text-gray-300'
+                     }`}
           >
-            <CheckCircle size={20} />
-            Confirm Ticket with Selected Emojis
+            <CheckCircle size={20} className={isConfirmingTicket ? 'animate-spin' : ''} />
+            {isConfirmingTicket ? (
+              queueStatus?.totalProcessed > 0 
+                ? `${queueStatus.totalProcessed} procesados`
+                : 'Procesando ticket...'
+            ) : (
+              isOutOfTokens ? 'No Tokens Available' : 
+              isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
+              'Confirm Ticket (1 Token)'
+            )}
           </button>
         )}
         
         <button
           onClick={handleRandomGenerate}
-          disabled={disabled}
-          className={`w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 
-                   rounded-xl shadow-lg transform transition hover:scale-105 
-                   disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={!canGenerateTicket || isAnyButtonProcessing}
+          className={`w-full font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all duration-300 
+                   disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
+                   ${isGeneratingRandom 
+                     ? 'bg-purple-600 scale-95 shadow-2xl animate-pulse ring-4 ring-purple-400/50' 
+                     : canGenerateTicket 
+                       ? 'bg-blue-500 hover:bg-blue-600 hover:scale-105 hover:shadow-xl active:scale-95 active:shadow-inner text-white' 
+                       : 'bg-gray-500 text-gray-300'
+                   }`}
         >
-          Generate Random Ticket
+          <Coins size={20} className={isGeneratingRandom ? 'animate-spin' : ''} />
+          {isGeneratingRandom ? 'Generando...' :
+           isOutOfTokens ? 'No Tokens Available' : 
+           isRateLimited ? `Espera ${rateLimitStatus?.remainingTime}s` :
+           'Generate Random Ticket (1 Token)'}
         </button>
 
         {/* Prompt de conexión de wallet */}

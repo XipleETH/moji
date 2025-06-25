@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { History } from 'lucide-react';
-import { GameHistoryModal } from './GameHistoryModal';
+import { ContractGameHistoryModal } from './ContractGameHistoryModal';
 
 export const GameHistoryButton: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,7 +17,7 @@ export const GameHistoryButton: React.FC = () => {
         <History size={24} />
       </button>
 
-      {isModalOpen && <GameHistoryModal onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && <ContractGameHistoryModal onClose={() => setIsModalOpen(false)} />}
     </>
   );
 }

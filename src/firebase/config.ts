@@ -22,4 +22,4 @@ const auth = getAuth(app);
 const analytics = getAnalytics(app);
 const functions = getFunctions(app);
 
-export { app, db, auth, analytics, functions }; 
+export { app, db, auth, analytics, functions, firebaseConfig }; 

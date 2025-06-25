@@ -1,31 +1,121 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GameState, Ticket, GameResult } from '../types';
-import { useRealTimeTimer } from './useRealTimeTimer';
+import { GameState, Ticket, GameResult, DailyTokens } from '../types';
+import { useHybridTimer } from './useHybridTimer';
+import { useWallet } from '../contexts/WalletContext';
+import { useRateLimit } from './useRateLimit';
+import { useTicketQueue } from './useTicketQueue';
 import { subscribeToUserTickets, subscribeToGameResults } from '../firebase/game';
 import { requestManualGameDraw, subscribeToGameState } from '../firebase/gameServer';
+import { subscribeToUserTokens, getCurrentGameDay } from '../firebase/tokens';
 
 const initialGameState: GameState = {
   winningNumbers: [],
   tickets: [],
   lastResults: null,
-  gameStarted: true
+  gameStarted: true,
+  currentGameDay: getCurrentGameDay(),
+  userTokens: 0
 };
 
 export function useGameState() {
+  const { user } = useWallet();
   const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [userTokens, setUserTokens] = useState<DailyTokens | null>(null);
   const processedResultsRef = useRef<Set<string>>(new Set());
   const lastProcessedMinuteRef = useRef<string>('');
 
-  // Suscribirse a los tickets del usuario y al estado del juego
+  // Rate limiting: máximo 20 tickets por minuto, mínimo 2 segundos entre tickets
+  const rateLimit = useRateLimit({
+    maxRequests: 20,
+    windowMs: 60000, // 1 minuto
+    cooldownMs: 2000 // 2 segundos entre tickets
+  });
+
+  // Función para procesar un ticket individual
+  const processTicketInternal = useCallback(async (numbers: string[]) => {
+    const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
+      return generateFirebaseTicket(numbers);
+    });
+    return ticket;
+  }, []);
+
+  // Cola de tickets para procesar uno a la vez
+  const ticketQueue = useTicketQueue(processTicketInternal);
+
+  // Suscribirse a los tickets del usuario, al estado del juego y a los tokens
   useEffect(() => {
-    console.log('[useGameState] Inicializando suscripciones...');
+    console.log('[useGameState] 🚀 Inicializando suscripciones...');
+    console.log('[useGameState] 📅 GameDay actual:', getCurrentGameDay());
+    console.log('[useGameState] 👤 Usuario conectado:', user?.id || 'Sin usuario');
     
-    // Suscribirse a los tickets del usuario
-    const unsubscribeTickets = subscribeToUserTickets((tickets) => {
+    // Solo suscribirse si hay un usuario
+    if (!user?.id) {
+      console.log('[useGameState] ⏸️ No hay usuario, esperando conexión de billetera...');
+      // Limpiar datos del usuario cuando no hay usuario conectado
+      setUserTokens(null);
       setGameState(prev => ({
         ...prev,
-        tickets
+        tickets: [],
+        userTokens: 0
       }));
+      return;
+    }
+    
+    // Suscribirse a los tickets del usuario (solo del día actual)
+    const unsubscribeTickets = subscribeToUserTickets((ticketsFromFirebase) => {
+      console.log(`[useGameState] 🎫 Tickets recibidos de Firebase: ${ticketsFromFirebase.length}`);
+      
+      // Log detallado de cada ticket recibido
+      if (ticketsFromFirebase.length === 0) {
+        console.log(`[useGameState] ❌ No se recibieron tickets de Firebase para el día ${getCurrentGameDay()}`);
+        console.log('[useGameState] 🔍 Esto podría indicar un problema en la consulta o que realmente no hay tickets');
+      } else {
+        ticketsFromFirebase.forEach((ticket, index) => {
+          console.log(`[useGameState] 🎫 Ticket ${index + 1}:`, {
+            id: ticket.id,
+            gameDay: ticket.gameDay,
+            timestamp: new Date(ticket.timestamp).toLocaleString(),
+            numbers: ticket.numbers,
+            userId: ticket.userId,
+            isActive: ticket.isActive
+          });
+        });
+      }
+      
+      setGameState(prev => {
+        // Separar tickets temporales de los reales
+        const tempTickets = prev.tickets.filter(t => t.id.startsWith('temp-'));
+        const realTickets = prev.tickets.filter(t => !t.id.startsWith('temp-'));
+        
+        console.log(`[useGameState] 🔄 Estado actual: ${tempTickets.length} temporales, ${realTickets.length} reales, ${ticketsFromFirebase.length} nuevos de Firebase`);
+        
+        // Combinar tickets de Firebase con los temporales
+        // Evitar duplicados usando el timestamp como identificador adicional
+        const allTickets = [...ticketsFromFirebase];
+        
+        // Agregar tickets temporales que no tengan un equivalente real
+        tempTickets.forEach(tempTicket => {
+          const hasRealEquivalent = ticketsFromFirebase.some(realTicket => 
+            Math.abs(realTicket.timestamp - tempTicket.timestamp) < 5000 // 5 segundos de diferencia
+          );
+          if (!hasRealEquivalent) {
+            console.log(`[useGameState] ⏳ Manteniendo ticket temporal: ${tempTicket.id}`);
+            allTickets.push(tempTicket);
+          } else {
+            console.log(`[useGameState] ✅ Ticket temporal ${tempTicket.id} ya tiene equivalente real`);
+          }
+        });
+        
+        // Ordenar por timestamp (más reciente primero)
+        allTickets.sort((a, b) => b.timestamp - a.timestamp);
+        
+        console.log(`[useGameState] 📊 Tickets finales: ${allTickets.length} total (${ticketsFromFirebase.length} reales, ${tempTickets.length} temporales mantenidos)`);
+        
+        return {
+          ...prev,
+          tickets: allTickets
+        };
+      });
     });
 
     // Suscribirse al estado del juego para obtener los números ganadores actuales
@@ -36,12 +126,23 @@ export function useGameState() {
       }));
     });
 
+    // Suscribirse a los tokens diarios del usuario
+    const unsubscribeTokens = subscribeToUserTokens((tokens) => {
+      setUserTokens(tokens);
+      setGameState(prev => ({
+        ...prev,
+        userTokens: tokens?.tokensAvailable || 0
+      }));
+    });
+
     return () => {
-      console.log('[useGameState] Limpiando suscripciones de tickets y estado del juego');
-      unsubscribeTickets();
-      unsubscribeState();
+      console.log('[useGameState] 🧹 Limpiando suscripciones de tickets, estado del juego y tokens');
+      // Solo limpiar si las funciones existen (cuando hay usuario)
+      if (typeof unsubscribeTickets === 'function') unsubscribeTickets();
+      if (typeof unsubscribeState === 'function') unsubscribeState();
+      if (typeof unsubscribeTokens === 'function') unsubscribeTokens();
     };
-  }, []);
+  }, [user?.id]); // Re-suscribir cuando cambie el usuario
 
   // Función para obtener la clave de día de un timestamp
   const getDayKey = (timestamp: number): string => {
@@ -97,8 +198,8 @@ export function useGameState() {
     // Solo registrar que el temporizador ha terminado
   }, []);
 
-  // Obtener el tiempo restante del temporizador
-  const timeRemaining = useRealTimeTimer(onGameProcessed);
+  // Obtener el tiempo restante del temporizador híbrido (contrato + local)
+  const hybridTimer = useHybridTimer(onGameProcessed);
 
   // Función para forzar un sorteo manualmente
   const forceGameDraw = useCallback(() => {
@@ -106,49 +207,81 @@ export function useGameState() {
     requestManualGameDraw();
   }, []);
 
-  // Función para generar un nuevo ticket (sin límites)
+  // Función para generar un nuevo ticket (con rate limiting y cola)
   const generateTicket = useCallback(async (numbers: string[]) => {
-    if (!numbers?.length) return;
+    if (!numbers?.length) {
+      console.warn('[useGameState] ⚠️ No se proporcionaron números para el ticket');
+      return;
+    }
+
+    // Verificar rate limiting
+    if (!rateLimit.checkRateLimit()) {
+      console.warn(`[useGameState] ⏳ Rate limit excedido. Espera ${rateLimit.remainingTime} segundos`);
+      return {
+        error: `Demasiado rápido! Espera ${rateLimit.remainingTime} segundos`,
+        remainingTime: rateLimit.remainingTime
+      };
+    }
     
     try {
-      // Crear un ticket temporal para mostrar inmediatamente
+      console.log('[useGameState] 🎫 Iniciando generación de ticket...');
+      
+      // 1. Crear ticket temporal para mostrar inmediatamente
       const tempTicket: Ticket = {
         id: 'temp-' + crypto.randomUUID(),
         numbers,
         timestamp: Date.now(),
-        userId: 'temp'
+        userId: user?.id || 'temp',
+        gameDay: getCurrentGameDay(),
+        tokenCost: 1,
+        isActive: true
       };
       
-      // Actualizar el estado inmediatamente con el ticket temporal
+      // 2. Mostrar ticket temporal inmediatamente
       setGameState(prev => ({
         ...prev,
-        tickets: [...prev.tickets, tempTicket]
+        tickets: [tempTicket, ...prev.tickets] // Agregar al inicio para mejor UX
       }));
       
-      // Generar el ticket en Firebase
-      const ticket = await import('../firebase/game').then(({ generateTicket: generateFirebaseTicket }) => {
-        return generateFirebaseTicket(numbers);
-      });
+      // 3. Agregar a la cola para procesamiento
+      const queueId = ticketQueue.addToQueue(numbers);
+      console.log(`[useGameState] 📋 Ticket agregado a cola: ${queueId}`);
       
-      if (!ticket) {
-        // Si hay un error, eliminar el ticket temporal
-        setGameState(prev => ({
-          ...prev,
-          tickets: prev.tickets.filter(t => t.id !== tempTicket.id)
-        }));
-      }
+      return {
+        tempTicket,
+        queueId,
+        success: true
+      };
       
     } catch (error) {
-      console.error('Error generating ticket:', error);
+      console.error('[useGameState] ❌ Error en generación de ticket:', error);
+      return {
+        error: 'Error generando ticket. Inténtalo de nuevo.',
+        details: error
+      };
     }
-  }, []);
+  }, [rateLimit, ticketQueue, user?.id]);
 
   return {
     gameState: {
       ...gameState,
-      timeRemaining
+      timeRemaining: hybridTimer.timeRemaining
     },
     generateTicket,
-    forceGameDraw
+    forceGameDraw,
+    // Información adicional para debugging y UI
+    queueStatus: ticketQueue.status,
+    rateLimitStatus: {
+      isBlocked: rateLimit.isBlocked,
+      remainingTime: rateLimit.remainingTime
+    },
+    // Información del timer híbrido para el componente Timer
+    timerInfo: {
+      isContractConnected: hybridTimer.isContractConnected,
+      currentGameDay: hybridTimer.currentGameDay,
+      nextDrawTime: hybridTimer.nextDrawTime,
+      error: hybridTimer.error,
+      timerSource: hybridTimer.timerSource
+    }
   };
 }

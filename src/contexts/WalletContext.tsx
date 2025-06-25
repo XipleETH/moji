@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User } from '../types';
+import { User, WalletProvider } from '../types';
+import { connectWallet, getWalletProvider } from '../utils/wallets';
 
 interface WalletContextType {
   user: User | null;
   isConnected: boolean;
   isConnecting: boolean;
+  connectingWallet: WalletProvider | null;
   error: string | null;
-  connect: () => Promise<void>;
+  connect: (walletId?: WalletProvider) => Promise<void>;
   disconnect: () => void;
 }
 
@@ -19,6 +21,7 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectingWallet, setConnectingWallet] = useState<WalletProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   const isConnected = !!user?.walletAddress;
@@ -33,16 +36,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     });
   }, [user, isConnected, isConnecting, error]);
 
-  // Función para detectar si tenemos Coinbase Wallet o MetaMask
-  const detectWallet = () => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      return window.ethereum;
-    }
-    return null;
-  };
-
   // Función para obtener información del usuario basada en la wallet
-  const getUserFromWallet = useCallback(async (address: string): Promise<User> => {
+  const getUserFromWallet = useCallback(async (
+    address: string, 
+    walletProvider: WalletProvider,
+    chainId: number
+  ): Promise<User> => {
     // Crear un usuario basado en la dirección de wallet
     const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
     
@@ -52,52 +51,30 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       walletAddress: address,
       isFarcasterUser: false, // Es un usuario de wallet directo
       verifiedWallet: true,
-      chainId: 8453 // Base por defecto
+      chainId,
+      walletProvider,
+      connectedAt: Date.now()
     };
   }, []);
 
-  // Función para conectar wallet
-  const connect = async () => {
+  // Función para conectar wallet con soporte para múltiples proveedores
+  const connect = async (walletId: WalletProvider = 'injected') => {
     if (isConnecting) return;
     
     try {
       setIsConnecting(true);
+      setConnectingWallet(walletId);
       setError(null);
       
-      console.log('[WalletContext] Iniciando conexión de wallet...');
+      console.log(`[WalletContext] Connecting to ${walletId} wallet...`);
       
-      const ethereum = detectWallet();
-      if (!ethereum) {
-        throw new Error('No wallet detected (Coinbase Wallet or MetaMask)');
-      }
-
-      console.log('[WalletContext] Wallet detected, requesting accounts...');
+      // Usar la función de conectWallet del utils
+      const { address, chainId, provider } = await connectWallet(walletId);
       
-      // Solicitar conexión
-      const accounts = await ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      });
-      
-      if (!accounts || accounts.length === 0) {
-        throw new Error('Could not get any account');
-      }
-
-      const address = accounts[0];
-      console.log('[WalletContext] Account obtained:', address);
-
-      // Obtener información de la red actual
-      let chainId = 8453; // Base por defecto
-      try {
-        const chainIdHex = await ethereum.request({ method: 'eth_chainId' });
-        chainId = parseInt(chainIdHex, 16);
-        console.log('[WalletContext] ChainId detected:', chainId);
-      } catch (chainError) {
-        console.warn('[WalletContext] Could not get chainId:', chainError);
-      }
+      console.log(`[WalletContext] ${walletId} connected:`, { address, chainId });
 
       // Crear usuario
-      const walletUser = await getUserFromWallet(address);
-      walletUser.chainId = chainId;
+      const walletUser = await getUserFromWallet(address, walletId, chainId);
       
       console.log('[WalletContext] User created:', walletUser);
       
@@ -107,16 +84,29 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       localStorage.setItem('walletAuth', JSON.stringify({
         address,
         chainId,
+        walletProvider: walletId,
         timestamp: Date.now()
       }));
       
-      console.log('[WalletContext] ¡Connection successful! User:', walletUser);
+      // Inicializar tokens automáticamente después de conectar
+      try {
+        console.log('[WalletContext] Inicializando tokens para nuevo usuario...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens inicializados exitosamente');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens:', tokenError);
+        // No fallar la conexión por esto, solo loggear
+      }
+      
+      console.log(`[WalletContext] ${walletId} connection successful!`);
       
     } catch (err) {
-      console.error('[WalletContext] Error connecting wallet:', err);
+      console.error(`[WalletContext] Error connecting to ${walletId}:`, err);
       setError(err instanceof Error ? err.message : 'Error connecting wallet');
     } finally {
       setIsConnecting(false);
+      setConnectingWallet(null);
     }
   };
 
@@ -134,7 +124,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const savedAuth = localStorage.getItem('walletAuth');
       if (!savedAuth) return;
 
-      const { address, chainId, timestamp } = JSON.parse(savedAuth);
+      const { address, chainId, walletProvider, timestamp } = JSON.parse(savedAuth);
       
       // Verificar que no sea muy antigua (24 horas)
       if (Date.now() - timestamp > 24 * 60 * 60 * 1000) {
@@ -142,22 +132,45 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         return;
       }
 
-      const ethereum = detectWallet();
-      if (!ethereum) return;
+      // Verificar que el proveedor de wallet esté disponible
+      const provider = getWalletProvider(walletProvider || 'injected');
+      if (!provider) {
+        localStorage.removeItem('walletAuth');
+        return;
+      }
 
       // Verificar que la cuenta aún esté conectada
-      const accounts = await ethereum.request({ method: 'eth_accounts' });
+      const accounts = await provider.request({ method: 'eth_accounts' });
       if (!accounts || !accounts.includes(address)) {
         localStorage.removeItem('walletAuth');
         return;
       }
 
       // Restaurar usuario
-      const walletUser = await getUserFromWallet(address);
-      walletUser.chainId = chainId;
+      const walletUser = await getUserFromWallet(address, walletProvider || 'injected', chainId);
       
       console.log('[WalletContext] Connection restored:', walletUser);
       setUser(walletUser);
+      
+      // Inicializar tokens para usuario restaurado
+      try {
+        console.log('[WalletContext] Inicializando tokens para usuario restaurado...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens de usuario restaurado inicializados');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens de usuario restaurado:', tokenError);
+      }
+      
+      // Inicializar tokens para usuario restaurado
+      try {
+        console.log('[WalletContext] Inicializando tokens para usuario restaurado...');
+        const { getUserDailyTokens } = await import('../firebase/tokens');
+        await getUserDailyTokens(walletUser.id);
+        console.log('[WalletContext] Tokens de usuario restaurado inicializados');
+      } catch (tokenError) {
+        console.warn('[WalletContext] Error inicializando tokens de usuario restaurado:', tokenError);
+      }
       
     } catch (error) {
       console.error('[WalletContext] Error checking existing connection:', error);
@@ -165,10 +178,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   }, [getUserFromWallet]);
 
-  // Escuchar cambios de cuenta
+  // Escuchar cambios de cuenta y red
   useEffect(() => {
-    const ethereum = detectWallet();
-    if (!ethereum) return;
+    if (!user?.walletProvider) return;
+
+    const provider = getWalletProvider(user.walletProvider);
+    if (!provider) return;
 
     const handleAccountsChanged = async (accounts: string[]) => {
       console.log('[WalletContext] Accounts changed:', accounts);
@@ -177,8 +192,30 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         disconnect();
       } else if (user && accounts[0] !== user.walletAddress) {
         // Actualizar con la nueva cuenta
-        const walletUser = await getUserFromWallet(accounts[0]);
+        const walletUser = await getUserFromWallet(
+          accounts[0], 
+          user.walletProvider!, 
+          user.chainId || 8453
+        );
         setUser(walletUser);
+        
+        // Actualizar localStorage
+        localStorage.setItem('walletAuth', JSON.stringify({
+          address: accounts[0],
+          chainId: user.chainId || 8453,
+          walletProvider: user.walletProvider,
+          timestamp: Date.now()
+        }));
+        
+        // Inicializar tokens para la nueva cuenta
+        try {
+          console.log('[WalletContext] Inicializando tokens para cuenta cambiada...');
+          const { getUserDailyTokens } = await import('../firebase/tokens');
+          await getUserDailyTokens(walletUser.id);
+          console.log('[WalletContext] Tokens para nueva cuenta inicializados');
+        } catch (tokenError) {
+          console.warn('[WalletContext] Error inicializando tokens para nueva cuenta:', tokenError);
+        }
       }
     };
 
@@ -188,15 +225,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       
       if (user) {
         setUser(prev => prev ? { ...prev, chainId: newChainId } : null);
+        
+        // Actualizar localStorage
+        localStorage.setItem('walletAuth', JSON.stringify({
+          address: user.walletAddress,
+          chainId: newChainId,
+          walletProvider: user.walletProvider,
+          timestamp: Date.now()
+        }));
       }
     };
 
-    ethereum.on('accountsChanged', handleAccountsChanged);
-    ethereum.on('chainChanged', handleChainChanged);
+    provider.on('accountsChanged', handleAccountsChanged);
+    provider.on('chainChanged', handleChainChanged);
 
     return () => {
-      ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      ethereum.removeListener('chainChanged', handleChainChanged);
+      provider.removeListener('accountsChanged', handleAccountsChanged);
+      provider.removeListener('chainChanged', handleChainChanged);
     };
   }, [user, getUserFromWallet]);
 
@@ -209,6 +254,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     user,
     isConnected,
     isConnecting,
+    connectingWallet,
     error,
     connect,
     disconnect

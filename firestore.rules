@@ -36,5 +36,59 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true; // Permitir escritura para facilitar pruebas
     }
+    
+    // Daily tokens - Sistema de tokens diarios
+    match /daily_tokens/{tokenId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize transactions - Transacciones de premios
+    match /prize_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Token transactions - Historial de transacciones de tokens
+    match /token_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize pools - Sistema de pools de premios dinámicos
+    match /prize_pools/{poolId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize distributions - Distribuciones de premios
+    match /prize_distributions/{distributionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Ticket purchases - Compras de tickets para pools
+    match /ticket_purchases/{purchaseId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Pool transactions - Transacciones de pools de premios
+    match /pool_transactions/{transactionId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // Prize claims - Reclamaciones de premios
+    match /prize_claims/{claimId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
+    
+    // User balances - Balances de tokens de usuarios
+    match /user_balances/{balanceId} {
+      allow read: if true;  // Permitir lectura total para debugging
+      allow write: if true; // Permitir escritura total para debugging
+    }
   }
 }

@@ -11,10 +11,13 @@ import {
   serverTimestamp,
   where,
   Timestamp,
-  getDocs
+  getDocs,
+  runTransaction
 } from 'firebase/firestore';
 import { GameResult, Ticket } from '../types';
 import { getCurrentUser } from './auth';
+import { useTokensForTicket, canUserBuyTicket, getCurrentGameDay } from './tokens';
+import { addTokensToPool } from './prizePools';
 
 const GAME_RESULTS_COLLECTION = 'game_results';
 const TICKETS_COLLECTION = 'player_tickets';
@@ -42,11 +45,17 @@ const mapFirestoreTicket = (doc: any): Ticket => {
     id: doc.id,
     numbers: data.numbers || [],
     timestamp: data.timestamp?.toMillis() || Date.now(),
-    userId: data.userId
+    userId: data.userId,
+    walletAddress: data.walletAddress,
+    fid: data.fid,
+    txHash: data.txHash,
+    gameDay: data.gameDay || getCurrentGameDay(),
+    tokenCost: data.tokenCost || 1,
+    isActive: data.isActive !== undefined ? data.isActive : true
   };
 };
 
-// Generar un ticket
+// Generar un ticket (mejorado para evitar condiciones de carrera)
 export const generateTicket = async (numbers: string[]): Promise<Ticket | null> => {
   try {
     console.log('[generateTicket] Iniciando generación de ticket con números:', numbers);
@@ -54,69 +63,147 @@ export const generateTicket = async (numbers: string[]): Promise<Ticket | null> 
     const user = await getCurrentUser();
     console.log('[generateTicket] Usuario obtenido:', user ? `ID: ${user.id}, Username: ${user.username}, Wallet: ${user.walletAddress}` : 'No hay usuario');
     
-    // Verificar que el usuario tenga una billetera (no requiere Farcaster específicamente)
+    // Verificar que el usuario tenga una billetera
     if (!user || !user.walletAddress) {
       console.error('[generateTicket] Error: Usuario no tiene wallet conectada');
       return null;
     }
     
-    console.log('[generateTicket] Validaciones pasadas, creando ticket...');
+    const currentGameDay = getCurrentGameDay();
     
-    // Generar un hash único para el ticket (simulado)
-    const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-    
-    // Incluir información del usuario en el ticket
-    const ticketData = {
-      numbers,
-      timestamp: serverTimestamp(),
-      userId: user.id,
-      username: user.username,
-      walletAddress: user.walletAddress,
-      fid: user.fid || 0, // Puede ser 0 si no es usuario de Farcaster
-      isFarcasterUser: user.isFarcasterUser || false,
-      verifiedWallet: user.verifiedWallet || true, // Asumimos true si tiene wallet conectada
-      chainId: user.chainId || 8453, // Base por defecto
-      ticketHash: uniqueHash
-    };
-    
-    console.log('[generateTicket] Datos del ticket preparados:', {
-      userId: ticketData.userId,
-      username: ticketData.username,
-      walletAddress: ticketData.walletAddress,
-      numbersCount: ticketData.numbers.length,
-      collection: TICKETS_COLLECTION
+    // Usar una transacción para garantizar atomicidad
+    return await runTransaction(db, async (transaction) => {
+      // 1. Verificar tokens disponibles dentro de la transacción
+      const tokensRef = doc(db, 'daily_tokens', `${user.id}_${currentGameDay}`);
+      const tokensDoc = await transaction.get(tokensRef);
+      
+      let currentTokens = { tokensAvailable: 1000, tokensUsed: 0 }; // Para pruebas masivas
+      if (tokensDoc.exists()) {
+        currentTokens = tokensDoc.data() as any;
+      }
+      
+      // Verificar si tiene tokens suficientes
+      if (currentTokens.tokensAvailable < 1) {
+        console.error(`[generateTicket] Error: Usuario no tiene tokens suficientes. Disponibles: ${currentTokens.tokensAvailable}`);
+        throw new Error('Insufficient tokens');
+      }
+      
+      // 2. Crear el ticket
+      const uniqueHash = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      const ticketRef = doc(collection(db, TICKETS_COLLECTION));
+      
+      const ticketData = {
+        numbers,
+        timestamp: serverTimestamp(),
+        userId: user.id,
+        username: user.username,
+        walletAddress: user.walletAddress,
+        fid: user.fid || 0,
+        isFarcasterUser: user.isFarcasterUser || false,
+        verifiedWallet: user.verifiedWallet || true,
+        chainId: user.chainId || 8453,
+        walletProvider: user.walletProvider || 'injected',
+        ticketHash: uniqueHash,
+        gameDay: currentGameDay,
+        tokenCost: 1,
+        isActive: true
+      };
+      
+      // 3. Actualizar tokens dentro de la transacción
+      const newTokenData = {
+        userId: user.id,
+        date: currentGameDay,
+        tokensAvailable: currentTokens.tokensAvailable - 1,
+        tokensUsed: (currentTokens.tokensUsed || 0) + 1,
+        lastUpdated: serverTimestamp()
+      };
+      
+      // 4. Crear purchase record
+      const purchaseRef = doc(collection(db, 'ticket_purchases'));
+      const purchaseData = {
+        id: purchaseRef.id,
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        gameDay: currentGameDay,
+        tokensSpent: 1,
+        ticketId: ticketRef.id,
+        timestamp: serverTimestamp()
+      };
+      
+      // 5. Ejecutar todas las operaciones en la transacción
+      transaction.set(ticketRef, ticketData);
+      
+      if (tokensDoc.exists()) {
+        transaction.update(tokensRef, newTokenData);
+      } else {
+        transaction.set(tokensRef, newTokenData);
+      }
+      
+      transaction.set(purchaseRef, purchaseData);
+      
+      console.log(`[generateTicket] ✅ Transacción preparada - Ticket: ${ticketRef.id}, Tokens restantes: ${newTokenData.tokensAvailable}`);
+      
+      // Devolver el ticket creado
+      const newTicket: Ticket = {
+        id: ticketRef.id,
+        numbers,
+        timestamp: Date.now(),
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        fid: user.fid,
+        gameDay: currentGameDay,
+        tokenCost: 1,
+        isActive: true
+      };
+      
+      return newTicket;
+    }).then(async (ticket) => {
+      // Agregar a la pool después de que se confirme la transacción principal
+      if (ticket) {
+        // Hacerlo en background para evitar bloqueos
+        setTimeout(() => {
+          addTicketToPool(user.id, user.walletAddress, ticket.id);
+        }, 100);
+      }
+      return ticket;
     });
     
-    console.log('[generateTicket] Intentando guardar en colección:', TICKETS_COLLECTION);
-    const ticketRef = await addDoc(collection(db, TICKETS_COLLECTION), ticketData);
-    console.log('[generateTicket] Ticket guardado exitosamente con ID:', ticketRef.id);
-    
-    // Log de éxito
-    console.log(`[generateTicket] Ticket creado con ID: ${ticketRef.id} para el usuario ${user.username} (Wallet: ${user.walletAddress})`);
-    
-    // Devolver el ticket creado
-    const newTicket = {
-      id: ticketRef.id,
-      numbers,
-      timestamp: Date.now(),
-      userId: user.id,
-      walletAddress: user.walletAddress,
-      fid: user.fid
-    };
-    
-    console.log('[generateTicket] Ticket devuelto:', newTicket);
-    return newTicket;
   } catch (error) {
-    console.error('[generateTicket] Error generating ticket:', error);
+    console.error('[generateTicket] Error en transacción:', error);
     
-    // Información adicional de debugging
-    if (error instanceof Error) {
-      console.error('[generateTicket] Error name:', error.name);
-      console.error('[generateTicket] Error message:', error.message);
-      console.error('[generateTicket] Error stack:', error.stack);
+    if (error instanceof Error && error.message === 'Insufficient tokens') {
+      console.error('[generateTicket] Usuario sin tokens suficientes');
     }
     
     return null;
+  }
+};
+
+// Función auxiliar para agregar tokens a la pool después de crear el ticket
+const addTicketToPool = async (userId: string, walletAddress: string, ticketId: string) => {
+  try {
+    console.log(`[addTicketToPool] Agregando ticket ${ticketId} a la pool de premios...`);
+    
+    // Pequeño delay para evitar condiciones de carrera
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    const poolSuccess = await addTokensToPool(userId, walletAddress, 1, ticketId);
+    if (poolSuccess) {
+      console.log(`[addTicketToPool] ✅ Token agregado exitosamente a la pool para el ticket ${ticketId}`);
+    } else {
+      console.log(`[addTicketToPool] ⚠️ No se pudo agregar token a la pool para el ticket ${ticketId}`);
+    }
+  } catch (error) {
+    console.error(`[addTicketToPool] Error agregando token a la pool:`, error);
+    // Intentar de nuevo una vez después de un delay
+    try {
+      console.log(`[addTicketToPool] Reintentando para el ticket ${ticketId}...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await addTokensToPool(userId, walletAddress, 1, ticketId);
+      console.log(`[addTicketToPool] ✅ Reintento exitoso para el ticket ${ticketId}`);
+    } catch (retryError) {
+      console.error(`[addTicketToPool] Reintento falló para el ticket ${ticketId}:`, retryError);
+    }
   }
 };
 
@@ -204,59 +291,92 @@ export const subscribeToGameResults = (
   }
 };
 
-// Suscribirse a los tickets del usuario actual
+// Suscribirse a los tickets del usuario actual (solo del día actual)
 export const subscribeToUserTickets = (
   callback: (tickets: Ticket[]) => void
-) => {
-  try {
-    // Primero obtenemos el usuario actual como promesa
-    getCurrentUser().then(user => {
-      if (!user) {
-        callback([]);
-        return () => {};
-      }
-      
-      const ticketsQuery = query(
-        collection(db, TICKETS_COLLECTION),
-        where('userId', '==', user.id),
-        orderBy('timestamp', 'desc')
-      );
-      
-      return onSnapshot(ticketsQuery, (snapshot) => {
+): (() => void) => {
+  console.log('[subscribeToUserTickets] 🚀 Iniciando suscripción a tickets del usuario');
+  
+  let unsubscribeFirestore: (() => void) | null = null;
+  
+  // Obtener usuario y configurar suscripción
+  getCurrentUser().then(user => {
+    if (!user) {
+      console.log('[subscribeToUserTickets] ❌ No hay usuario conectado');
+      callback([]);
+      return;
+    }
+    
+    console.log(`[subscribeToUserTickets] ✅ Usuario conectado: ${user.id}`);
+    const currentGameDay = getCurrentGameDay();
+    console.log(`[subscribeToUserTickets] 📅 Buscando tickets del día: ${currentGameDay}`);
+    
+    const ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', user.id),
+      where('gameDay', '==', currentGameDay),
+      where('isActive', '==', true),
+      orderBy('timestamp', 'desc')
+    );
+    
+    console.log(`[subscribeToUserTickets] 🔍 Query configurada para user: ${user.id}, gameDay: ${currentGameDay}`);
+    
+    unsubscribeFirestore = onSnapshot(
+      ticketsQuery,
+      (snapshot) => {
         try {
+          console.log(`[subscribeToUserTickets] 📥 Snapshot recibido: ${snapshot.size} documentos`);
+          
           const tickets = snapshot.docs.map(doc => {
-            try {
-              return mapFirestoreTicket(doc);
-            } catch (error) {
-              console.error('Error mapping ticket document:', error, doc.id);
-              return null;
+            const ticket = mapFirestoreTicket(doc);
+            console.log(`[subscribeToUserTickets] 🎫 Ticket procesado:`, {
+              id: ticket.id,
+              gameDay: ticket.gameDay,
+              timestamp: new Date(ticket.timestamp).toLocaleString(),
+              userId: ticket.userId,
+              numbers: ticket.numbers.length
+            });
+            return ticket;
+          });
+          
+          console.log(`[subscribeToUserTickets] 📊 Total tickets del día actual: ${tickets.length}`);
+          
+          // Verificar si algún ticket tiene una fecha diferente
+          tickets.forEach(ticket => {
+            if (ticket.gameDay !== currentGameDay) {
+              console.warn(`[subscribeToUserTickets] ⚠️ Ticket con gameDay diferente encontrado:`, {
+                ticketGameDay: ticket.gameDay,
+                currentGameDay: currentGameDay,
+                ticketId: ticket.id
+              });
             }
-          }).filter(ticket => ticket !== null) as Ticket[];
+          });
           
           callback(tickets);
         } catch (error) {
-          console.error('Error processing tickets snapshot:', error);
+          console.error('[subscribeToUserTickets] ❌ Error procesando snapshot:', error);
           callback([]);
         }
-      }, (error) => {
-        console.error('Error in subscribeToUserTickets:', error);
+      },
+      (error) => {
+        console.error('[subscribeToUserTickets] ❌ Error en la suscripción:', error);
         callback([]);
-      });
-    }).catch(error => {
-      console.error('Error getting current user:', error);
-      callback([]);
-      return () => {};
-    });
+      }
+    );
     
-    // Devolver una función de unsubscribe temporal
-    return () => {
-      // Esta función será reemplazada cuando se resuelva la promesa
-    };
-  } catch (error) {
-    console.error('Error setting up user tickets subscription:', error);
+    console.log('[subscribeToUserTickets] 🔄 Suscripción configurada exitosamente');
+  }).catch(error => {
+    console.error('[subscribeToUserTickets] ❌ Error obteniendo usuario actual:', error);
     callback([]);
-    return () => {}; // Unsubscribe no-op
-  }
+  });
+  
+  // Función de limpieza
+  return () => {
+    console.log('[subscribeToUserTickets] 🧹 Limpiando suscripción');
+    if (unsubscribeFirestore) {
+      unsubscribeFirestore();
+    }
+  };
 };
 
 // Suscribirse al estado actual del juego
@@ -275,14 +395,35 @@ export const subscribeToCurrentGameState = (
   });
 };
 
-// Función para obtener estadísticas del usuario
+// Cache simple para estadísticas de usuarios
+const statisticsCache = new Map<string, {
+  data: any;
+  timestamp: number;
+  expiry: number;
+}>();
+
+const CACHE_DURATION = 60000; // 1 minuto
+
+// Función optimizada para obtener estadísticas del usuario
 export const getUserStatistics = async (userId: string) => {
   try {
-    // Obtener todos los tickets del usuario
+    // Verificar cache primero
+    const cached = statisticsCache.get(userId);
+    const now = Date.now();
+    
+    if (cached && now < cached.expiry) {
+      console.log(`[getUserStatistics] Usando datos en caché para usuario ${userId}`);
+      return cached.data;
+    }
+
+    console.log(`[getUserStatistics] Obteniendo estadísticas frescas para usuario ${userId}`);
+
+    // Obtener tickets del usuario (limitado a los últimos 1000 para mejor rendimiento)
     const ticketsQuery = query(
       collection(db, TICKETS_COLLECTION),
       where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(1000)
     );
     
     const ticketsSnapshot = await getDocs(ticketsQuery);
@@ -291,14 +432,17 @@ export const getUserStatistics = async (userId: string) => {
       ...doc.data()
     }));
 
-    // Obtener todos los resultados de juegos
+    // Obtener solo los resultados recientes (últimas 2 semanas)
+    const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
     const resultsQuery = query(
       collection(db, GAME_RESULTS_COLLECTION),
-      orderBy('timestamp', 'desc')
+      where('timestamp', '>=', Timestamp.fromMillis(twoWeeksAgo)),
+      orderBy('timestamp', 'desc'),
+      limit(50)
     );
     
     const resultsSnapshot = await getDocs(resultsQuery);
-    const allResults = resultsSnapshot.docs.map(doc => mapFirestoreGameResult(doc));
+    const recentResults = resultsSnapshot.docs.map(doc => mapFirestoreGameResult(doc));
 
     // Contar premios ganados
     let firstPrizeWins = 0;
@@ -306,7 +450,7 @@ export const getUserStatistics = async (userId: string) => {
     let thirdPrizeWins = 0;
     let freePrizeWins = 0;
 
-    allResults.forEach(result => {
+    recentResults.forEach(result => {
       // Verificar en cada categoría de premio
       if (result.firstPrize?.some(ticket => ticket.userId === userId)) {
         firstPrizeWins++;
@@ -322,7 +466,7 @@ export const getUserStatistics = async (userId: string) => {
       }
     });
 
-    return {
+    const statistics = {
       totalTickets: userTickets.length,
       freeTickets: userTickets.filter(ticket => ticket.isFreeTicket).length,
       paidTickets: userTickets.filter(ticket => !ticket.isFreeTicket).length,
@@ -334,8 +478,141 @@ export const getUserStatistics = async (userId: string) => {
       },
       totalWins: firstPrizeWins + secondPrizeWins + thirdPrizeWins + freePrizeWins
     };
+
+    // Guardar en caché
+    statisticsCache.set(userId, {
+      data: statistics,
+      timestamp: now,
+      expiry: now + CACHE_DURATION
+    });
+
+    return statistics;
   } catch (error) {
     console.error('Error getting user statistics:', error);
     throw error;
+  }
+};
+
+// Nueva función: Obtener historial completo de tickets del usuario organizados por días
+export interface TicketsByDay {
+  [gameDay: string]: Ticket[];
+}
+
+export const getUserTicketHistory = async (userId?: string, limitDays: number = 30): Promise<TicketsByDay> => {
+  try {
+    const user = userId ? { id: userId } : await getCurrentUser();
+    if (!user) {
+      console.warn('[getUserTicketHistory] No user provided');
+      return {};
+    }
+
+    console.log(`[getUserTicketHistory] Obteniendo historial de tickets para usuario: ${user.id}`);
+
+    // Calcular fecha límite (últimos X días)
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - limitDays);
+    const limitTimestamp = Timestamp.fromDate(limitDate);
+
+    // Consulta para obtener todos los tickets del usuario en el período
+    const ticketsQuery = query(
+      collection(db, TICKETS_COLLECTION),
+      where('userId', '==', user.id),
+      where('timestamp', '>=', limitTimestamp),
+      orderBy('timestamp', 'desc'),
+      limit(500) // Limitar a 500 tickets máximo para rendimiento
+    );
+
+    const ticketsSnapshot = await getDocs(ticketsQuery);
+    const allTickets = ticketsSnapshot.docs.map(doc => mapFirestoreTicket(doc));
+
+    // Organizar tickets por día
+    const ticketsByDay: TicketsByDay = {};
+    
+    allTickets.forEach(ticket => {
+      const gameDay = ticket.gameDay;
+      if (!ticketsByDay[gameDay]) {
+        ticketsByDay[gameDay] = [];
+      }
+      ticketsByDay[gameDay].push(ticket);
+    });
+
+    // Ordenar tickets dentro de cada día por timestamp descendente
+    Object.keys(ticketsByDay).forEach(day => {
+      ticketsByDay[day].sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    console.log(`[getUserTicketHistory] Historial obtenido: ${allTickets.length} tickets en ${Object.keys(ticketsByDay).length} días`);
+    
+    return ticketsByDay;
+  } catch (error) {
+    console.error('[getUserTicketHistory] Error obteniendo historial:', error);
+    return {};
+  }
+};
+
+// Nueva función: Suscribirse a todo el historial de tickets del usuario
+export const subscribeToUserTicketHistory = (
+  callback: (ticketsByDay: TicketsByDay) => void,
+  limitDays: number = 30
+) => {
+  try {
+    getCurrentUser().then(user => {
+      if (!user) {
+        callback({});
+        return () => {};
+      }
+
+      // Calcular fecha límite
+      const limitDate = new Date();
+      limitDate.setDate(limitDate.getDate() - limitDays);
+      const limitTimestamp = Timestamp.fromDate(limitDate);
+
+      const ticketsQuery = query(
+        collection(db, TICKETS_COLLECTION),
+        where('userId', '==', user.id),
+        where('timestamp', '>=', limitTimestamp),
+        orderBy('timestamp', 'desc'),
+        limit(500)
+      );
+
+      return onSnapshot(ticketsQuery, (snapshot) => {
+        try {
+          const allTickets = snapshot.docs.map(doc => mapFirestoreTicket(doc));
+          
+          // Organizar por días
+          const ticketsByDay: TicketsByDay = {};
+          allTickets.forEach(ticket => {
+            const gameDay = ticket.gameDay;
+            if (!ticketsByDay[gameDay]) {
+              ticketsByDay[gameDay] = [];
+            }
+            ticketsByDay[gameDay].push(ticket);
+          });
+
+          // Ordenar dentro de cada día
+          Object.keys(ticketsByDay).forEach(day => {
+            ticketsByDay[day].sort((a, b) => b.timestamp - a.timestamp);
+          });
+
+          callback(ticketsByDay);
+        } catch (error) {
+          console.error('Error processing ticket history snapshot:', error);
+          callback({});
+        }
+      }, (error) => {
+        console.error('Error in subscribeToUserTicketHistory:', error);
+        callback({});
+      });
+    }).catch(error => {
+      console.error('Error getting current user for ticket history:', error);
+      callback({});
+      return () => {};
+    });
+
+    return () => {};
+  } catch (error) {
+    console.error('Error setting up user ticket history subscription:', error);
+    callback({});
+    return () => {};
   }
 }; 

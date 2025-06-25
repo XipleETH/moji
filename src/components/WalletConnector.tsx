@@ -2,17 +2,25 @@ import React, { useState } from 'react';
 import { WalletIcon } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
 import { UserMenu } from './UserMenu';
+import { WalletSelector } from './WalletSelector';
+import { WalletProvider } from '../types';
 
 export const WalletConnector: React.FC = () => {
-  const { user, isConnected, isConnecting, error, connect, disconnect } = useWallet();
+  const { user, isConnected, isConnecting, connectingWallet, error, connect, disconnect } = useWallet();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isWalletSelectorOpen, setIsWalletSelectorOpen] = useState(false);
 
   const handleWalletClick = () => {
     if (isConnected && user) {
       setIsMenuOpen(true);
     } else {
-      connect();
+      setIsWalletSelectorOpen(true);
     }
+  };
+
+  const handleWalletSelect = (walletId: WalletProvider) => {
+    setIsWalletSelectorOpen(false);
+    connect(walletId);
   };
 
   const handleDisconnect = () => {
@@ -69,6 +77,15 @@ export const WalletConnector: React.FC = () => {
           onDisconnect={handleDisconnect}
         />
       )}
+
+      {/* Wallet Selector Modal */}
+      <WalletSelector
+        isOpen={isWalletSelectorOpen}
+        onClose={() => setIsWalletSelectorOpen(false)}
+        onWalletSelect={handleWalletSelect}
+        isConnecting={isConnecting}
+        connectingWallet={connectingWallet}
+      />
     </>
   );
 }; 
