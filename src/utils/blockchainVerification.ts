@@ -196,6 +196,45 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
       };
     }
     
+    // CRITICAL FIX: Aggregate undrawn pools from previous days
+    let aggregatedTotalCollected = Number(ethers.formatUnits(dailyPool.totalCollected, 6));
+    let aggregatedMainPortion = Number(ethers.formatUnits(dailyPool.mainPoolPortion, 6));
+    let aggregatedReservePortion = Number(ethers.formatUnits(dailyPool.reservePortion, 6));
+    
+    console.log('🔍 Verificando días anteriores por pools no sorteados...');
+    
+    // Check previous days for undrawn pools (up to 7 days back)
+    for (let i = 1; i <= 7; i++) {
+      const previousDay = Number(currentGameDay) - i;
+      try {
+        const previousPool = await Promise.race([
+          contract.dailyPools(previousDay),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout previous pool')), 3000)
+          )
+        ]);
+        const previousCollected = Number(ethers.formatUnits(previousPool.totalCollected, 6));
+        
+        // If there's money in a previous day that hasn't been drawn, include it
+        if (previousCollected > 0 && !previousPool.drawn) {
+          console.log(`📅 Día ${previousDay}: ${previousCollected} USDC (no sorteado) - AGREGANDO`);
+          aggregatedTotalCollected += previousCollected;
+          aggregatedMainPortion += Number(ethers.formatUnits(previousPool.mainPoolPortion, 6));
+          aggregatedReservePortion += Number(ethers.formatUnits(previousPool.reservePortion, 6));
+        } else if (previousCollected > 0) {
+          console.log(`📅 Día ${previousDay}: ${previousCollected} USDC (sorteado: ${previousPool.drawn}) - IGNORANDO`);
+        }
+      } catch (error) {
+        // Skip if error accessing previous day
+        console.log(`📅 Día ${previousDay}: No accesible`);
+        break;
+      }
+    }
+    
+    console.log(`💰 Total agregado: ${aggregatedTotalCollected.toFixed(1)} USDC`);
+    console.log(`  - Hoy: ${Number(ethers.formatUnits(dailyPool.totalCollected, 6)).toFixed(1)} USDC`);
+    console.log(`  - Días anteriores: ${(aggregatedTotalCollected - Number(ethers.formatUnits(dailyPool.totalCollected, 6))).toFixed(1)} USDC`);
+    
     // Procesar y formatear datos
     const processedData: BlockchainPoolData = {
       mainPools: {
@@ -212,9 +251,9 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
         total: '0' // Se calculará después
       },
       dailyPool: {
-        totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
-        mainPortion: ethers.formatUnits(dailyPool.mainPoolPortion, 6),
-        reservePortion: ethers.formatUnits(dailyPool.reservePortion, 6),
+        totalCollected: aggregatedTotalCollected.toFixed(1),
+        mainPortion: aggregatedMainPortion.toFixed(1),
+        reservePortion: aggregatedReservePortion.toFixed(1),
         distributed: dailyPool.distributed,
         drawn: dailyPool.drawn
       },
