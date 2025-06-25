@@ -3569,7 +3569,6 @@ const checkUserTicketsFunction = async () => {
       getCurrentDateSaoPaulo,
       formatTimeColombia,
       formatTimeSaoPaulo,
-      isInProblematicResetWindow,
       debugTimezone
     } = await import('./utils/timezone');
     
@@ -3583,102 +3582,146 @@ const checkUserTicketsFunction = async () => {
     console.log('- Hora local:', now.toLocaleString());
     console.log('- Hora Colombia:', formatTimeColombia(now));
     console.log('- Hora São Paulo:', formatTimeSaoPaulo(now));
-    console.log('- En ventana problemática:', isInProblematicResetWindow());
     
-    // Calcular 16:00 Colombia en diferentes timezones
-    const sixteenColombia = new Date(colombiaTime);
-    sixteenColombia.setHours(16, 0, 0, 0);
-    const sixteenColombiaUTC = new Date(sixteenColombia.getTime() + 5 * 60 * 60 * 1000); // Colombia is UTC-5
-    const sixteenColombiaSP = new Date(sixteenColombiaUTC.getTime() - 3 * 60 * 60 * 1000); // São Paulo is UTC-3
+    const colombiaHour = colombiaTime.getHours();
+    const isNear16 = Math.abs(colombiaHour - 16) <= 1;
     
-    console.log('\n⏰ ANÁLISIS DE 16:00 COLOMBIA:');
-    console.log('- 16:00 Colombia en UTC:', sixteenColombiaUTC.toISOString());
-    console.log('- 16:00 Colombia en São Paulo:', formatTimeSaoPaulo(sixteenColombiaUTC));
-    console.log('- Diferencia con medianoche SP:', Math.floor((sixteenColombiaUTC.getTime() - sixteenColombiaSP.getTime()) / (1000 * 60 * 60)), 'horas');
+    console.log('⏰ ANÁLISIS TEMPORAL:');
+    console.log('- Hora actual Colombia:', colombiaHour + ':00');
+    console.log('- Cerca de las 16:00:', isNear16 ? '⚠️ SÍ' : '✅ NO');
     
-    // Verificar estado de pools actual
-    console.log('\n💰 ESTADO ACTUAL DE POOLS:');
-    const poolElements = document.querySelectorAll('[class*="pool"], [class*="Pool"]');
-    console.log('- Elementos de pool encontrados:', poolElements.length);
-    
-    // Intentar obtener datos de los hooks si están disponibles
-    try {
-      const { useContractPools } = await import('./hooks/useContractPools');
-      console.log('- Hook useContractPools disponible ✅');
-    } catch (e) {
-      console.log('- Hook useContractPools no disponible ❌');
-    }
-    
-    // Verificar patrón de reset
-    const currentHour = colombiaTime.getHours();
-    const isNearSixteen = Math.abs(currentHour - 16) <= 1;
-    
-    console.log('\n🚨 EVALUACIÓN DEL PROBLEMA:');
-    console.log('- Hora actual Colombia:', currentHour + ':00');
-    console.log('- Cerca de las 16:00:', isNearSixteen ? '⚠️ SÍ' : '✅ NO');
-    console.log('- Debería estar protegido:', isInProblematicResetWindow() ? '✅ SÍ' : '❌ NO');
-    
-    if (isNearSixteen && !isInProblematicResetWindow()) {
-      console.log('\n❌ PROBLEMA DETECTADO:');
-      console.log('- Estás cerca de las 16:00 Colombia pero la protección no está activa');
-      console.log('- Esto puede causar el reset problemático');
-      console.log('- SOLUCIÓN: Refresca la página para aplicar las correcciones');
-    } else if (isInProblematicResetWindow()) {
-      console.log('\n✅ PROTECCIÓN ACTIVA:');
-      console.log('- Las protecciones están funcionando correctamente');
-      console.log('- Los pools no deberían resetearse ahora');
-    } else {
-      console.log('\n✅ FUERA DE VENTANA PROBLEMÁTICA:');
-      console.log('- No hay riesgo de reset problemático en este momento');
-    }
-    
-    // Debug completo de timezone
+    // Información completa de timezone
     console.log('\n🔧 DEBUG COMPLETO:');
-    const timezoneDebug = debugTimezone();
-    console.table(timezoneDebug);
-    
-    return {
-      userTimezone: userTz,
-      currentTime: {
-        local: now.toISOString(),
-        colombia: formatTimeColombia(now),
-        saoPaulo: formatTimeSaoPaulo(now)
-      },
-      problemWindow: {
-        inProblematicWindow: isInProblematicResetWindow(),
-        nearSixteen: isNearSixteen,
-        currentHourColombia: currentHour
-      },
-      sixteenColombiaAnalysis: {
-        utc: sixteenColombiaUTC.toISOString(),
-        saoPaulo: formatTimeSaoPaulo(sixteenColombiaUTC)
-      },
-      recommendation: isNearSixteen && !isInProblematicResetWindow() 
-        ? 'REFRESH_PAGE_TO_APPLY_FIXES'
-        : 'SYSTEM_OK'
-    };
+    debugTimezone();
     
   } catch (error) {
     console.error('❌ Error en diagnóstico:', error);
-    return { error: error.message };
   }
 };
 
-// Función para forzar protección manual si es necesario
-(window as any).forcePoolProtection = () => {
-  console.log('🛡️ Forzando protección de pools...');
+// Función para monitorear pools en tiempo real
+(window as any).monitorPools = () => {
+  const startTime = Date.now();
+  let monitorCount = 0;
+  const maxChecks = 120; // 10 minutos máximo
   
-  // Limpiar todos los intervalos que podrían estar causando resets
-  const highestId = setTimeout(() => {}, 0);
-  for (let i = 0; i < highestId; i++) {
-    clearTimeout(i);
-    clearInterval(i);
+  console.log('📊 INICIANDO MONITOREO DE POOLS');
+  console.log('- Duración: 10 minutos máximo');
+  console.log('- Frecuencia: cada 5 segundos');
+  console.log('='.repeat(50));
+  
+  const monitorInterval = setInterval(async () => {
+    monitorCount++;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    
+    try {
+      console.log(`\n[${monitorCount}] T+${elapsed}s - Pool Status Check`);
+      
+      // Obtener datos del hook
+      const poolElements = document.querySelectorAll('[data-pool-info]');
+      if (poolElements.length > 0) {
+        poolElements.forEach(el => {
+          const poolType = el.getAttribute('data-pool-type');
+          const poolValue = el.textContent || '0';
+          console.log(`- ${poolType}: ${poolValue}`);
+        });
+      } else {
+        console.log('- No se encontraron elementos de pool en el DOM');
+      }
+      
+      // Verificar si los pools están en cero sospechosamente
+      const mainPoolEl = document.querySelector('[data-pool-type="main-total"]');
+      const reservePoolEl = document.querySelector('[data-pool-type="reserve-total"]');
+      const dailyPoolEl = document.querySelector('[data-pool-type="daily-total"]');
+      
+      const mainValue = parseFloat(mainPoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      const reserveValue = parseFloat(reservePoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      const dailyValue = parseFloat(dailyPoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      
+      if (mainValue === 0 && reserveValue === 0 && dailyValue === 0) {
+        console.warn('⚠️ TODOS LOS POOLS EN CERO - POSIBLE RESET PROBLEMÁTICO');
+        
+        // Obtener hora Colombia actual
+        const { getCurrentDateColombia } = await import('./utils/timezone');
+        const colombiaTime = getCurrentDateColombia();
+        const hour = colombiaTime.getHours();
+        const minute = colombiaTime.getMinutes();
+        
+        console.warn(`- Hora Colombia: ${hour}:${minute.toString().padStart(2, '0')}`);
+        console.warn('- Esto puede indicar el problema de reset a las 16:00');
+      }
+      
+      // Detener después del máximo o si se detecta actividad normal
+      if (monitorCount >= maxChecks) {
+        clearInterval(monitorInterval);
+        console.log('✅ Monitoreo completado (tiempo máximo alcanzado)');
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error en check ${monitorCount}:`, error);
+    }
+  }, 5000); // Cada 5 segundos
+  
+  // Función para detener manualmente
+  (window as any).stopPoolMonitor = () => {
+    clearInterval(monitorInterval);
+    console.log('🛑 Monitoreo detenido manualmente');
+  };
+  
+  console.log('📝 Para detener el monitoreo manualmente, ejecuta: stopPoolMonitor()');
+  
+  return monitorInterval;
+};
+
+// Función para sincronizar manualmente con blockchain
+(window as any).forcePoolSync = async () => {
+  try {
+    console.log('🔄 FORZANDO SINCRONIZACIÓN CON BLOCKCHAIN');
+    console.log('='.repeat(40));
+    
+    // Buscar el hook de pools y llamar refresh
+    const refreshButton = document.querySelector('[data-action="refresh-pools"]');
+    if (refreshButton) {
+      refreshButton.click();
+      console.log('✅ Refresh disparado desde UI');
+    } else {
+      console.log('⚠️ No se encontró botón de refresh en UI');
+      
+      // Intentar acceso directo al hook (si está disponible)
+      if (window.lottoMojiPoolsRef?.current?.refreshPools) {
+        window.lottoMojiPoolsRef.current.refreshPools();
+        console.log('✅ Refresh disparado desde referencia directa');
+      } else {
+        console.log('❌ No se pudo acceder al hook de pools');
+      }
+    }
+    
+    // Mostrar estado del localStorage
+    const cached = localStorage.getItem('lottoMoji_poolsCache');
+    if (cached) {
+      const parsedCache = JSON.parse(cached);
+      const cacheAge = Date.now() - parsedCache.timestamp;
+      console.log('💾 Cache Info:');
+      console.log('- Edad del cache:', Math.floor(cacheAge / 1000), 'segundos');
+      console.log('- Total USDC:', parsedCache.data.totalUSDC);
+      console.log('- Reserve USDC:', parsedCache.data.reserveTotalUSDC);
+    } else {
+      console.log('❌ No hay cache de pools');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error forzando sincronización:', error);
   }
-  
-  console.log('✅ Intervalos limpiados');
-  console.log('💡 Refresca la página para aplicar todas las protecciones');
-  
-  return { cleared: highestId, action: 'REFRESH_REQUIRED' };
+};
+
+// Debug helper disponible globalmente
+(window as any).debugPools = () => {
+  console.log('🛠️ POOL DEBUG HELPERS');
+  console.log('='.repeat(30));
+  console.log('diagnosePoolResetIssue() - Diagnosticar problema de reset');
+  console.log('monitorPools() - Monitorear pools por 10 minutos');
+  console.log('forcePoolSync() - Forzar sincronización con blockchain');
+  console.log('stopPoolMonitor() - Detener monitoreo activo');
 };
 
 function AppContent() {
