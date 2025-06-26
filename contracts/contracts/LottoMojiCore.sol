@@ -45,7 +45,7 @@ contract LottoMojiCore is
     
     // Automation configuration
     uint256 public constant DRAW_INTERVAL = 24 hours;
-    uint256 public drawTimeUTC = 18 hours; // 13:00 Bogotá = 18:00 UTC (TEST)
+    uint256 public drawTimeUTC; // Configurable draw time
     
     // Emoji indices (0-24) instead of strings
     uint8 public constant EMOJI_COUNT = 25;
@@ -172,14 +172,17 @@ contract LottoMojiCore is
     );
     
     constructor(
-        address _usdcToken
+        address _usdcToken,
+        uint256 _subscriptionId,
+        uint256 _drawTimeUTC
     ) 
         VRFConsumerBaseV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE)
         ERC721("LottoMoji Ticket", "LMOJI")
     {
         i_vrfCoordinator = IVRFCoordinatorV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE);
         usdcToken = IERC20(_usdcToken);
-        subscriptionId = 105961847727705490544354750783936451991128107961690295417839588082464327658827;
+        subscriptionId = _subscriptionId;
+        drawTimeUTC = _drawTimeUTC;
         currentGameDay = getCurrentDay();
         lastDrawTime = block.timestamp;
     }
