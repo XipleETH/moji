@@ -45,7 +45,7 @@ contract LottoMojiCore is
     
     // Automation configuration
     uint256 public constant DRAW_INTERVAL = 24 hours;
-    uint256 public drawTimeUTC = 3 hours; // 00:00 AM São Paulo = 03:00 AM UTC
+    uint256 public drawTimeUTC = 18 hours; // 13:00 Bogotá = 18:00 UTC (TEST)
     
     // Emoji indices (0-24) instead of strings
     uint8 public constant EMOJI_COUNT = 25;
@@ -278,7 +278,7 @@ contract LottoMojiCore is
         }
         
         lastWinningNumbers = randomNumbers;
-        lastDrawTime = block.timestamp;
+        // lastDrawTime already updated in performUpkeep to prevent infinite loop
         
         uint256 gameDay = getCurrentDay() - 1; // Draw for previous day
         dailyPools[gameDay].winningNumbers = randomNumbers;
@@ -318,6 +318,13 @@ contract LottoMojiCore is
         bool isDraw = abi.decode(performData, (bool));
         
         if (isDraw && _shouldExecuteDraw()) {
+            // FIX: Update lastDrawTime IMMEDIATELY to prevent infinite loop
+            // Calculate next draw time aligned with draw schedule
+            uint256 currentTime = block.timestamp;
+            uint256 timeSinceLastDraw = currentTime - lastDrawTime;
+            uint256 intervalsElapsed = (timeSinceLastDraw / DRAW_INTERVAL) + 1;
+            lastDrawTime = lastDrawTime + (intervalsElapsed * DRAW_INTERVAL);
+            
             _requestRandomWords();
         }
     }
