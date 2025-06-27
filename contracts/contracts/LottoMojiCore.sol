@@ -283,7 +283,7 @@ contract LottoMojiCore is
         lastWinningNumbers = randomNumbers;
         // lastDrawTime already updated in performUpkeep to prevent infinite loop
         
-        uint256 gameDay = getCurrentDay() - 1; // Draw for previous day
+        uint256 gameDay = getCurrentDay(); // Draw for CURRENT day (where tickets are)
         dailyPools[gameDay].winningNumbers = randomNumbers;
         dailyPools[gameDay].drawn = true;
         
@@ -333,7 +333,7 @@ contract LottoMojiCore is
     }
     
     /**
-     * @dev Claim prize for a winning ticket
+     * @dev Claim prize for a winning ticket - UPDATED FOR NEW LOGIC
      */
     function claimPrize(uint256 _ticketId) external nonReentrant {
         require(tickets[_ticketId].ticketOwner == msg.sender, "Not ticket owner");
@@ -342,10 +342,10 @@ contract LottoMojiCore is
         uint256 gameDay = tickets[_ticketId].gameDay;
         require(dailyPools[gameDay].drawn, "Draw not executed yet");
         
-        uint8 matches = _countMatches(_ticketId);
-        require(matches >= 2, "No prize for this ticket");
+        uint8 prizeLevel = _getPrizeLevel(_ticketId, dailyPools[gameDay].winningNumbers);
+        require(prizeLevel > 0, "No prize for this ticket");
         
-        uint256 prizeAmount = _calculatePrize(_ticketId, matches);
+        uint256 prizeAmount = _calculatePrize(_ticketId, prizeLevel);
         require(prizeAmount > 0, "No prize available");
         
         // Mark ticket as claimed
@@ -354,7 +354,7 @@ contract LottoMojiCore is
         // Transfer prize
         require(usdcToken.transfer(msg.sender, prizeAmount), "Prize transfer failed");
         
-        emit PrizeClaimed(_ticketId, msg.sender, prizeAmount, matches, false);
+        emit PrizeClaimed(_ticketId, msg.sender, prizeAmount, prizeLevel, false);
     }
     
     // Internal functions
@@ -437,14 +437,15 @@ contract LottoMojiCore is
         bool hasSecondPrizeWinner = false;
         bool hasThirdPrizeWinner = false;
         
-        // Check all tickets for winners
+        // Check all tickets for winners using NEW LOGIC
         for (uint256 i = 0; i < dayTickets.length; i++) {
             uint256 ticketId = dayTickets[i];
-            uint8 matches = _countMatchesForTicket(ticketId, winningNumbers);
+            uint8 prizeLevel = _getPrizeLevel(ticketId, winningNumbers);
             
-            if (matches == 4) hasFirstPrizeWinner = true;
-            else if (matches == 3) hasSecondPrizeWinner = true;
-            else if (matches == 2) hasThirdPrizeWinner = true;
+            if (prizeLevel == 1) hasFirstPrizeWinner = true;        // 🥇 4 exact
+            else if (prizeLevel == 2) hasSecondPrizeWinner = true;  // 🥈 4 any order
+            else if (prizeLevel == 3) hasThirdPrizeWinner = true;   // 🥉 3 exact
+            // Note: prizeLevel == 4 (free tickets) doesn't affect pool distribution
         }
         
         // Distribute main pool portions
@@ -482,14 +483,15 @@ contract LottoMojiCore is
         bool hasSecondPrizeWinner = false;
         bool hasThirdPrizeWinner = false;
         
-        // Check for winners again
+        // Check for winners again using NEW LOGIC
         for (uint256 i = 0; i < dayTickets.length; i++) {
             uint256 ticketId = dayTickets[i];
-            uint8 matches = _countMatchesForTicket(ticketId, winningNumbers);
+            uint8 prizeLevel = _getPrizeLevel(ticketId, winningNumbers);
             
-            if (matches == 4) hasFirstPrizeWinner = true;
-            else if (matches == 3) hasSecondPrizeWinner = true;
-            else if (matches == 2) hasThirdPrizeWinner = true;
+            if (prizeLevel == 1) hasFirstPrizeWinner = true;        // 🥇 4 exact
+            else if (prizeLevel == 2) hasSecondPrizeWinner = true;  // 🥈 4 any order
+            else if (prizeLevel == 3) hasThirdPrizeWinner = true;   // 🥉 3 exact
+            // Note: prizeLevel == 4 (free tickets) doesn't need refill
         }
         
         // Auto-refill main pools from reserves if there are winners and main pool is low
@@ -515,12 +517,13 @@ contract LottoMojiCore is
         }
     }
     
-    function _countMatches(uint256 ticketId) internal view returns (uint8) {
-        uint256 gameDay = tickets[ticketId].gameDay;
-        return _countMatchesForTicket(ticketId, dailyPools[gameDay].winningNumbers);
-    }
+    // ============ NEW PRIZE LOGIC ============
+    // 🥇 First Prize: 4 emojis exact position
+    // 🥈 Second Prize: 4 emojis any order  
+    // 🥉 Third Prize: 3 emojis exact position
+    // 🎫 Free Tickets: 3 emojis any order
     
-    function _countMatchesForTicket(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+    function _countExactMatches(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
         uint8[4] memory ticketNumbers = tickets[ticketId].numbers;
         uint8 matches = 0;
         
@@ -533,16 +536,68 @@ contract LottoMojiCore is
         return matches;
     }
     
-    function _calculatePrize(uint256 ticketId, uint8 matches) internal view returns (uint256) {
+    function _countAnyOrderMatches(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        uint8[4] memory ticketNumbers = tickets[ticketId].numbers;
+        uint8[4] memory winningCopy = winningNumbers; // Make a copy to avoid modifying original
+        uint8 matches = 0;
+        
+        for (uint256 i = 0; i < 4; i++) {
+            for (uint256 j = 0; j < 4; j++) {
+                if (ticketNumbers[i] == winningCopy[j]) {
+                    matches++;
+                    winningCopy[j] = 255; // Mark as used (impossible value)
+                    break;
+                }
+            }
+        }
+        
+        return matches;
+    }
+    
+    function _getPrizeLevel(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        uint8 exactMatches = _countExactMatches(ticketId, winningNumbers);
+        uint8 anyOrderMatches = _countAnyOrderMatches(ticketId, winningNumbers);
+        
+        if (exactMatches == 4) {
+            return 1; // 🥇 First Prize - 4 exact
+        } else if (anyOrderMatches == 4) {
+            return 2; // 🥈 Second Prize - 4 any order
+        } else if (exactMatches == 3) {
+            return 3; // 🥉 Third Prize - 3 exact
+        } else if (anyOrderMatches == 3) {
+            return 4; // 🎫 Free Tickets - 3 any order
+        } else {
+            return 0; // No prize
+        }
+    }
+    
+    // Legacy function for backward compatibility - now uses new logic
+    function _countMatches(uint256 ticketId) internal view returns (uint8) {
+        uint256 gameDay = tickets[ticketId].gameDay;
+        return _getPrizeLevel(ticketId, dailyPools[gameDay].winningNumbers);
+    }
+    
+    // Legacy function for backward compatibility - now uses new logic  
+    function _countMatchesForTicket(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        return _getPrizeLevel(ticketId, winningNumbers);
+    }
+    
+    function _calculatePrize(uint256 ticketId, uint8 prizeLevel) internal view returns (uint256) {
         uint256 gameDay = tickets[ticketId].gameDay;
         DailyPool memory pool = dailyPools[gameDay];
         
-        if (matches == 4) {
+        if (prizeLevel == 1) {
+            // 🥇 First Prize - 4 exact position
             return pool.firstPrizeDaily + mainPools.firstPrizeAccumulated;
-        } else if (matches == 3) {
+        } else if (prizeLevel == 2) {
+            // 🥈 Second Prize - 4 any order
             return pool.secondPrizeDaily + mainPools.secondPrizeAccumulated;
-        } else if (matches == 2) {
+        } else if (prizeLevel == 3) {
+            // 🥉 Third Prize - 3 exact position
             return pool.thirdPrizeDaily + mainPools.thirdPrizeAccumulated;
+        } else if (prizeLevel == 4) {
+            // 🎫 Free Tickets - 3 any order (return ticket price)
+            return TICKET_PRICE;
         }
         
         return 0;
@@ -572,7 +627,7 @@ contract LottoMojiCore is
         uint8[4] memory numbers,
         uint256 gameDay,
         bool isActive,
-        uint8 matches
+        uint8 prizeLevel
     ) {
         Ticket memory ticket = tickets[ticketId];
         return (
@@ -591,7 +646,7 @@ contract LottoMojiCore is
         bool isActive,
         uint256 purchaseTime,
         bool eligibleForReserve,
-        uint8 matches
+        uint8 prizeLevel
     ) {
         Ticket memory ticket = tickets[ticketId];
         return (
@@ -603,6 +658,34 @@ contract LottoMojiCore is
             ticket.eligibleForReserve,
             _countMatches(ticketId)
         );
+    }
+    
+    // NEW: Get detailed prize information for a ticket
+    function getTicketPrizeDetails(uint256 ticketId) external view returns (
+        uint8 prizeLevel,
+        uint8 exactMatches,
+        uint8 anyOrderMatches,
+        uint256 prizeAmount,
+        string memory prizeDescription
+    ) {
+        require(ticketId > 0 && ticketId <= ticketCounter, "Invalid ticket ID");
+        
+        uint256 gameDay = tickets[ticketId].gameDay;
+        uint8[4] memory winningNumbers = dailyPools[gameDay].winningNumbers;
+        
+        uint8 exact = _countExactMatches(ticketId, winningNumbers);
+        uint8 anyOrder = _countAnyOrderMatches(ticketId, winningNumbers);
+        uint8 level = _getPrizeLevel(ticketId, winningNumbers);
+        uint256 amount = _calculatePrize(ticketId, level);
+        
+        string memory description;
+        if (level == 1) description = "First Prize - 4 emojis exact position";
+        else if (level == 2) description = "Second Prize - 4 emojis any order";
+        else if (level == 3) description = "Third Prize - 3 emojis exact position";
+        else if (level == 4) description = "Free Tickets - 3 emojis any order";
+        else description = "No prize";
+        
+        return (level, exact, anyOrder, amount, description);
     }
     
     function getGameDayTickets(uint256 gameDay) external view returns (uint256[] memory) {
