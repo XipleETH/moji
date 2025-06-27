@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from './contractAddresses';
 
-// ABI completo basado en el contrato LottoMojiCore.sol
+// ABI actualizado para el contrato V5 integrado
 const LOTTO_MOJI_CORE_ABI = [
-  "function mainPools() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
-  "function reserves() view returns (uint256 firstPrizeReserve1, uint256 secondPrizeReserve2, uint256 thirdPrizeReserve3)",
-  "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)",
+  "function getMainPoolBalances() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
+  "function getReserveBalances() view returns (uint256 firstPrizeReserve, uint256 secondPrizeReserve, uint256 thirdPrizeReserve)",
+  "function getDailyPoolInfo(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, bool distributed, bool drawn, uint8[4] winningNumbers)",
   "function getCurrentDay() view returns (uint256)",
   "function DRAW_INTERVAL() view returns (uint256)",
   "function drawTimeUTC() view returns (uint256)",
@@ -151,8 +151,8 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
       blockNumber
     ] = await Promise.race([
       Promise.all([
-        contract.mainPools(),
-        contract.reserves(),
+        contract.getMainPoolBalances(),
+        contract.getReserveBalances(),
         contract.getCurrentDay(),
         contract.TICKET_PRICE(),
         contract.ticketCounter(),
@@ -174,7 +174,7 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
     let dailyPool;
     try {
       dailyPool = await Promise.race([
-        contract.dailyPools(currentGameDay),
+        contract.getDailyPoolInfo(currentGameDay),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Timeout daily pool')), 5000)
         )
@@ -185,14 +185,9 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
         totalCollected: 0,
         mainPoolPortion: 0,
         reservePortion: 0,
-        firstPrizeDaily: 0,
-        secondPrizeDaily: 0,
-        thirdPrizeDaily: 0,
-        developmentDaily: 0,
         distributed: false,
-        distributionTime: 0,
         drawn: false,
-        reservesSent: false
+        winningNumbers: [0, 0, 0, 0]
       };
     }
     
@@ -208,7 +203,7 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
       const previousDay = Number(currentGameDay) - i;
       try {
         const previousPool = await Promise.race([
-          contract.dailyPools(previousDay),
+          contract.getDailyPoolInfo(previousDay),
           new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('Timeout previous pool')), 3000)
           )
@@ -245,9 +240,9 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
         total: '0' // Se calculará después
       },
       reserves: {
-        firstPrize: ethers.formatUnits(reserves.firstPrizeReserve1, 6),
-        secondPrize: ethers.formatUnits(reserves.secondPrizeReserve2, 6),
-        thirdPrize: ethers.formatUnits(reserves.thirdPrizeReserve3, 6),
+        firstPrize: ethers.formatUnits(reserves.firstPrizeReserve, 6),
+        secondPrize: ethers.formatUnits(reserves.secondPrizeReserve, 6),
+        thirdPrize: ethers.formatUnits(reserves.thirdPrizeReserve, 6),
         total: '0' // Se calculará después
       },
       dailyPool: {
@@ -366,9 +361,9 @@ export async function forcePoolSync(): Promise<void> {
           developmentAccumulated: blockchainData.mainPools.development
         },
         reserves: {
-          firstPrizeReserve1: blockchainData.reserves.firstPrize,
-          secondPrizeReserve2: blockchainData.reserves.secondPrize,
-          thirdPrizeReserve3: blockchainData.reserves.thirdPrize
+          firstPrizeReserve: blockchainData.reserves.firstPrize,
+          secondPrizeReserve: blockchainData.reserves.secondPrize,
+          thirdPrizeReserve: blockchainData.reserves.thirdPrize
         },
         dailyPool: {
           totalCollected: blockchainData.dailyPool.totalCollected,

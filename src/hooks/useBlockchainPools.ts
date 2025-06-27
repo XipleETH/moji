@@ -72,22 +72,13 @@ export const useBlockchainPools = (): BlockchainPools & BlockchainPoolActions =>
   });
 
   /**
-   * Obtiene los pools actuales desde los contratos
+   * Obtiene los pools actuales desde el contrato V5 integrado
    */
   const fetchPoolsFromContract = async (): Promise<BlockchainPools> => {
     try {
-      console.log('[useBlockchainPools] Conectando con contratos desplegados...');
-      console.log('Direcciones:', {
-        main: CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN,
-        reserves: CONTRACT_ADDRESSES.LOTTO_MOJI_RESERVES,
-        tickets: CONTRACT_ADDRESSES.LOTTO_MOJI_TICKETS
-      });
+      console.log('[useBlockchainPools] Conectando con contrato V5 integrado...');
+      console.log('Dirección del contrato:', CONTRACT_ADDRESSES.LOTTO_MOJI_CORE);
 
-      // Verificar que tenemos las direcciones
-      if (CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN === '0x0000000000000000000000000000000000000000') {
-        throw new Error('Direcciones de contratos no configuradas');
-      }
-      
       // Crear cliente público para leer contratos
       const publicClient = createPublicClient({
         chain: baseSepolia,
@@ -96,94 +87,120 @@ export const useBlockchainPools = (): BlockchainPools & BlockchainPoolActions =>
 
       console.log('🔗 Cliente viem conectado a Base Sepolia');
       
-      // Por ahora usar datos simulados - implementar lectura real de contratos
-      console.log('⚠️ Usando datos simulados - implementar lectura real próximamente');
+      // ABI del contrato V5 integrado
+      const LOTTO_MOJI_CORE_ABI = [
+        {
+          inputs: [],
+          name: 'getMainPoolBalances',
+          outputs: [
+            { name: 'firstPrizeAccumulated', type: 'uint256' },
+            { name: 'secondPrizeAccumulated', type: 'uint256' },
+            { name: 'thirdPrizeAccumulated', type: 'uint256' },
+            { name: 'developmentAccumulated', type: 'uint256' }
+          ],
+          stateMutability: 'view',
+          type: 'function'
+        },
+        {
+          inputs: [],
+          name: 'getReserveBalances',
+          outputs: [
+            { name: 'firstPrizeReserve', type: 'uint256' },
+            { name: 'secondPrizeReserve', type: 'uint256' },
+            { name: 'thirdPrizeReserve', type: 'uint256' }
+          ],
+          stateMutability: 'view',
+          type: 'function'
+        },
+        {
+          inputs: [],
+          name: 'getCurrentDay',
+          outputs: [{ name: '', type: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function'
+        },
+        {
+          inputs: [],
+          name: 'lastDrawTime',
+          outputs: [{ name: '', type: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function'
+        },
+        {
+          inputs: [],
+          name: 'DRAW_INTERVAL',
+          outputs: [{ name: '', type: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function'
+        }
+      ] as const;
+
+      // Obtener datos del contrato V5
+      const [mainPools, reserves, currentGameDay, lastDrawTime, drawInterval] = await Promise.all([
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_ABI,
+          functionName: 'getMainPoolBalances'
+        }),
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_ABI,
+          functionName: 'getReserveBalances'
+        }),
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_ABI,
+          functionName: 'getCurrentDay'
+        }),
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_ABI,
+          functionName: 'lastDrawTime'
+        }),
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_ABI,
+          functionName: 'DRAW_INTERVAL'
+        })
+      ]);
+
+      // Calcular próximo sorteo
+      const nextDrawTime = Number(lastDrawTime) + Number(drawInterval);
       
-      const mockPools: BlockchainPools = {
+      console.log('✅ Datos del contrato V5 obtenidos:', {
+        mainPools,
+        reserves,
+        currentGameDay: Number(currentGameDay),
+        nextDrawTime
+      });
+      
+      // Formatear datos reales del contrato V5
+      const realPools: BlockchainPools = {
         mainPools: {
-          firstPrize: BigInt(Math.floor(Math.random() * 10000) * 1e6), // USDC tiene 6 decimales
-          secondPrize: BigInt(Math.floor(Math.random() * 2000) * 1e6),
-          thirdPrize: BigInt(Math.floor(Math.random() * 1000) * 1e6),
-          development: BigInt(Math.floor(Math.random() * 500) * 1e6)
+          firstPrize: mainPools[0], // firstPrizeAccumulated
+          secondPrize: mainPools[1], // secondPrizeAccumulated
+          thirdPrize: mainPools[2], // thirdPrizeAccumulated
+          development: mainPools[3] // developmentAccumulated
         },
         reserves: {
-          firstPrizeReserve: BigInt(Math.floor(Math.random() * 5000) * 1e6),
-          secondPrizeReserve: BigInt(Math.floor(Math.random() * 1000) * 1e6),
-          thirdPrizeReserve: BigInt(Math.floor(Math.random() * 500) * 1e6)
+          firstPrizeReserve: reserves[0], // firstPrizeReserve
+          secondPrizeReserve: reserves[1], // secondPrizeReserve
+          thirdPrizeReserve: reserves[2] // thirdPrizeReserve
         },
         accumulated: {
-          firstPrize: BigInt(Math.floor(Math.random() * 3000) * 1e6),
-          secondPrize: BigInt(Math.floor(Math.random() * 800) * 1e6),
-          thirdPrize: BigInt(Math.floor(Math.random() * 400) * 1e6),
-          totalDaysAccumulated: Math.floor(Math.random() * 5)
-        },
-        isLoading: false,
-        error: null,
-        lastUpdated: Date.now(),
-        currentGameDay: Math.floor(Date.now() / (24 * 60 * 60 * 1000)),
-        nextDrawTime: Date.now() + (24 * 60 * 60 * 1000)
-      };
-      
-      return mockPools;
-      
-      // TODO: Implementación real con contratos
-      /*
-      if (!window.ethereum) {
-        throw new Error('No hay wallet conectado');
-      }
-      
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const mainContract = new ethers.Contract(
-        CONTRACT_ADDRESSES.LOTTO_MOJI_MAIN,
-        LottoMojiMainABI.abi,
-        provider
-      );
-      
-      const reservesContract = new ethers.Contract(
-        CONTRACT_ADDRESSES.LOTTO_MOJI_RESERVES, 
-        LottoMojiReservesABI.abi,
-        provider
-      );
-      
-      // Obtener pools principales
-      const [firstPrize, secondPrize, thirdPrize, development] = await Promise.all([
-        mainContract.getPrizePool(1), // Primer premio
-        mainContract.getPrizePool(2), // Segundo premio  
-        mainContract.getPrizePool(3), // Tercer premio
-        mainContract.getDevelopmentPool()
-      ]);
-      
-      // Obtener reservas (nuevo sistema)
-      const [firstReserve, secondReserve, thirdReserve] = await Promise.all([
-        reservesContract.getReservePool(1),
-        reservesContract.getReservePool(2), 
-        reservesContract.getReservePool(3)
-      ]);
-      
-      // Obtener acumulados de días anteriores
-      const currentGameDay = await mainContract.getCurrentGameDay();
-      const accumulatedData = await mainContract.getAccumulatedPools(currentGameDay);
-      
-      return {
-        mainPools: { firstPrize, secondPrize, thirdPrize, development },
-        reserves: { 
-          firstPrizeReserve: firstReserve,
-          secondPrizeReserve: secondReserve,
-          thirdPrizeReserve: thirdReserve
-        },
-        accumulated: {
-          firstPrize: accumulatedData.firstPrize,
-          secondPrize: accumulatedData.secondPrize,
-          thirdPrize: accumulatedData.thirdPrize,
-          totalDaysAccumulated: accumulatedData.totalDays
+          firstPrize: mainPools[0], // Same as main pools en V5
+          secondPrize: mainPools[1],
+          thirdPrize: mainPools[2],
+          totalDaysAccumulated: 0 // TODO: Calcular desde contratos si es necesario
         },
         isLoading: false,
         error: null,
         lastUpdated: Date.now(),
         currentGameDay: Number(currentGameDay),
-        nextDrawTime: Date.now() + (24 * 60 * 60 * 1000) // TODO: Calcular próximo sorteo
+        nextDrawTime: nextDrawTime * 1000 // Convertir a milisegundos
       };
-      */
+      
+      return realPools;
     } catch (error) {
       console.error('[useBlockchainPools] Error obteniendo pools:', error);
       throw error;
