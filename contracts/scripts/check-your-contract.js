@@ -1,10 +1,10 @@
 const { ethers } = require("hardhat");
 
-// YOUR ACTUAL CONTRACT
-const CONTRACT_ADDRESS = "0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D";
+// CONTRATO V6 - EL QUE USA EL FRONTEND ACTUALMENTE
+const CONTRACT_ADDRESS = "0xDAf05A87D1C2Dd6d00f6b9fd9Af4A80d818D1e61";
 
-// YOUR SUBSCRIPTION ID
-const YOUR_SUBSCRIPTION_ID = "105961847727705490544354750783936451991128107961690295417839588082464327658827";
+// SUBSCRIPTION ID CORRECTO
+const YOUR_SUBSCRIPTION_ID = "70846359092368923949796315994230469102226608583606291730577230133525692264419";
 
 async function main() {
     console.log("🔍 CHECKING YOUR ACTUAL CONTRACT");
@@ -36,7 +36,7 @@ async function main() {
         const [gameActive, automationActive, currentGameDay] = await Promise.all([
             contract.gameActive(),
             contract.automationActive(),
-            contract.getCurrentDay()
+            contract.currentGameDay()
         ]);
         
         console.log("🎮 Game Active:", gameActive);
