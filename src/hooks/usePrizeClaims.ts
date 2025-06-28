@@ -359,36 +359,10 @@ export const usePrizeClaims = () => {
 
   // Detectar tickets ganadores cuando cambian los datos
   useEffect(() => {
-    console.log('[usePrizeClaims] Effect triggered:', {
-      isConnected,
-      userWalletAddress: user?.walletAddress,
-      userTicketsLength: userData.userTickets.length,
-      userTickets: userData.userTickets
-    });
-    
     if (isConnected && user?.walletAddress && userData.userTickets.length > 0) {
-      console.log('[usePrizeClaims] Starting detection for wallet:', user.walletAddress);
       detectWinningTickets();
-    } else {
-      console.log('[usePrizeClaims] Skipping detection:', {
-        isConnected,
-        hasWallet: !!user?.walletAddress,
-        hasTickets: userData.userTickets.length > 0
-      });
     }
   }, [isConnected, user?.walletAddress, userData.userTickets.length]);
-
-  // DEBUGGING: Mostrar siempre al menos información básica
-  useEffect(() => {
-    console.log('[usePrizeClaims] Current state:', {
-      winningTickets: winningTickets.length,
-      claimableTickets: winningTickets.filter(t => t.isClaimable).length,
-      claimedTickets: winningTickets.filter(t => t.isClaimed).length,
-      totalPrizeValue,
-      isLoadingWinners,
-      claimState
-    });
-  }, [winningTickets, totalPrizeValue, isLoadingWinners, claimState]);
 
   // Estadísticas de resumen
   const claimableTickets = winningTickets.filter(t => t.isClaimable);
