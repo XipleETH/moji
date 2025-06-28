@@ -7,8 +7,8 @@ export const CONTRACT_ADDRESSES = {
   // Token USDC en Base Sepolia
   USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
-  // ✅ CONTRATO V6 - 20:00 UTC (3:00 PM COLOMBIA) ✅
-  LOTTO_MOJI_CORE: "0xDAf05A87D1C2Dd6d00f6b9fd9Af4A80d818D1e61", // V6: 20:00 UTC + LÓGICA CORREGIDA + sorteo día actual
+  // ✅ CONTRATO V6 - 04:00 UTC (11:00 PM COLOMBIA) ✅
+  LOTTO_MOJI_CORE: "0xDAf05A87D1C2Dd6d00f6b9fd9Af4A80d818D1e61", // V6: 04:00 UTC + LÓGICA CORREGIDA + sorteo día actual
   
   // Contratos legacy (mantener para referencia)
   LEGACY_LOTTO_MOJI_CORE_V1: '0x3D896A1255aa93b529b4675c4991C92C7783652D', // V1: precio 2 USDC, timing desajustado
@@ -34,7 +34,7 @@ export const CONTRACT_ADDRESSES = {
 export const GAME_CONFIG = {
   TICKET_PRICE: 0.2, // 0.2 USDC (actualizado V2)
   USDC_DECIMALS: 6,
-  DRAW_TIME_UTC: '20:00', // 20:00 UTC = 3:00 PM Colombia
+  DRAW_TIME_UTC: '04:00', // 04:00 UTC = 11:00 PM Colombia
   
   // Mapeo de índices a emojis (personalizable)
   EMOJI_MAP: [
