@@ -34,8 +34,8 @@ export const WalletInfo: React.FC = () => {
     connect: connectFarcaster,
     error: farcasterError,
     currentChainId,
-    switchToBase,
-    isBaseNetwork
+    switchToAvalanche,
+    isAvalancheNetwork
   } = useFarcasterWallet();
   
   // Información del context de MiniKit
@@ -81,18 +81,18 @@ export const WalletInfo: React.FC = () => {
     }
   };
   
-  // Función para cambiar a la red Base
-  const handleSwitchToBase = async () => {
+  // Función para cambiar a la red Avalanche Fuji
+  const handleSwitchToAvalanche = async () => {
     try {
       setIsChangingNetwork(true);
-      const success = await switchToBase();
+      const success = await switchToAvalanche();
       if (success) {
-        console.log("Cambiado a Base exitosamente");
+        console.log("Cambiado a Avalanche Fuji exitosamente");
       } else {
-        console.error("No se pudo cambiar a Base");
+        console.error("No se pudo cambiar a Avalanche Fuji");
       }
     } catch (error) {
-      console.error("Error cambiando a Base:", error);
+      console.error("Error cambiando a Avalanche Fuji:", error);
     } finally {
       setIsChangingNetwork(false);
     }
@@ -106,6 +106,9 @@ export const WalletInfo: React.FC = () => {
       case 1: return "Ethereum Mainnet";
       case BASE_CHAIN_ID: return "Base";
       case OPTIMISM_CHAIN_ID: return "Optimism";
+      case 43113: return "Avalanche Fuji";
+      case 43114: return "Avalanche Mainnet";
+      case 84532: return "Base Sepolia";
       default: return `Red ${chainId}`;
     }
   };
@@ -242,14 +245,14 @@ Tu solicitud está siendo procesada. Recibirás una notificación cuando esté l
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm text-white/70">Red</span>
                   <div className="flex items-center gap-2">
-                    <span className={isBaseNetwork ? "text-green-400" : "text-yellow-400"}>
+                    <span className={isAvalancheNetwork ? "text-green-400" : "text-yellow-400"}>
                       {getNetworkName(currentChainId)}
                     </span>
-                    {!isBaseNetwork && (
+                    {!isAvalancheNetwork && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSwitchToBase();
+                          handleSwitchToAvalanche();
                         }}
                         disabled={isChangingNetwork}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center transition-colors disabled:opacity-50"
@@ -257,7 +260,7 @@ Tu solicitud está siendo procesada. Recibirás una notificación cuando esté l
                         {isChangingNetwork ? 'Cambiando...' : (
                           <>
                             <ArrowUpDown size={10} className="mr-1" />
-                            Cambiar a Base
+                            Cambiar a Avalanche
                           </>
                         )}
                       </button>

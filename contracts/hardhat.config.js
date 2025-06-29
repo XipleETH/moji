@@ -3,6 +3,7 @@ require("dotenv").config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || '';
+const SNOWTRACE_API_KEY = process.env.SNOWTRACE_API_KEY || '';
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -37,12 +38,24 @@ module.exports = {
           apiKey: BASESCAN_API_KEY
         }
       }
+    },
+    "avalanche-fuji": {
+      url: process.env.AVALANCHE_FUJI_RPC_URL || "https://api.avax-test.network/ext/bc/C/rpc",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 43113,
+      gasPrice: "auto",
+      verify: {
+        etherscan: {
+          apiKey: SNOWTRACE_API_KEY
+        }
+      }
     }
   },
   etherscan: {
     apiKey: {
       "base": BASESCAN_API_KEY,
-      "base-sepolia": BASESCAN_API_KEY
+      "base-sepolia": BASESCAN_API_KEY,
+      "avalanche-fuji": SNOWTRACE_API_KEY
     },
     customChains: [
       {
@@ -59,6 +72,14 @@ module.exports = {
         urls: {
           apiURL: "https://api-sepolia.basescan.org/api",
           browserURL: "https://sepolia.basescan.org"
+        }
+      },
+      {
+        network: "avalanche-fuji",
+        chainId: 43113,
+        urls: {
+          apiURL: "https://api.snowtrace.io/api",
+          browserURL: "https://testnet.snowtrace.io"
         }
       }
     ]

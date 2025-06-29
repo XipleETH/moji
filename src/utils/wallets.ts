@@ -301,6 +301,17 @@ export const addNetwork = async (chainId: number, provider: any): Promise<void> 
       },
       rpcUrls: ['https://sepolia.base.org'],
       blockExplorerUrls: ['https://sepolia.basescan.org'],
+    },
+    43113: { // Avalanche Fuji
+      chainId: '0xa869',
+      chainName: 'Avalanche Fuji Testnet',
+      nativeCurrency: {
+        name: 'Avalanche',
+        symbol: 'AVAX',
+        decimals: 18,
+      },
+      rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+      blockExplorerUrls: ['https://testnet.snowtrace.io'],
     }
   };
   

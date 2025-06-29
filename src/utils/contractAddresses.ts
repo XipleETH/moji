@@ -1,16 +1,18 @@
-// Direcciones de contratos desplegados en Base Sepolia
+// ✅ CONFIGURACIÓN PARA AVALANCHE FUJI TESTNET ✅
 export const CONTRACT_ADDRESSES = {
-  // Base Sepolia testnet
-  CHAIN_ID: 84532,
-  RPC_URL: 'https://sepolia.base.org',
+  // Avalanche Fuji testnet
+  CHAIN_ID: 43113,
+  RPC_URL: 'https://api.avax-test.network/ext/bc/C/rpc',
+  EXPLORER_URL: 'https://testnet.snowtrace.io',
   
-  // Token USDC en Base Sepolia
-  USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  // Token USDC en Avalanche Fuji
+  USDC: '0x5425890298aed601595a70AB815c96711a31Bc65',
   
-  // ✅ CONTRATO V6 - 04:00 UTC (11:00 PM COLOMBIA) ✅
-  LOTTO_MOJI_CORE: "0xDAf05A87D1C2Dd6d00f6b9fd9Af4A80d818D1e61", // V6: 04:00 UTC + LÓGICA CORREGIDA + sorteo día actual
+  // ✅ CONTRATO AVALANCHE FUJI - 04:00 UTC (11:00 PM COLOMBIA) ✅
+  LOTTO_MOJI_CORE: "0x1B0B1A24983E51d809FBfAc424946B314fEFA271", // Fuji: 04:00 UTC + NUEVA LÓGICA DE PREMIOS
   
-  // Contratos legacy (mantener para referencia)
+  // Contratos legacy en Base Sepolia (mantener para referencia)
+  LEGACY_BASE_SEPOLIA_V6: "0xDAf05A87D1C2Dd6d00f6b9fd9Af4A80d818D1e61", // Base Sepolia V6: 04:00 UTC
   LEGACY_LOTTO_MOJI_CORE_V1: '0x3D896A1255aa93b529b4675c4991C92C7783652D', // V1: precio 2 USDC, timing desajustado
   LEGACY_LOTTO_MOJI_CORE_V2: '0x8F6A8D8E1408d53D1C06Ed0664CC334Fa533480c', // V2: precio 0.2 USDC + setLastDrawTime
   LEGACY_LOTTO_MOJI_CORE_V3_OLD: '0xD72976F365415F098736F9F4F9AD1Af3fE15B0d5', // V3: VRF subscription ID incorrecto
@@ -25,14 +27,14 @@ export const CONTRACT_ADDRESSES = {
   LEGACY_LOTTO_MOJI_RANDOM: '0x3674D09be633dB84A2943B8386196D3eE9F9DeCc',
   LEGACY_LOTTO_MOJI_AUTOMATION: '0x311b8Aec021a78c3291005A5ee58727e080Fe94b',
   
-  // Chainlink en Base Sepolia
-  VRF_COORDINATOR: '0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE',
-  KEY_HASH: '0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71'
+  // Chainlink en Avalanche Fuji
+  VRF_COORDINATOR: '0x2eD832Ba664535e5886b75D64C46EB9a228C2610',
+  KEY_HASH: '0x354d2f95da55398f44b7cff77da56283d9c6c829a4bdf1bbcaf2ad6a4d081f61'
 } as const;
 
 // Configuración del juego
 export const GAME_CONFIG = {
-  TICKET_PRICE: 0.2, // 0.2 USDC (actualizado V2)
+  TICKET_PRICE: 0.2, // 0.2 USDC (6 decimales)
   USDC_DECIMALS: 6,
   DRAW_TIME_UTC: '04:00', // 04:00 UTC = 11:00 PM Colombia
   
@@ -45,23 +47,38 @@ export const GAME_CONFIG = {
     '🍀', '🌈', '⚡', '🔥', '💫'  // Luck & Magic (20-24)
   ] as const,
   
-  // Distribución de pools (según README2.md)
+  // 🏆 NUEVA LÓGICA DE PREMIOS (VERSION FUJI) 🏆
+  PRIZE_SYSTEM: {
+    FIRST_PRIZE: "4 emojis posición exacta",    // 🥇 Exactos
+    SECOND_PRIZE: "4 emojis cualquier orden",   // 🥈 Desordenados
+    THIRD_PRIZE: "3 emojis posición exacta",    // 🥉 3 exactos
+    FREE_TICKETS: "3 emojis cualquier orden"   // 🎫 Tickets gratis
+  },
+  
+  // Distribución de pools (según contrato V3 Fuji)
   DISTRIBUTION: {
     DAILY_TO_RESERVES: 0.20, // 20% SIEMPRE a reservas
     DAILY_TO_MAIN_POOLS: 0.80, // 80% a pools principales
     
-    // Distribución de pools principales
-    FIRST_PRIZE: 0.80,  // 80% del 80%
-    SECOND_PRIZE: 0.10, // 10% del 80%  
-    THIRD_PRIZE: 0.05,  // 5% del 80%
-    DEVELOPMENT: 0.05   // 5% del 80%
+    // Distribución de pools principales (80% del total)
+    FIRST_PRIZE: 0.80,  // 80% del 80% = 64% del total
+    SECOND_PRIZE: 0.10, // 10% del 80% = 8% del total
+    THIRD_PRIZE: 0.05,  // 5% del 80% = 4% del total
+    DEVELOPMENT: 0.05   // 5% del 80% = 4% del total
   },
   
-  // Sistema de reservas mejorado (ahora integrado en el core)
+  // Distribución de reservas (20% del total)
+  RESERVE_DISTRIBUTION: {
+    FIRST_PRIZE_RESERVE: 0.80,  // 80% de reservas = 16% del total
+    SECOND_PRIZE_RESERVE: 0.10, // 10% de reservas = 2% del total
+    THIRD_PRIZE_RESERVE: 0.10   // 10% de reservas = 2% del total
+  },
+  
+  // Sistema de reservas mejorado (integrado en el core)
   RESERVES: {
-    FIRST_PRIZE_RESERVE: true,  // Reserve Pool 1
-    SECOND_PRIZE_RESERVE: true, // Reserve Pool 2  
-    THIRD_PRIZE_RESERVE: true   // Reserve Pool 3
+    FIRST_PRIZE_RESERVE: true,  // Reserve Pool 1 - auto refill
+    SECOND_PRIZE_RESERVE: true, // Reserve Pool 2 - auto refill
+    THIRD_PRIZE_RESERVE: true   // Reserve Pool 3 - auto refill
   }
 } as const;
 

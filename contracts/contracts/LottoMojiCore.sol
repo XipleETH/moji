@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @title LottoMojiCore
  * @dev Core contract combining lottery, VRF, automation and NFT functionality
- * VERSION 3: Removed maintenance system, integrated reserve processing into draw flow
+ * VERSION 3: Configured for Avalanche Fuji Testnet
  */
 contract LottoMojiCore is 
     VRFConsumerBaseV2Plus, 
@@ -25,11 +25,11 @@ contract LottoMojiCore is
 {
     using Strings for uint256;
 
-    // VRF Configuration for Base Sepolia
+    // VRF Configuration for Avalanche Fuji
     IVRFCoordinatorV2Plus private immutable i_vrfCoordinator;
-    bytes32 constant KEY_HASH = 0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71;
+    bytes32 constant KEY_HASH = 0x354d2f95da55398f44b7cff77da56283d9c6c829a4bdf1bbcaf2ad6a4d081f61;
     uint32 constant CALLBACK_GAS_LIMIT = 2500000;
-    uint16 constant REQUEST_CONFIRMATIONS = 3;
+    uint16 constant REQUEST_CONFIRMATIONS = 1; // Avalanche Fuji uses 1 confirmation
     uint32 constant NUM_WORDS = 4;
     
     // Lottery Constants
@@ -176,10 +176,10 @@ contract LottoMojiCore is
         uint256 _subscriptionId,
         uint256 _drawTimeUTC
     ) 
-        VRFConsumerBaseV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE)
+        VRFConsumerBaseV2Plus(0x2eD832Ba664535e5886b75D64C46EB9a228C2610)
         ERC721("LottoMoji Ticket", "LMOJI")
     {
-        i_vrfCoordinator = IVRFCoordinatorV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE);
+        i_vrfCoordinator = IVRFCoordinatorV2Plus(0x2eD832Ba664535e5886b75D64C46EB9a228C2610);
         usdcToken = IERC20(_usdcToken);
         subscriptionId = _subscriptionId;
         drawTimeUTC = _drawTimeUTC;

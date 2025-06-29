@@ -5,6 +5,7 @@ import { sdk } from '@farcaster/frame-sdk';
 
 // Constantes de cadenas
 const BASE_CHAIN_ID = 8453;
+const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
 interface FarcasterWalletHook {
   isConnected: boolean;
@@ -17,8 +18,8 @@ interface FarcasterWalletHook {
   disconnect: () => void;
   signMessage: (message: string) => Promise<string | null>;
   currentChainId: number | null;
-  switchToBase: () => Promise<boolean>;
-  isBaseNetwork: boolean;
+  switchToAvalanche: () => Promise<boolean>;
+  isAvalancheNetwork: boolean;
 }
 
 export const useFarcasterWallet = (): FarcasterWalletHook => {
@@ -33,14 +34,14 @@ export const useFarcasterWallet = (): FarcasterWalletHook => {
     isWarpcastApp,
     connectFarcaster,
     getCurrentChainId,
-    switchToBase
+    switchToAvalanche
   } = useMiniKitAuth();
 
   // Obtener la cadena actual del proveedor de OnchainKit
   const currentChainId = getCurrentChainId();
   
-  // Verificar si estamos en la red Base
-  const isBaseNetwork = currentChainId === BASE_CHAIN_ID;
+  // Verificar si estamos en la red Avalanche Fuji
+  const isAvalancheNetwork = currentChainId === AVALANCHE_FUJI_CHAIN_ID;
 
   // Determinar si está conectado (usuario de Farcaster con wallet)
   const isConnected = !!farcasterUser?.walletAddress;
@@ -62,10 +63,10 @@ export const useFarcasterWallet = (): FarcasterWalletHook => {
       fid,
       username,
       chainId: currentChainId,
-      isBaseNetwork,
+      isAvalancheNetwork,
       user: farcasterUser
     });
-  }, [isConnected, address, fid, username, farcasterUser, currentChainId, isBaseNetwork]);
+  }, [isConnected, address, fid, username, farcasterUser, currentChainId, isAvalancheNetwork]);
 
   // Conectar con la billetera de Farcaster
   const connect = async () => {
@@ -86,10 +87,10 @@ export const useFarcasterWallet = (): FarcasterWalletHook => {
       if (isConnected && address) {
         console.log("Ya conectado con billetera:", address);
         
-        // Si no estamos en Base, intentar cambiar
-        if (!isBaseNetwork) {
-          console.log("Cambiando a red Base...");
-          await switchToBase();
+        // Si no estamos en Avalanche, intentar cambiar
+        if (!isAvalancheNetwork) {
+          console.log("Cambiando a red Avalanche Fuji...");
+          await switchToAvalanche();
         }
         
         return;
@@ -163,12 +164,12 @@ export const useFarcasterWallet = (): FarcasterWalletHook => {
         return null;
       }
       
-      // Verificar si estamos en Base - si no lo estamos, intentar cambiar
-      if (!isBaseNetwork) {
-        console.log("No estamos en la red Base. Intentando cambiar antes de firmar...");
-        const switched = await switchToBase();
+      // Verificar si estamos en Avalanche - si no lo estamos, intentar cambiar
+      if (!isAvalancheNetwork) {
+        console.log("No estamos en la red Avalanche Fuji. Intentando cambiar antes de firmar...");
+        const switched = await switchToAvalanche();
         if (!switched) {
-          console.warn("No se pudo cambiar a la red Base, continuando en la red actual");
+          console.warn("No se pudo cambiar a la red Avalanche Fuji, continuando en la red actual");
         }
       }
       
@@ -252,7 +253,7 @@ export const useFarcasterWallet = (): FarcasterWalletHook => {
     disconnect,
     signMessage,
     currentChainId,
-    switchToBase,
-    isBaseNetwork
+    switchToAvalanche,
+    isAvalancheNetwork
   };
 }; 
