@@ -298,11 +298,13 @@ export const useContractPools = () => {
   const fetchContractDataLegacy = async () => {
     console.log('[useContractPools] Ejecutando método legacy...');
 
-    // Configurar provider con múltiples endpoints de respaldo
+    // Configurar provider con múltiples endpoints de respaldo para Avalanche Fuji
     const providers = [
-      'https://sepolia.base.org',
-      'https://base-sepolia.g.alchemy.com/v2/demo',
-      'https://base-sepolia-rpc.publicnode.com'
+      'https://api.avax-test.network/ext/bc/C/rpc',
+      'https://avalanche-fuji-c-chain.publicnode.com',
+      'https://rpc.ankr.com/avalanche_fuji',
+      'https://avalanche-fuji.blockpi.network/v1/rpc/public',
+      'https://ava-testnet.public.blastapi.io/ext/bc/C/rpc'
     ];
 
     let provider: ethers.JsonRpcProvider | null = null;

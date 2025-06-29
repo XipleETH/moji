@@ -164,7 +164,10 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
       case OPTIMISM_CHAIN_ID: return 'Optimism';
       case BASE_CHAIN_ID: return 'Base';
       case 84531: return 'Base Goerli (Testnet)';
+      case 84532: return 'Base Sepolia (Testnet)';
       case 11155111: return 'Sepolia (Testnet)';
+      case AVALANCHE_FUJI_CHAIN_ID: return 'Avalanche Fuji (Testnet)';
+      case 43114: return 'Avalanche Mainnet';
       default: return `Red desconocida (${chainId})`;
     }
   };

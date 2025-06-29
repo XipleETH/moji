@@ -1,5 +1,5 @@
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from './contractAddresses';
 
 // Emojis de respaldo si hay problemas
@@ -11,7 +11,7 @@ let lastLoadTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: avalancheFuji,
   transport: http()
 });
 

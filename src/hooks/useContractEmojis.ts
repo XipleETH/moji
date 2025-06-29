@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 
 const LOTTO_MOJI_MAIN_ABI = [
@@ -19,7 +19,7 @@ export const useContractEmojis = () => {
   const [error, setError] = useState<string | null>(null);
 
   const publicClient = createPublicClient({
-    chain: baseSepolia,
+    chain: avalancheFuji,
     transport: http()
   });
 

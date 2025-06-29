@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPublicClient, createWalletClient, custom, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 import { useWallet } from '../contexts/WalletContext';
 import { useBlockchainTickets } from './useBlockchainTickets';
@@ -91,10 +91,10 @@ export const usePrizeClaims = () => {
   });
   const [isLoadingWinners, setIsLoadingWinners] = useState(false);
 
-  const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http()
-  });
+        const publicClient = createPublicClient({
+        chain: avalancheFuji,
+        transport: http()
+      });
 
   // Función para determinar el tipo de premio basado en coincidencias
   const getPrizeType = (ticketNumbers: number[], winningNumbers: number[]): 'first' | 'second' | 'third' | 'free' | null => {
@@ -264,7 +264,7 @@ export const usePrizeClaims = () => {
     }
 
     const walletClient = createWalletClient({
-      chain: baseSepolia,
+      chain: avalancheFuji,
       transport: custom(window.ethereum)
     });
 

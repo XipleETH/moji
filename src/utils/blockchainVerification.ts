@@ -1,64 +1,73 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from './contractAddresses';
 
-// ABI actualizado para el contrato V5 integrado
-const LOTTO_MOJI_CORE_ABI = [
-  "function getMainPoolBalances() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
-  "function getReserveBalances() view returns (uint256 firstPrizeReserve, uint256 secondPrizeReserve, uint256 thirdPrizeReserve)",
-  "function getDailyPoolInfo(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, bool distributed, bool drawn, uint8[4] winningNumbers)",
-  "function getCurrentDay() view returns (uint256)",
-  "function DRAW_INTERVAL() view returns (uint256)",
-  "function drawTimeUTC() view returns (uint256)",
-  "function lastDrawTime() view returns (uint256)",
-  "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)",
-  "function automationActive() view returns (bool)",
-  "function gameActive() view returns (bool)",
-  "function TICKET_PRICE() view returns (uint256)",
-  "function ticketCounter() view returns (uint256)",
-  "function totalDrawsExecuted() view returns (uint256)",
-  "function totalReservesProcessed() view returns (uint256)",
-  "function emergencyPause() view returns (bool)",
-  "function usdcToken() view returns (address)"
-];
+// Importar ABI del contrato
+let LOTTO_MOJI_CORE_ABI: any[] = [];
+try {
+  const abiData = require('./contract-abi-fuji.json');
+  LOTTO_MOJI_CORE_ABI = abiData.abi || abiData;
+} catch (error) {
+  console.warn('[BlockchainVerification] No se pudo cargar ABI específico, usando ABI básico');
+  LOTTO_MOJI_CORE_ABI = [
+    "function getMainPoolBalances() view returns (uint256, uint256, uint256, uint256)",
+    "function getReserveBalances() view returns (uint256, uint256, uint256)",
+    "function getCurrentDay() view returns (uint256)",
+    "function DRAW_INTERVAL() view returns (uint256)",
+    "function drawTimeUTC() view returns (uint256)",
+    "function lastDrawTime() view returns (uint256)",
+    "function automationActive() view returns (bool)",
+    "function gameActive() view returns (bool)",
+    "function ticketCounter() view returns (uint256)",
+    "function totalDrawsExecuted() view returns (uint256)",
+    "function emergencyPause() view returns (bool)",
+    "function getDailyPoolInfo(uint256) view returns (uint256, uint256, uint256, bool, bool, uint8[4])"
+  ];
+}
 
-interface BlockchainPoolData {
-  mainPools: {
-    firstPrize: string;
-    secondPrize: string;
-    thirdPrize: string;
-    development: string;
-    total: string;
-  };
-  reserves: {
-    firstPrize: string;
-    secondPrize: string;
-    thirdPrize: string;
-    total: string;
-  };
-  dailyPool: {
-    totalCollected: string;
-    mainPortion: string;
-    reservePortion: string;
-    distributed: boolean;
-    drawn: boolean;
-  };
-  contractInfo: {
-    currentGameDay: string;
-    ticketPrice: string;
-    ticketCounter: string;
-    totalDraws: string;
-    gameActive: boolean;
-    automationActive: boolean;
-    emergencyPause: boolean;
-  };
+// Tipos para los datos de blockchain
+export interface MainPools {
+  firstPrizeAccumulated: bigint;
+  secondPrizeAccumulated: bigint;
+  thirdPrizeAccumulated: bigint;
+  developmentAccumulated: bigint;
+}
+
+export interface ReservePools {
+  firstPrizeReserve: bigint;
+  secondPrizeReserve: bigint;
+  thirdPrizeReserve: bigint;
+}
+
+export interface DailyPoolInfo {
+  totalCollected: bigint;
+  mainPoolPortion: bigint;
+  reservePortion: bigint;
+  distributed: boolean;
+  drawn: boolean;
+  winningNumbers: number[];
+}
+
+export interface BlockchainPoolData {
+  mainPools: MainPools;
+  reserves: ReservePools;
+  currentGameDay: bigint;
+  drawInterval: bigint;
+  drawTimeUTC: bigint;
+  lastDrawTime: bigint;
+  automationActive: boolean;
+  gameActive: boolean;
+  emergencyPause: boolean;
+  ticketCounter: bigint;
+  totalDraws: bigint;
+  dailyPool: DailyPoolInfo | null;
   totals: {
-    systemTotal: string;
-    mainTotal: string;
-    reserveTotal: string;
-    dailyTotal: string;
+    mainTotal: bigint;
+    reserveTotal: bigint;
+    dailyTotal: bigint;
   };
+  rpcProvider: string;
+  blockNumber: bigint;
   timestamp: number;
-  blockNumber: string;
 }
 
 interface ProviderConfig {
@@ -67,12 +76,13 @@ interface ProviderConfig {
   timeout: number;
 }
 
-// Múltiples proveedores RPC para redundancia
+// Múltiples proveedores RPC para Avalanche Fuji con redundancia
 const RPC_PROVIDERS: ProviderConfig[] = [
-  { url: 'https://sepolia.base.org', name: 'Base Official', timeout: 10000 },
-  { url: 'https://base-sepolia.g.alchemy.com/v2/demo', name: 'Alchemy Demo', timeout: 8000 },
-  { url: 'https://base-sepolia-rpc.publicnode.com', name: 'PublicNode', timeout: 12000 },
-  { url: 'https://base-sepolia.blockpi.network/v1/rpc/public', name: 'BlockPI', timeout: 10000 }
+  { url: 'https://api.avax-test.network/ext/bc/C/rpc', name: 'Avalanche Official', timeout: 10000 },
+  { url: 'https://avalanche-fuji-c-chain.publicnode.com', name: 'PublicNode', timeout: 8000 },
+  { url: 'https://rpc.ankr.com/avalanche_fuji', name: 'Ankr', timeout: 12000 },
+  { url: 'https://avalanche-fuji.blockpi.network/v1/rpc/public', name: 'BlockPI', timeout: 10000 },
+  { url: 'https://ava-testnet.public.blastapi.io/ext/bc/C/rpc', name: 'Blast API', timeout: 15000 }
 ];
 
 /**
@@ -102,15 +112,15 @@ async function createRobustProvider(): Promise<{ provider: ethers.JsonRpcProvide
     }
   }
   
-  throw new Error('No se pudo conectar a ningún proveedor RPC');
+  throw new Error('No se pudo conectar a ningún proveedor RPC de Avalanche Fuji');
 }
 
 /**
  * Verifica y obtiene datos completos del blockchain
  */
 export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
-  console.log('\n🔍 VERIFICACIÓN COMPLETA DE BLOCKCHAIN');
-  console.log('=====================================');
+  console.log('\n🔍 VERIFICACIÓN COMPLETA DE BLOCKCHAIN - AVALANCHE FUJI');
+  console.log('======================================================');
   
   try {
     // Crear provider robusto
@@ -125,6 +135,7 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
     );
     
     console.log(`📋 Contrato: ${CONTRACT_ADDRESSES.LOTTO_MOJI_CORE}`);
+    console.log(`🏔️ Red: Avalanche Fuji (Chain ID: ${CONTRACT_ADDRESSES.CHAIN_ID})`);
     
     // Obtener datos en paralelo con timeouts
     const timeout = 15000; // 15 segundos
@@ -171,170 +182,106 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
     console.log('📊 Datos básicos obtenidos exitosamente');
     
     // Obtener daily pool del día actual
-    let dailyPool;
+    let dailyPool: DailyPoolInfo | null = null;
     try {
-      dailyPool = await Promise.race([
-        contract.getDailyPoolInfo(currentGameDay),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout daily pool')), 5000)
-        )
-      ]);
-    } catch (error) {
-      console.warn('⚠️ Error obteniendo daily pool, usando valores por defecto:', error);
+      const dailyPoolData = await contract.getDailyPoolInfo(currentGameDay);
       dailyPool = {
-        totalCollected: 0,
-        mainPoolPortion: 0,
-        reservePortion: 0,
+        totalCollected: dailyPoolData[0],
+        mainPoolPortion: dailyPoolData[1],
+        reservePortion: dailyPoolData[2],
+        distributed: dailyPoolData[3],
+        drawn: dailyPoolData[4],
+        winningNumbers: Array.from(dailyPoolData[5])
+      };
+      console.log('📅 Información del pool diario obtenida');
+    } catch (dailyError) {
+      console.warn('⚠️ No se pudo obtener información del pool diario:', dailyError);
+      dailyPool = {
+        totalCollected: 0n,
+        mainPoolPortion: 0n,
+        reservePortion: 0n,
         distributed: false,
         drawn: false,
         winningNumbers: [0, 0, 0, 0]
       };
     }
-    
-    // CRITICAL FIX: Aggregate undrawn pools from previous days
-    let aggregatedTotalCollected = Number(ethers.formatUnits(dailyPool.totalCollected, 6));
-    let aggregatedMainPortion = Number(ethers.formatUnits(dailyPool.mainPoolPortion, 6));
-    let aggregatedReservePortion = Number(ethers.formatUnits(dailyPool.reservePortion, 6));
-    
-    console.log('🔍 Verificando días anteriores por pools no sorteados...');
-    
-    // Check previous days for undrawn pools (up to 7 days back)
-    for (let i = 1; i <= 7; i++) {
-      const previousDay = Number(currentGameDay) - i;
-      try {
-        const previousPool = await Promise.race([
-          contract.getDailyPoolInfo(previousDay),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout previous pool')), 3000)
-          )
-        ]);
-        const previousCollected = Number(ethers.formatUnits(previousPool.totalCollected, 6));
-        
-        // If there's money in a previous day that hasn't been drawn, include it
-        if (previousCollected > 0 && !previousPool.drawn) {
-          console.log(`📅 Día ${previousDay}: ${previousCollected} USDC (no sorteado) - AGREGANDO`);
-          aggregatedTotalCollected += previousCollected;
-          aggregatedMainPortion += Number(ethers.formatUnits(previousPool.mainPoolPortion, 6));
-          aggregatedReservePortion += Number(ethers.formatUnits(previousPool.reservePortion, 6));
-        } else if (previousCollected > 0) {
-          console.log(`📅 Día ${previousDay}: ${previousCollected} USDC (sorteado: ${previousPool.drawn}) - IGNORANDO`);
-        }
-      } catch (error) {
-        // Skip if error accessing previous day
-        console.log(`📅 Día ${previousDay}: No accesible`);
-        break;
-      }
-    }
-    
-    console.log(`💰 Total agregado: ${aggregatedTotalCollected.toFixed(1)} USDC`);
-    console.log(`  - Hoy: ${Number(ethers.formatUnits(dailyPool.totalCollected, 6)).toFixed(1)} USDC`);
-    console.log(`  - Días anteriores: ${(aggregatedTotalCollected - Number(ethers.formatUnits(dailyPool.totalCollected, 6))).toFixed(1)} USDC`);
-    
-    // Procesar y formatear datos
-    const processedData: BlockchainPoolData = {
+
+    // Estructurar datos
+    const blockchainData: BlockchainPoolData = {
       mainPools: {
-        firstPrize: ethers.formatUnits(mainPools.firstPrizeAccumulated, 6),
-        secondPrize: ethers.formatUnits(mainPools.secondPrizeAccumulated, 6),
-        thirdPrize: ethers.formatUnits(mainPools.thirdPrizeAccumulated, 6),
-        development: ethers.formatUnits(mainPools.developmentAccumulated, 6),
-        total: '0' // Se calculará después
+        firstPrizeAccumulated: mainPools[0],
+        secondPrizeAccumulated: mainPools[1],
+        thirdPrizeAccumulated: mainPools[2],
+        developmentAccumulated: mainPools[3]
       },
       reserves: {
-        firstPrize: ethers.formatUnits(reserves.firstPrizeReserve, 6),
-        secondPrize: ethers.formatUnits(reserves.secondPrizeReserve, 6),
-        thirdPrize: ethers.formatUnits(reserves.thirdPrizeReserve, 6),
-        total: '0' // Se calculará después
+        firstPrizeReserve: reserves[0],
+        secondPrizeReserve: reserves[1],
+        thirdPrizeReserve: reserves[2]
       },
-      dailyPool: {
-        totalCollected: aggregatedTotalCollected.toFixed(1),
-        mainPortion: aggregatedMainPortion.toFixed(1),
-        reservePortion: aggregatedReservePortion.toFixed(1),
-        distributed: dailyPool.distributed,
-        drawn: dailyPool.drawn
-      },
-      contractInfo: {
-        currentGameDay: currentGameDay.toString(),
-        ticketPrice: ethers.formatUnits(ticketPrice, 6),
-        ticketCounter: ticketCounter.toString(),
-        totalDraws: totalDraws.toString(),
-        gameActive,
-        automationActive,
-        emergencyPause
-      },
+      currentGameDay,
+      drawInterval,
+      drawTimeUTC,
+      lastDrawTime,
+      automationActive,
+      gameActive,
+      emergencyPause,
+      ticketCounter,
+      totalDraws,
+      dailyPool,
       totals: {
-        systemTotal: '0', // Se calculará después
-        mainTotal: '0',
-        reserveTotal: '0',
-        dailyTotal: '0'
+        mainTotal: mainPools[0] + mainPools[1] + mainPools[2] + mainPools[3],
+        reserveTotal: reserves[0] + reserves[1] + reserves[2],
+        dailyTotal: dailyPool?.totalCollected || 0n
       },
-      timestamp: Date.now(),
-      blockNumber: blockNumber.toString()
+      rpcProvider: providerName,
+      blockNumber,
+      timestamp: Date.now()
     };
-    
-    // Calcular totales
-    const mainTotal = 
-      Number(processedData.mainPools.firstPrize) +
-      Number(processedData.mainPools.secondPrize) +
-      Number(processedData.mainPools.thirdPrize) +
-      Number(processedData.mainPools.development);
-    
-    const reserveTotal = 
-      Number(processedData.reserves.firstPrize) +
-      Number(processedData.reserves.secondPrize) +
-      Number(processedData.reserves.thirdPrize);
-    
-    const dailyTotal = Number(processedData.dailyPool.totalCollected);
-    const systemTotal = mainTotal + reserveTotal + dailyTotal;
-    
-    // Actualizar totales
-    processedData.mainPools.total = mainTotal.toFixed(6);
-    processedData.reserves.total = reserveTotal.toFixed(6);
-    processedData.totals.mainTotal = mainTotal.toFixed(2);
-    processedData.totals.reserveTotal = reserveTotal.toFixed(2);
-    processedData.totals.dailyTotal = dailyTotal.toFixed(2);
-    processedData.totals.systemTotal = systemTotal.toFixed(2);
-    
-    // Log detallado de resultados
-    console.log('\n💰 DATOS VERIFICADOS DEL BLOCKCHAIN');
-    console.log('===================================');
-    console.log(`🏦 Main Pools (Accumulated):`);
-    console.log(`  - First Prize: ${processedData.mainPools.firstPrize} USDC`);
-    console.log(`  - Second Prize: ${processedData.mainPools.secondPrize} USDC`);
-    console.log(`  - Third Prize: ${processedData.mainPools.thirdPrize} USDC`);
-    console.log(`  - Development: ${processedData.mainPools.development} USDC`);
-    console.log(`  - TOTAL MAIN: ${processedData.totals.mainTotal} USDC`);
-    
-    console.log(`\n🏛️ Reserve Pools:`);
-    console.log(`  - First Prize Reserve: ${processedData.reserves.firstPrize} USDC`);
-    console.log(`  - Second Prize Reserve: ${processedData.reserves.secondPrize} USDC`);
-    console.log(`  - Third Prize Reserve: ${processedData.reserves.thirdPrize} USDC`);
-    console.log(`  - TOTAL RESERVES: ${processedData.totals.reserveTotal} USDC`);
-    
-    console.log(`\n📅 Today's Pool (Game Day ${processedData.contractInfo.currentGameDay}):`);
-    console.log(`  - Total Collected: ${processedData.dailyPool.totalCollected} USDC`);
-    console.log(`  - Main Portion (80%): ${processedData.dailyPool.mainPortion} USDC`);
-    console.log(`  - Reserve Portion (20%): ${processedData.dailyPool.reservePortion} USDC`);
-    console.log(`  - Distributed: ${processedData.dailyPool.distributed ? 'Yes' : 'No'}`);
-    console.log(`  - Drawn: ${processedData.dailyPool.drawn ? 'Yes' : 'No'}`);
-    
-    console.log(`\n📊 Contract Status:`);
-    console.log(`  - Ticket Price: ${processedData.contractInfo.ticketPrice} USDC`);
-    console.log(`  - Total Tickets Sold: ${processedData.contractInfo.ticketCounter}`);
-    console.log(`  - Total Draws: ${processedData.contractInfo.totalDraws}`);
-    console.log(`  - Game Active: ${processedData.contractInfo.gameActive ? 'Yes' : 'No'}`);
-    console.log(`  - Automation Active: ${processedData.contractInfo.automationActive ? 'Yes' : 'No'}`);
-    console.log(`  - Emergency Pause: ${processedData.contractInfo.emergencyPause ? 'Yes' : 'No'}`);
-    
-    console.log(`\n💎 TOTAL SYSTEM: ${processedData.totals.systemTotal} USDC`);
-    console.log(`📦 Block Number: ${processedData.blockNumber}`);
-    console.log(`🕐 Timestamp: ${new Date(processedData.timestamp).toLocaleString()}`);
-    
-    return processedData;
-    
+
+    // Log de resultados
+    console.log('\n✅ VERIFICACIÓN COMPLETADA EXITOSAMENTE');
+    console.log('=====================================');
+    console.log(`🎮 Juego Activo: ${blockchainData.gameActive}`);
+    console.log(`🤖 Automation Activa: ${blockchainData.automationActive}`);
+    console.log(`📅 Día del Juego: ${blockchainData.currentGameDay}`);
+    console.log(`🎫 Tickets Vendidos: ${blockchainData.ticketCounter}`);
+    console.log(`🎯 Sorteos Ejecutados: ${blockchainData.totalDraws}`);
+    console.log(`📡 Proveedor RPC: ${blockchainData.rpcProvider}`);
+    console.log(`🔗 Bloque: ${blockchainData.blockNumber}`);
+
+    return blockchainData;
+
   } catch (error) {
     console.error('\n❌ ERROR EN VERIFICACIÓN DE BLOCKCHAIN');
     console.error('=====================================');
     console.error('Error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Timeout')) {
+        console.error('💡 Sugerencia: Los RPCs de Avalanche Fuji pueden estar lentos. Intenta de nuevo.');
+      } else if (error.message.includes('CALL_EXCEPTION')) {
+        console.error('💡 Sugerencia: Verifica que el contrato esté desplegado correctamente.');
+      } else if (error.message.includes('NETWORK_ERROR')) {
+        console.error('💡 Sugerencia: Problemas de conectividad. Verifica tu conexión a internet.');
+      }
+    }
+    
+    throw error;
+  }
+}
+
+// Función legacy para compatibilidad con versiones anteriores
+export async function getPoolBalances() {
+  try {
+    const data = await verifyBlockchainPools();
+    return {
+      mainPools: data.mainPools,
+      reserves: data.reserves,
+      totals: data.totals
+    };
+  } catch (error) {
+    console.error('[getPoolBalances] Error:', error);
     throw error;
   }
 }
@@ -355,19 +302,19 @@ export async function forcePoolSync(): Promise<void> {
     const cacheData = {
       data: {
         mainPools: {
-          firstPrizeAccumulated: blockchainData.mainPools.firstPrize,
-          secondPrizeAccumulated: blockchainData.mainPools.secondPrize,
-          thirdPrizeAccumulated: blockchainData.mainPools.thirdPrize,
-          developmentAccumulated: blockchainData.mainPools.development
+          firstPrizeAccumulated: blockchainData.mainPools.firstPrizeAccumulated,
+          secondPrizeAccumulated: blockchainData.mainPools.secondPrizeAccumulated,
+          thirdPrizeAccumulated: blockchainData.mainPools.thirdPrizeAccumulated,
+          developmentAccumulated: blockchainData.mainPools.developmentAccumulated
         },
         reserves: {
-          firstPrizeReserve: blockchainData.reserves.firstPrize,
-          secondPrizeReserve: blockchainData.reserves.secondPrize,
-          thirdPrizeReserve: blockchainData.reserves.thirdPrize
+          firstPrizeReserve: blockchainData.reserves.firstPrizeReserve,
+          secondPrizeReserve: blockchainData.reserves.secondPrizeReserve,
+          thirdPrizeReserve: blockchainData.reserves.thirdPrizeReserve
         },
         dailyPool: {
           totalCollected: blockchainData.dailyPool.totalCollected,
-          mainPoolPortion: blockchainData.dailyPool.mainPortion,
+          mainPoolPortion: blockchainData.dailyPool.mainPoolPortion,
           reservePortion: blockchainData.dailyPool.reservePortion,
           firstPrizeDaily: '0',
           secondPrizeDaily: '0',
@@ -378,10 +325,10 @@ export async function forcePoolSync(): Promise<void> {
           drawn: blockchainData.dailyPool.drawn,
           reservesSent: false
         },
-        currentGameDay: blockchainData.contractInfo.currentGameDay,
+        currentGameDay: blockchainData.currentGameDay,
         timeToNextDraw: 0,
-        automationActive: blockchainData.contractInfo.automationActive,
-        gameActive: blockchainData.contractInfo.gameActive,
+        automationActive: blockchainData.automationActive,
+        gameActive: blockchainData.gameActive,
         upkeepNeeded: false,
         totalUSDC: blockchainData.totals.mainTotal,
         reserveTotalUSDC: blockchainData.totals.reserveTotal,
@@ -520,12 +467,12 @@ export async function diagnosePoolResetIssue(): Promise<void> {
     
     // Análisis del contrato
     console.log('\n📋 ANÁLISIS DEL CONTRATO:');
-    console.log(`Game Day: ${data.contractInfo.currentGameDay}`);
-    console.log(`Ticket Price: ${data.contractInfo.ticketPrice} USDC`);
-    console.log(`Total Tickets: ${data.contractInfo.ticketCounter}`);
+    console.log(`Game Day: ${data.currentGameDay}`);
+    console.log(`Ticket Price: ${data.totals.mainTotal} USDC`);
+    console.log(`Total Tickets: ${data.ticketCounter}`);
     
     // Calcular tickets esperados vs reales
-    const expectedRevenue = Number(data.contractInfo.ticketCounter) * Number(data.contractInfo.ticketPrice);
+    const expectedRevenue = Number(data.ticketCounter) * Number(data.totals.mainTotal);
     const actualRevenue = Number(data.totals.systemTotal);
     
     console.log('\n💰 ANÁLISIS DE REVENUE:');

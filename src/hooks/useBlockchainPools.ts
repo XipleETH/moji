@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
 
 export interface BlockchainPools {
@@ -81,7 +81,7 @@ export const useBlockchainPools = (): BlockchainPools & BlockchainPoolActions =>
 
       // Crear cliente público para leer contratos
       const publicClient = createPublicClient({
-        chain: baseSepolia,
+        chain: avalancheFuji,
         transport: http()
       });
 
