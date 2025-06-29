@@ -2934,7 +2934,7 @@ const checkUserTicketsFunction = async () => {
     console.log('================================================');
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3158,7 +3158,7 @@ const checkUserTicketsFunction = async () => {
     console.log('================================================');
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3381,7 +3381,7 @@ const checkUserTicketsFunction = async () => {
     ];
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3469,8 +3469,8 @@ const checkUserTicketsFunction = async () => {
     
     // Obtener datos del contrato directamente
     const { ethers } = await import('ethers');
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
-    const CONTRACT_ADDRESS = "0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D";
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
+    const CONTRACT_ADDRESS = "0x1B0B1A24983E51d809FBfAc424946B314fEFA271";
     const ABI = [
       "function getCurrentDay() view returns (uint256)",
       "function lastDrawTime() view returns (uint256)",

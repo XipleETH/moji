@@ -741,7 +741,7 @@ export const syncWithBlockchainV3 = async (gameDay?: string): Promise<boolean> =
     const { ethers } = await import('ethers');
     
     // Configurar proveedor
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contractAddress = CONTRACT_ADDRESSES.LOTTO_MOJI_CORE;
     
     console.log(`[syncWithBlockchainV3] Conectando al contrato V3: ${contractAddress}`);

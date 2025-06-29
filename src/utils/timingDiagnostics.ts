@@ -65,7 +65,7 @@ export async function diagnoseTimingMismatch(): Promise<TimingData> {
     const colombiaFormatted = `${colombiaTime.find(p => p.type === 'year')?.value}-${colombiaTime.find(p => p.type === 'month')?.value}-${colombiaTime.find(p => p.type === 'day')?.value} ${colombiaTime.find(p => p.type === 'hour')?.value}:${colombiaTime.find(p => p.type === 'minute')?.value}:${colombiaTime.find(p => p.type === 'second')?.value}`;
     
     // Connect to contract
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, [
       "function getCurrentDay() view returns (uint256)",
       "function drawTimeUTC() view returns (uint256)",
@@ -188,7 +188,7 @@ export async function diagnoseTimingMismatch(): Promise<TimingData> {
  */
 export async function getContractGameDay(): Promise<string> {
   try {
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, [
       "function getCurrentDay() view returns (uint256)"
     ], provider);

@@ -38,8 +38,8 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
 
   const fetchContractTime = async () => {
     try {
-      // Configurar provider para Base Sepolia
-      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      // Configurar provider para Avalanche Fuji
+      const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
 
       // Obtener datos del contrato

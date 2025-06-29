@@ -36,7 +36,7 @@ const USDC_TOKEN_ABI = [
  */
 async function createDiagnosticProvider(): Promise<ethers.JsonRpcProvider> {
   const providers = [
-    'https://sepolia.base.org',
+    'https://api.avax-test.network/ext/bc/C/rpc',
     'https://base-sepolia.g.alchemy.com/v2/demo',
     'https://base-sepolia-rpc.publicnode.com'
   ];
