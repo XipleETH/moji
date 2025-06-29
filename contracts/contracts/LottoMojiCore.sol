@@ -44,7 +44,7 @@ contract LottoMojiCore is
     uint256 public constant DEVELOPMENT_PERCENTAGE = 5;
     
     // Automation configuration
-    uint256 public constant DRAW_INTERVAL = 1 hours; // ⚡ TESTING: Sorteos cada hora
+    uint256 public constant DRAW_INTERVAL = 24 hours; // 🎯 PRODUCTION: Sorteos diarios a la 1:00 UTC
     uint256 public drawTimeUTC; // Configurable draw time
     
     // Emoji indices (0-24) instead of strings
@@ -173,8 +173,7 @@ contract LottoMojiCore is
     
     constructor(
         address _usdcToken,
-        uint256 _subscriptionId,
-        uint256 _drawTimeUTC
+        uint256 _subscriptionId
     ) 
         VRFConsumerBaseV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE)
         ERC721("LottoMoji Ticket", "LMOJI")
@@ -182,9 +181,15 @@ contract LottoMojiCore is
         i_vrfCoordinator = IVRFCoordinatorV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE);
         usdcToken = IERC20(_usdcToken);
         subscriptionId = _subscriptionId;
-        drawTimeUTC = _drawTimeUTC;
+        
+        // Configure draw time to 1:00 UTC daily
+        drawTimeUTC = 1 hours;
+        
+        // Set lastDrawTime to June 29, 2024 at 1:00 UTC (1719626400)
+        // This aligns the draw schedule with the game day calculation
+        lastDrawTime = 1719626400;
+        
         currentGameDay = getCurrentDay();
-        lastDrawTime = block.timestamp;
     }
     
     /**

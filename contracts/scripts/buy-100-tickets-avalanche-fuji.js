@@ -4,7 +4,7 @@ async function main() {
     console.log("🏔️ COMPRANDO 100 TICKETS EN AVALANCHE FUJI");
     console.log("=".repeat(60));
     
-    const CONTRACT_ADDRESS = "0x1B0B1A24983E51d809FBfAc424946B314fEFA271";
+    const CONTRACT_ADDRESS = "0x900ebdF6C0807E4d3007e07009BDeDFc5E63fbB1";
     const USDC_ADDRESS = "0x5425890298aed601595a70AB815c96711a31Bc65";
     
     // Obtener signer
