@@ -4,7 +4,7 @@ async function main() {
   console.log("⚡ VERIFICANDO CONFIGURACIÓN HORARIA DEL NUEVO CONTRATO");
   console.log("=====================================================");
   
-  const CONTRACT_ADDRESS = "0x599D73443e2fE18b03dfD8d28cad40af26C04155"; // NUEVO CONTRATO HORARIO
+  const CONTRACT_ADDRESS = "0x900ebdF6C0807E4d3007e07009BDeDFc5E63fbB1"; // NUEVO CONTRATO HORARIO
   
   try {
     // Conectar al contrato

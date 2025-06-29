@@ -325,7 +325,7 @@ contract LottoMojiCore is
             // Calculate next draw time aligned with draw schedule
             uint256 currentTime = block.timestamp;
             uint256 timeSinceLastDraw = currentTime - lastDrawTime;
-            uint256 intervalsElapsed = (timeSinceLastDraw / DRAW_INTERVAL) + 1;
+            uint256 intervalsElapsed = timeSinceLastDraw / DRAW_INTERVAL; // ✅ FIXED: sin +1
             lastDrawTime = lastDrawTime + (intervalsElapsed * DRAW_INTERVAL);
             
             _requestRandomWords();
