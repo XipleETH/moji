@@ -4,7 +4,7 @@ import { CONTRACT_ADDRESSES } from './contractAddresses';
 // Importar ABI del contrato
 let LOTTO_MOJI_CORE_ABI: any[] = [];
 try {
-  const abiData = require('./contract-abi-fuji-17utc.json');
+  const abiData = require('./contract-abi-hourly.json');
   LOTTO_MOJI_CORE_ABI = abiData.abi || abiData;
 } catch (error) {
   console.warn('[BlockchainVerification] No se pudo cargar ABI específico, usando ABI básico');

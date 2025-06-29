@@ -44,7 +44,7 @@ contract LottoMojiCore is
     uint256 public constant DEVELOPMENT_PERCENTAGE = 5;
     
     // Automation configuration
-    uint256 public constant DRAW_INTERVAL = 24 hours;
+    uint256 public constant DRAW_INTERVAL = 1 hours; // ⚡ TESTING: Sorteos cada hora
     uint256 public drawTimeUTC; // Configurable draw time
     
     // Emoji indices (0-24) instead of strings
