@@ -17,9 +17,9 @@ async function main() {
     
     // Configuración para Avalanche Fuji
     const USDC_ADDRESS = "0x5425890298aed601595a70AB815c96711a31Bc65"; // Avalanche Fuji USDC
-    const VRF_COORDINATOR = "0x2eD832Ba664535e5886b75D64C46EB9a228C2610"; // Avalanche Fuji VRF Coordinator
+    const VRF_COORDINATOR = "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE"; // Avalanche Fuji VRF Coordinator
     const LINK_TOKEN = "0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846"; // Avalanche Fuji LINK
-    const KEY_HASH = "0x354d2f95da55398f44b7cff77da56283d9c6c829a4bdf1bbcaf2ad6a4d081f61"; // 300 gwei key hash
+    const KEY_HASH = "0xc799bd1e3bd4d1a41cd4968997a4e03dfd2a3c7c04b695881138580163f42887"; // Avalanche Fuji key hash
     
     // Subscription ID para Avalanche Fuji
     const SUBSCRIPTION_ID = process.env.AVALANCHE_FUJI_SUBSCRIPTION_ID || "101248313039346717932007347873879037803370624422039457111978592264303680124860";
