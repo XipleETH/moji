@@ -34,14 +34,15 @@ export const WalletConnector: React.FC = () => {
         onClick={handleWalletClick}
         disabled={isConnecting}
         className={`
-          relative p-3 rounded-full transition-all duration-200 
+          fixed top-4 right-4 p-3 rounded-full transition-all duration-200 shadow-lg z-30
           ${isConnected 
-            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg' 
+            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600' 
             : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
           }
           ${isConnecting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
-          disabled:opacity-50 shadow-md hover:shadow-lg
+          disabled:opacity-50 hover:shadow-xl
         `}
+        aria-label={isConnected ? 'Wallet Connected' : 'Connect Wallet'}
       >
         <WalletIcon 
           className={`text-white ${isConnecting ? 'animate-pulse' : ''}`} 
@@ -61,9 +62,9 @@ export const WalletConnector: React.FC = () => {
         )}
       </button>
 
-      {/* Error message */}
+      {/* Error message - positioned relative to floating button */}
       {error && (
-        <div className="absolute top-full mt-2 right-0 bg-red-500 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs">
+        <div className="fixed top-16 right-4 bg-red-500 text-white text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs z-50">
           {error}
         </div>
       )}

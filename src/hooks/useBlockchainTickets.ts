@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPublicClient, createWalletClient, custom, http, parseUnits } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -154,7 +154,7 @@ export const useBlockchainTickets = () => {
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
 
   const publicClient = createPublicClient({
-    chain: baseSepolia,
+    chain: avalancheFuji,
     transport: http()
   });
 
@@ -376,7 +376,7 @@ export const useBlockchainTickets = () => {
     });
 
     const walletClient = createWalletClient({
-      chain: baseSepolia,
+              chain: avalancheFuji,
       transport: custom(window.ethereum)
     });
 

@@ -121,13 +121,13 @@ export const ContractPoolsDisplay: React.FC = () => {
   // Solo mostrar loading inicial, no en cada update
   if (loading && totalUSDC === '0') {
     return (
-      <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-500/20">
+      <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-xl p-4 border border-purple-500/20">
         <div className="animate-pulse">
-          <div className="h-6 bg-purple-500/20 rounded mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-purple-500/20 rounded w-3/4"></div>
-            <div className="h-4 bg-purple-500/20 rounded w-1/2"></div>
-            <div className="h-4 bg-purple-500/20 rounded w-2/3"></div>
+          <div className="h-4 bg-purple-500/20 rounded mb-3"></div>
+          <div className="space-y-2">
+            <div className="h-3 bg-purple-500/20 rounded w-3/4"></div>
+            <div className="h-3 bg-purple-500/20 rounded w-1/2"></div>
+            <div className="h-3 bg-purple-500/20 rounded w-2/3"></div>
           </div>
         </div>
       </div>
@@ -136,7 +136,7 @@ export const ContractPoolsDisplay: React.FC = () => {
 
   if (error) {
     return (
-      <div className="bg-red-900/30 rounded-xl p-6 border border-red-500/20">
+      <div className="bg-red-900/30 rounded-xl p-4 border border-red-500/20">
         <h3 className="text-red-400 font-bold mb-2">⚠️ Connection Error</h3>
         <p className="text-red-300 text-sm">{error}</p>
       </div>
@@ -150,45 +150,52 @@ export const ContractPoolsDisplay: React.FC = () => {
   const totalDevelopment = parseFloat(mainPools.developmentAccumulated) + parseFloat(dailyPool.developmentDaily);
 
   const renderMainPool = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 min-h-[120px]">
-        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-lg p-3 border border-yellow-500/20 text-center">
-          <div className="text-yellow-400 text-2xl mb-1">🥇</div>
-          <div className="text-yellow-100 text-xs mb-1">80%</div>
-          <div className="text-white text-lg font-bold">{formatUSDC(totalFirstPrize.toString())}</div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 min-h-[80px]">
+        <div className="bg-gradient-to-br from-yellow-900/30 to-orange-900/30 rounded-lg p-2 border border-yellow-500/20 text-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-yellow-400 text-xl">🥇</div>
+            <div className="text-yellow-100 text-xs">80%</div>
+          </div>
+          <div className="text-white text-base font-bold">{formatUSDC(totalFirstPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-lg p-3 border border-gray-500/20 text-center">
-          <div className="text-gray-300 text-2xl mb-1">🥈</div>
-          <div className="text-gray-200 text-xs mb-1">10%</div>
-          <div className="text-white text-lg font-bold">{formatUSDC(totalSecondPrize.toString())}</div>
+        <div className="bg-gradient-to-br from-gray-700/30 to-gray-800/30 rounded-lg p-2 border border-gray-500/20 text-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-gray-300 text-xl">🥈</div>
+            <div className="text-gray-200 text-xs">10%</div>
+          </div>
+          <div className="text-white text-base font-bold">{formatUSDC(totalSecondPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-lg p-3 border border-amber-500/20 text-center">
-          <div className="text-amber-400 text-2xl mb-1">🥉</div>
-          <div className="text-amber-200 text-xs mb-1">5%</div>
-          <div className="text-white text-lg font-bold">{formatUSDC(totalThirdPrize.toString())}</div>
+        <div className="bg-gradient-to-br from-amber-800/30 to-yellow-800/30 rounded-lg p-2 border border-amber-500/20 text-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-amber-400 text-xl">🥉</div>
+            <div className="text-amber-200 text-xs">5%</div>
+          </div>
+          <div className="text-white text-base font-bold">{formatUSDC(totalThirdPrize.toString())}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-lg p-3 border border-purple-500/20 text-center">
-          <div className="text-purple-400 text-2xl mb-1">🛠️</div>
-          <div className="text-purple-200 text-xs mb-1">5%</div>
-          <div className="text-white text-lg font-bold">{formatUSDC(totalDevelopment.toString())}</div>
+        <div className="bg-gradient-to-br from-purple-800/30 to-indigo-800/30 rounded-lg p-2 border border-purple-500/20 text-center">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-purple-400 text-xl">🛠️</div>
+            <div className="text-purple-200 text-xs">5%</div>
+          </div>
+          <div className="text-white text-base font-bold">{formatUSDC(totalDevelopment.toString())}</div>
         </div>
       </div>
     </div>
   );
 
   const renderReservePool = () => (
-    <div className="space-y-4">
-      {/* Spacer para mantener la misma altura que Main Pool */}
-      <div className="grid grid-cols-3 gap-3 min-h-[120px]">
-        <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2 min-h-[80px]">
+        <div className="bg-blue-800/20 rounded-lg p-2 border border-blue-400/20 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
-            <span className="text-yellow-400 text-lg">🥇</span>
-            <span className="text-blue-400 text-lg">🛡️</span>
+            <span className="text-yellow-400 text-base">🥇</span>
+            <span className="text-blue-400 text-base">🛡️</span>
           </div>
-          <div className="text-white text-lg font-bold">
+          <div className="text-white text-base font-bold">
             {formatUSDC(reserves.firstPrizeReserve1)}
           </div>
           {parseFloat(reserves.firstPrizeReserve1) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -196,12 +203,12 @@ export const ContractPoolsDisplay: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+        <div className="bg-blue-800/20 rounded-lg p-2 border border-blue-400/20 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
-            <span className="text-gray-300 text-lg">🥈</span>
-            <span className="text-blue-400 text-lg">🛡️</span>
+            <span className="text-gray-300 text-base">🥈</span>
+            <span className="text-blue-400 text-base">🛡️</span>
           </div>
-          <div className="text-white text-lg font-bold">
+          <div className="text-white text-base font-bold">
             {formatUSDC(reserves.secondPrizeReserve2)}
           </div>
           {parseFloat(reserves.secondPrizeReserve2) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -209,12 +216,12 @@ export const ContractPoolsDisplay: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+        <div className="bg-blue-800/20 rounded-lg p-2 border border-blue-400/20 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
-            <span className="text-amber-400 text-lg">🥉</span>
-            <span className="text-blue-400 text-lg">🛡️</span>
+            <span className="text-amber-400 text-base">🥉</span>
+            <span className="text-blue-400 text-base">🛡️</span>
           </div>
-          <div className="text-white text-lg font-bold">
+          <div className="text-white text-base font-bold">
             {formatUSDC(reserves.thirdPrizeReserve3)}
           </div>
           {parseFloat(reserves.thirdPrizeReserve3) === 0 && parseFloat(dailyPool.reservePortion) > 0 && (
@@ -234,23 +241,23 @@ export const ContractPoolsDisplay: React.FC = () => {
   );
 
   const renderTodayPool = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-h-[120px]">
-        <div className="bg-green-800/20 rounded-lg p-3 border border-green-400/20 text-center">
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 min-h-[80px]">
+        <div className="bg-green-800/20 rounded-lg p-2 border border-green-400/20 text-center">
           <div className="text-green-300 text-xs mb-1">Collected</div>
-          <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.totalCollected)}</div>
+          <div className="text-white font-bold text-base">{formatUSDC(dailyPool.totalCollected)}</div>
         </div>
-        <div className="bg-purple-800/20 rounded-lg p-3 border border-purple-400/20 text-center">
+        <div className="bg-purple-800/20 rounded-lg p-2 border border-purple-400/20 text-center">
           <div className="text-purple-300 text-xs mb-1">Main (80%)</div>
-          <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.mainPoolPortion)}</div>
+          <div className="text-white font-bold text-base">{formatUSDC(dailyPool.mainPoolPortion)}</div>
         </div>
-        <div className="bg-blue-800/20 rounded-lg p-3 border border-blue-400/20 text-center">
+        <div className="bg-blue-800/20 rounded-lg p-2 border border-blue-400/20 text-center">
           <div className="text-blue-300 text-xs mb-1">Reserve (20%)</div>
-          <div className="text-white font-bold text-lg">{formatUSDC(dailyPool.reservePortion)}</div>
+          <div className="text-white font-bold text-base">{formatUSDC(dailyPool.reservePortion)}</div>
         </div>
-        <div className="bg-gray-800/20 rounded-lg p-3 border border-gray-400/20 text-center">
+        <div className="bg-gray-800/20 rounded-lg p-2 border border-gray-400/20 text-center">
           <div className="text-gray-300 text-xs mb-1">Status</div>
-          <div className={`font-bold text-lg ${dailyPool.drawn ? 'text-blue-400' : 'text-yellow-400'}`}>
+          <div className={`font-bold text-base ${dailyPool.drawn ? 'text-blue-400' : 'text-yellow-400'}`}>
             {dailyPool.drawn ? 'Drawn' : 'Active'}
           </div>
         </div>
@@ -277,39 +284,41 @@ export const ContractPoolsDisplay: React.FC = () => {
   };
 
   return (
-    <div className={`bg-gradient-to-br ${getGradientClass()} rounded-xl p-4 border transition-all duration-300`}>
-      {/* Header con navegación */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{pools[currentPool].icon}</span>
-          <span className="text-white font-semibold">{pools[currentPool].name}</span>
-          <span className="text-3xl">{pools[currentPool].emoji}</span>
-          <span className="text-purple-300 font-semibold">{pools[currentPool].percentage}</span>
+    <div className={`bg-gradient-to-br ${getGradientClass()} rounded-xl p-3 border transition-all duration-300`}>
+      {/* Header con navegación más compacto */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{pools[currentPool].icon}</span>
+          <span className="text-white font-semibold text-sm">{pools[currentPool].name}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-2xl">{pools[currentPool].emoji}</span>
+            <span className="text-purple-300 font-semibold text-sm">{pools[currentPool].percentage}</span>
+          </div>
           {loading && (
             <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
           )}
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-white">{formatUSDC(getTotalValue())}</div>
+          <div className="text-2xl font-bold text-white">{formatUSDC(getTotalValue())}</div>
         </div>
       </div>
 
-      {/* Navegación por tabs */}
-      <div className="flex items-center justify-center mb-4 gap-2">
+      {/* Navegación por tabs más compacta */}
+      <div className="flex items-center justify-center mb-3 gap-2">
         <button
           onClick={() => setCurrentPool(prev => (prev - 1 + pools.length) % pools.length)}
-          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
           aria-label="Previous pool"
         >
-          <ChevronLeft size={16} className="text-white" />
+          <ChevronLeft size={14} className="text-white" />
         </button>
         
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           {pools.map((pool, index) => (
             <button
               key={pool.id}
               onClick={() => setCurrentPool(index)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
                 index === currentPool
                   ? 'bg-white/30 text-white'
                   : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -322,10 +331,10 @@ export const ContractPoolsDisplay: React.FC = () => {
 
         <button
           onClick={() => setCurrentPool(prev => (prev + 1) % pools.length)}
-          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+          className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
           aria-label="Next pool"
         >
-          <ChevronRight size={16} className="text-white" />
+          <ChevronRight size={14} className="text-white" />
         </button>
       </div>
 
@@ -346,22 +355,22 @@ export const ContractPoolsDisplay: React.FC = () => {
         {currentPool === 2 && renderTodayPool()}
       </div>
 
-      {/* Indicadores de navegación */}
-      <div className="flex justify-center mt-4 gap-2">
+      {/* Indicadores de navegación más compactos */}
+      <div className="flex justify-center mt-3 gap-1">
         {pools.map((_, index) => (
           <div
             key={index}
-            className={`w-2 h-2 rounded-full transition-all ${
+            className={`w-1.5 h-1.5 rounded-full transition-all ${
               index === currentPool ? 'bg-white' : 'bg-white/30'
             }`}
           />
         ))}
       </div>
 
-      {/* Instrucciones de uso */}
+      {/* Instrucciones de uso más pequeñas */}
       <div className="text-center mt-2">
-        <div className="text-xs text-white/50">
-          ← → Swipe or use arrow keys to navigate
+        <div className="text-xs text-white/40">
+          ← → Swipe or use arrow keys
         </div>
       </div>
     </div>

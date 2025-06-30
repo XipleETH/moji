@@ -6,6 +6,7 @@ import { User } from '../types';
 // Constantes para redes blockchain
 const OPTIMISM_CHAIN_ID = 10;
 const BASE_CHAIN_ID = 8453;
+const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
 interface MiniKitContextType {
   farcasterUser: User | null;
@@ -15,7 +16,7 @@ interface MiniKitContextType {
   disconnectFarcaster: () => void;
   checkFarcasterConnection: () => Promise<boolean>;
   getCurrentChainId: () => number | null;
-  switchToBase: () => Promise<boolean>;
+  switchToAvalanche: () => Promise<boolean>;
 }
 
 const MiniKitContext = createContext<MiniKitContextType>({
@@ -26,7 +27,7 @@ const MiniKitContext = createContext<MiniKitContextType>({
   disconnectFarcaster: () => {},
   checkFarcasterConnection: async () => false,
   getCurrentChainId: () => null,
-  switchToBase: async () => false
+  switchToAvalanche: async () => false
 });
 
 export const useMiniKitAuth = () => useContext(MiniKitContext);
@@ -163,7 +164,10 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
       case OPTIMISM_CHAIN_ID: return 'Optimism';
       case BASE_CHAIN_ID: return 'Base';
       case 84531: return 'Base Goerli (Testnet)';
+      case 84532: return 'Base Sepolia (Testnet)';
       case 11155111: return 'Sepolia (Testnet)';
+      case AVALANCHE_FUJI_CHAIN_ID: return 'Avalanche Fuji (Testnet)';
+      case 43114: return 'Avalanche Mainnet';
       default: return `Red desconocida (${chainId})`;
     }
   };
@@ -173,8 +177,8 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
     return currentChainId;
   };
 
-  // Cambiar a la red Base
-  const switchToBase = async (): Promise<boolean> => {
+  // Cambiar a la red Avalanche Fuji
+  const switchToAvalanche = async (): Promise<boolean> => {
     try {
       if (!window.ethereum) {
         console.error('Ethereum provider no disponible');
@@ -182,14 +186,14 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
       }
 
       try {
-        // Intentar cambiar a la red Base
+        // Intentar cambiar a la red Avalanche Fuji
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: `0x${BASE_CHAIN_ID.toString(16)}` }],
+          params: [{ chainId: `0x${AVALANCHE_FUJI_CHAIN_ID.toString(16)}` }],
         });
         
-        setCurrentChainId(BASE_CHAIN_ID);
-        console.log('Cambiado exitosamente a la red Base');
+        setCurrentChainId(AVALANCHE_FUJI_CHAIN_ID);
+        console.log('Cambiado exitosamente a la red Avalanche Fuji');
         return true;
       } catch (switchError: any) {
         // Si la red no está agregada, intentar añadirla
@@ -199,33 +203,33 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
               method: 'wallet_addEthereumChain',
               params: [
                 {
-                  chainId: `0x${BASE_CHAIN_ID.toString(16)}`,
-                  chainName: 'Base',
+                  chainId: `0x${AVALANCHE_FUJI_CHAIN_ID.toString(16)}`,
+                  chainName: 'Avalanche Fuji Testnet',
                   nativeCurrency: {
-                    name: 'ETH',
-                    symbol: 'ETH',
+                    name: 'Avalanche',
+                    symbol: 'AVAX',
                     decimals: 18,
                   },
-                  rpcUrls: ['https://mainnet.base.org'],
-                  blockExplorerUrls: ['https://basescan.org'],
+                  rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+                  blockExplorerUrls: ['https://testnet.snowtrace.io'],
                 },
               ],
             });
             
-            setCurrentChainId(BASE_CHAIN_ID);
-            console.log('Red Base añadida y seleccionada');
+            setCurrentChainId(AVALANCHE_FUJI_CHAIN_ID);
+            console.log('Red Avalanche Fuji añadida y seleccionada');
             return true;
           } catch (addError) {
-            console.error('Error añadiendo la red Base:', addError);
+            console.error('Error añadiendo la red Avalanche Fuji:', addError);
             return false;
           }
         } else {
-          console.error('Error cambiando a red Base:', switchError);
+          console.error('Error cambiando a red Avalanche Fuji:', switchError);
           return false;
         }
       }
     } catch (error) {
-      console.error('Error en switchToBase:', error);
+      console.error('Error en switchToAvalanche:', error);
       return false;
     }
   };
@@ -386,7 +390,7 @@ export const MiniKitAuthProvider: React.FC<MiniKitAuthProviderProps> = ({ childr
         disconnectFarcaster,
         checkFarcasterConnection,
         getCurrentChainId,
-        switchToBase
+        switchToAvalanche
       }}
     >
       {children}

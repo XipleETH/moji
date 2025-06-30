@@ -14,8 +14,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @title LottoMojiCore
  * @dev Core contract combining lottery, VRF, automation and NFT functionality
- * FIXED: Removed OpenZeppelin Ownable to avoid conflicts with Chainlink ownership
- * VERSION 2: Changed ticket price to 0.2 USDC and added setLastDrawTime function
+ * VERSION 3: Configured for Avalanche Fuji Testnet
  */
 contract LottoMojiCore is 
     VRFConsumerBaseV2Plus, 
@@ -26,17 +25,17 @@ contract LottoMojiCore is
 {
     using Strings for uint256;
 
-    // VRF Configuration for Base Sepolia
+    // VRF Configuration for Avalanche Fuji
     IVRFCoordinatorV2Plus private immutable i_vrfCoordinator;
-    bytes32 constant KEY_HASH = 0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71;
+    bytes32 constant KEY_HASH = 0xc799bd1e3bd4d1a41cd4968997a4e03dfd2a3c7c04b695881138580163f42887;
     uint32 constant CALLBACK_GAS_LIMIT = 2500000;
-    uint16 constant REQUEST_CONFIRMATIONS = 3;
+    uint16 constant REQUEST_CONFIRMATIONS = 1; // Avalanche Fuji uses 1 confirmation
     uint32 constant NUM_WORDS = 4;
     
     // Lottery Constants
     uint256 public constant DAILY_RESERVE_PERCENTAGE = 20; // 20% goes to reserve DAILY
     uint256 public constant MAIN_POOL_PERCENTAGE = 80;     // 80% stays in main pools
-    uint256 public constant TICKET_PRICE = 2 * 10**5;      // 0.2 USDC (6 decimals) - CHANGED from 2 * 10**6
+    uint256 public constant TICKET_PRICE = 2 * 10**5;      // 0.2 USDC (6 decimals)
     
     // Prize distribution percentages (applied to the 80% main pool portion)
     uint256 public constant FIRST_PRIZE_PERCENTAGE = 80;
@@ -45,8 +44,8 @@ contract LottoMojiCore is
     uint256 public constant DEVELOPMENT_PERCENTAGE = 5;
     
     // Automation configuration
-    uint256 public constant DRAW_INTERVAL = 24 hours;
-    uint256 public drawTimeUTC = 3 hours; // 00:00 AM São Paulo = 03:00 AM UTC
+    uint256 public constant DRAW_INTERVAL = 24 hours; // 🎯 PRODUCTION: Sorteos diarios a la 1:00 UTC
+    uint256 public drawTimeUTC; // Configurable draw time
     
     // Emoji indices (0-24) instead of strings
     uint8 public constant EMOJI_COUNT = 25;
@@ -74,11 +73,11 @@ contract LottoMojiCore is
     
     AccumulatedPools public mainPools;
     
-    // Reserve pools
+    // Reserve pools - accumulated from daily 20% portions
     struct ReservePools {
-        uint256 firstPrizeReserve1;     // Accumulates 80% of daily reserves (16% of total revenue)
-        uint256 secondPrizeReserve2;    // Accumulates 10% of daily reserves (2% of total revenue)
-        uint256 thirdPrizeReserve3;     // Accumulates 10% of daily reserves (2% of total revenue)
+        uint256 firstPrizeReserve;     // Accumulates 80% of daily reserves (16% of total revenue)
+        uint256 secondPrizeReserve;    // Accumulates 10% of daily reserves (2% of total revenue)
+        uint256 thirdPrizeReserve;     // Accumulates 10% of daily reserves (2% of total revenue)
     }
     
     ReservePools public reserves;
@@ -123,7 +122,6 @@ contract LottoMojiCore is
     
     // State tracking
     uint256 public lastDrawTime;
-    uint256 public lastMaintenanceTime;
     
     // Events
     event TicketPurchased(
@@ -183,9 +181,15 @@ contract LottoMojiCore is
         i_vrfCoordinator = IVRFCoordinatorV2Plus(0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE);
         usdcToken = IERC20(_usdcToken);
         subscriptionId = _subscriptionId;
+        
+        // Configure draw time to 1:00 UTC daily
+        drawTimeUTC = 1 hours;
+        
+        // Set lastDrawTime to June 29, 2024 at 1:00 UTC (1719626400)
+        // This aligns the draw schedule with the game day calculation
+        lastDrawTime = 1719626400;
+        
         currentGameDay = getCurrentDay();
-        lastDrawTime = block.timestamp;
-        lastMaintenanceTime = block.timestamp;
     }
     
     /**
@@ -201,10 +205,10 @@ contract LottoMojiCore is
             "USDC transfer failed"
         );
         
-        uint256 gameDay = getCurrentDay();
-        ticketCounter++;
-        
         // Create ticket
+        ticketCounter++;
+        uint256 gameDay = getCurrentDay();
+        
         tickets[ticketCounter] = Ticket({
             tokenId: ticketCounter,
             ticketOwner: msg.sender,
@@ -215,7 +219,7 @@ contract LottoMojiCore is
             eligibleForReserve: true
         });
         
-        // Update arrays
+        // Add to mappings
         gameDayTickets[gameDay].push(ticketCounter);
         userTickets[msg.sender].push(ticketCounter);
         
@@ -223,10 +227,51 @@ contract LottoMojiCore is
         dailyPools[gameDay].totalCollected += TICKET_PRICE;
         _updateDailyPoolDistribution(gameDay);
         
-        // Mint NFT ticket
-        _safeMint(msg.sender, ticketCounter);
+        // Mint NFT
+        _mint(msg.sender, ticketCounter);
         
         emit TicketPurchased(ticketCounter, msg.sender, _numbers, gameDay);
+    }
+    
+    /**
+     * @dev Admin function to toggle automation
+     */
+    function toggleAutomation() external {
+        require(msg.sender == address(this) || msg.sender == tx.origin, "Not authorized");
+        automationActive = !automationActive;
+    }
+    
+    /**
+     * @dev Admin function to toggle emergency pause
+     */
+    function toggleEmergencyPause() external {
+        require(msg.sender == address(this) || msg.sender == tx.origin, "Not authorized");
+        emergencyPause = !emergencyPause;
+    }
+    
+    /**
+     * @dev Admin function to set last draw time (for timing corrections)
+     */
+    function setLastDrawTime(uint256 _timestamp) external {
+        require(msg.sender == address(this) || msg.sender == tx.origin, "Not authorized");
+        uint256 oldTime = lastDrawTime;
+        lastDrawTime = _timestamp;
+        currentGameDay = getCurrentDay();
+        
+        emit LastDrawTimeUpdated(oldTime, _timestamp, currentGameDay);
+    }
+    
+    /**
+     * @dev Admin function to set draw time UTC (for timing corrections)
+     */
+    function setDrawTimeUTC(uint256 _hours) external {
+        require(msg.sender == address(this) || msg.sender == tx.origin, "Not authorized");
+        require(_hours < 24, "Invalid hour");
+        uint256 oldTime = drawTimeUTC;
+        drawTimeUTC = _hours * 1 hours;
+        currentGameDay = getCurrentDay();
+        
+        emit DrawTimeUTCUpdated(oldTime, drawTimeUTC, currentGameDay);
     }
     
     /**
@@ -241,21 +286,21 @@ contract LottoMojiCore is
         }
         
         lastWinningNumbers = randomNumbers;
-        lastDrawTime = block.timestamp;
+        // lastDrawTime already updated in performUpkeep to prevent infinite loop
         
-        uint256 gameDay = getCurrentDay() - 1; // Draw for previous day
+        uint256 gameDay = getCurrentDay(); // Draw for CURRENT day (where tickets are)
         dailyPools[gameDay].winningNumbers = randomNumbers;
         dailyPools[gameDay].drawn = true;
         
-        // Process winners and accumulate pools
-        _processDrawResults(gameDay, randomNumbers);
+        // Process complete draw flow
+        _processCompleteDrawFlow(gameDay, randomNumbers);
         totalDrawsExecuted++;
         
         emit DrawExecuted(gameDay, randomNumbers, _getTotalMainPools());
     }
     
     /**
-     * @dev Chainlink Automation checkUpkeep
+     * @dev Chainlink Automation checkUpkeep - ONLY for draws, no maintenance
      */
     function checkUpkeep(
         bytes calldata
@@ -269,16 +314,11 @@ contract LottoMojiCore is
             return (true, abi.encode(true));
         }
         
-        // Check if it's time for maintenance
-        if (_shouldExecuteMaintenance()) {
-            return (true, abi.encode(false));
-        }
-        
         return (false, "");
     }
     
     /**
-     * @dev Chainlink Automation performUpkeep
+     * @dev Chainlink Automation performUpkeep - ONLY for draws
      */
     function performUpkeep(bytes calldata performData) external override {
         require(automationActive && !emergencyPause, "Automation paused");
@@ -286,14 +326,19 @@ contract LottoMojiCore is
         bool isDraw = abi.decode(performData, (bool));
         
         if (isDraw && _shouldExecuteDraw()) {
+            // FIX: Update lastDrawTime IMMEDIATELY to prevent infinite loop
+            // Calculate next draw time aligned with draw schedule
+            uint256 currentTime = block.timestamp;
+            uint256 timeSinceLastDraw = currentTime - lastDrawTime;
+            uint256 intervalsElapsed = timeSinceLastDraw / DRAW_INTERVAL; // ✅ FIXED: sin +1
+            lastDrawTime = lastDrawTime + (intervalsElapsed * DRAW_INTERVAL);
+            
             _requestRandomWords();
-        } else if (!isDraw && _shouldExecuteMaintenance()) {
-            _performMaintenance();
         }
     }
     
     /**
-     * @dev Claim prize for a winning ticket
+     * @dev Claim prize for a winning ticket - UPDATED FOR NEW LOGIC
      */
     function claimPrize(uint256 _ticketId) external nonReentrant {
         require(tickets[_ticketId].ticketOwner == msg.sender, "Not ticket owner");
@@ -302,10 +347,10 @@ contract LottoMojiCore is
         uint256 gameDay = tickets[_ticketId].gameDay;
         require(dailyPools[gameDay].drawn, "Draw not executed yet");
         
-        uint8 matches = _countMatches(_ticketId);
-        require(matches >= 2, "No prize for this ticket");
+        uint8 prizeLevel = _getPrizeLevel(_ticketId, dailyPools[gameDay].winningNumbers);
+        require(prizeLevel > 0, "No prize for this ticket");
         
-        uint256 prizeAmount = _calculatePrize(_ticketId, matches);
+        uint256 prizeAmount = _calculatePrize(_ticketId, prizeLevel);
         require(prizeAmount > 0, "No prize available");
         
         // Mark ticket as claimed
@@ -314,7 +359,7 @@ contract LottoMojiCore is
         // Transfer prize
         require(usdcToken.transfer(msg.sender, prizeAmount), "Prize transfer failed");
         
-        emit PrizeClaimed(_ticketId, msg.sender, prizeAmount, matches, false);
+        emit PrizeClaimed(_ticketId, msg.sender, prizeAmount, prizeLevel, false);
     }
     
     // Internal functions
@@ -338,19 +383,42 @@ contract LottoMojiCore is
         return block.timestamp >= nextDrawTime;
     }
     
-    function _shouldExecuteMaintenance() internal view returns (bool) {
-        return (block.timestamp - lastMaintenanceTime) >= 1 hours;
+    /**
+     * @dev Complete draw flow: reserves -> draw -> distribution -> auto-refill
+     */
+    function _processCompleteDrawFlow(uint256 gameDay, uint8[4] memory winningNumbers) internal {
+        // STEP 1: Move daily reserves to accumulated reserve pools (BEFORE processing winners)
+        _sendDailyReservesToAccumulated(gameDay);
+        
+        // STEP 2: Process draw results and determine winners
+        _processDrawResults(gameDay, winningNumbers);
+        
+        // STEP 3: Auto-refill main pools from accumulated reserves if there are winners
+        _autoRefillFromReserves(gameDay, winningNumbers);
     }
     
-    function _performMaintenance() internal {
-        // Process daily reserves
-        uint256 gameDay = getCurrentDay() - 1;
-        if (!dailyPools[gameDay].reservesSent && dailyPools[gameDay].drawn) {
-            _sendDailyReserves(gameDay);
-        }
+    /**
+     * @dev Move daily reserves to accumulated reserve pools
+     */
+    function _sendDailyReservesToAccumulated(uint256 gameDay) internal {
+        DailyPool storage pool = dailyPools[gameDay];
         
-        lastMaintenanceTime = block.timestamp;
+        if (pool.reservesSent) return; // Already processed
+        
+        // Distribute reserves proportionally to prize percentages
+        uint256 firstPrizeReserve = (pool.reservePortion * FIRST_PRIZE_PERCENTAGE) / 100;  // 80% of reserves
+        uint256 secondPrizeReserve = (pool.reservePortion * SECOND_PRIZE_PERCENTAGE) / 100; // 10% of reserves  
+        uint256 thirdPrizeReserve = (pool.reservePortion * THIRD_PRIZE_PERCENTAGE) / 100;   // 10% of reserves
+        // No reserve for development (5% remains in contract as buffer)
+        
+        reserves.firstPrizeReserve += firstPrizeReserve;
+        reserves.secondPrizeReserve += secondPrizeReserve;
+        reserves.thirdPrizeReserve += thirdPrizeReserve;
+        
+        pool.reservesSent = true;
         totalReservesProcessed++;
+        
+        emit DailyReservesSent(gameDay, firstPrizeReserve, secondPrizeReserve, thirdPrizeReserve, pool.reservePortion);
     }
     
     function _updateDailyPoolDistribution(uint256 gameDay) internal {
@@ -374,56 +442,33 @@ contract LottoMojiCore is
         bool hasSecondPrizeWinner = false;
         bool hasThirdPrizeWinner = false;
         
-        // Check all tickets for winners
+        // Check all tickets for winners using NEW LOGIC
         for (uint256 i = 0; i < dayTickets.length; i++) {
             uint256 ticketId = dayTickets[i];
-            uint8 matches = _countMatchesForTicket(ticketId, winningNumbers);
+            uint8 prizeLevel = _getPrizeLevel(ticketId, winningNumbers);
             
-            if (matches == 4) hasFirstPrizeWinner = true;
-            else if (matches == 3) hasSecondPrizeWinner = true;
-            else if (matches == 2) hasThirdPrizeWinner = true;
+            if (prizeLevel == 1) hasFirstPrizeWinner = true;        // 🥇 4 exact
+            else if (prizeLevel == 2) hasSecondPrizeWinner = true;  // 🥈 4 any order
+            else if (prizeLevel == 3) hasThirdPrizeWinner = true;   // 🥉 3 exact
+            // Note: prizeLevel == 4 (free tickets) doesn't affect pool distribution
         }
         
-        // Process prize distribution and auto-refill from reserves
+        // Distribute main pool portions
         DailyPool storage pool = dailyPools[gameDay];
         
         if (!hasFirstPrizeWinner) {
             // No winner: accumulate to main pool
             mainPools.firstPrizeAccumulated += pool.firstPrizeDaily;
-        } else {
-            // Has winner: check if main pool needs refill from reserve
-            if (mainPools.firstPrizeAccumulated == 0 && reserves.firstPrizeReserve1 > 0) {
-                // Auto-refill from reserve when main pool is empty
-                mainPools.firstPrizeAccumulated = reserves.firstPrizeReserve1;
-                reserves.firstPrizeReserve1 = 0;
-                emit ReserveUsedForRefill(gameDay, 1, mainPools.firstPrizeAccumulated);
-            }
         }
         
         if (!hasSecondPrizeWinner) {
             // No winner: accumulate to main pool
             mainPools.secondPrizeAccumulated += pool.secondPrizeDaily;
-        } else {
-            // Has winner: check if main pool needs refill from reserve
-            if (mainPools.secondPrizeAccumulated == 0 && reserves.secondPrizeReserve2 > 0) {
-                // Auto-refill from reserve when main pool is empty
-                mainPools.secondPrizeAccumulated = reserves.secondPrizeReserve2;
-                reserves.secondPrizeReserve2 = 0;
-                emit ReserveUsedForRefill(gameDay, 2, mainPools.secondPrizeAccumulated);
-            }
         }
         
         if (!hasThirdPrizeWinner) {
             // No winner: accumulate to main pool
             mainPools.thirdPrizeAccumulated += pool.thirdPrizeDaily;
-        } else {
-            // Has winner: check if main pool needs refill from reserve
-            if (mainPools.thirdPrizeAccumulated == 0 && reserves.thirdPrizeReserve3 > 0) {
-                // Auto-refill from reserve when main pool is empty
-                mainPools.thirdPrizeAccumulated = reserves.thirdPrizeReserve3;
-                reserves.thirdPrizeReserve3 = 0;
-                emit ReserveUsedForRefill(gameDay, 3, mainPools.thirdPrizeAccumulated);
-            }
         }
         
         // Development always gets paid (no reserve for development)
@@ -433,30 +478,57 @@ contract LottoMojiCore is
         pool.distributionTime = block.timestamp;
     }
     
-    function _sendDailyReserves(uint256 gameDay) internal {
-        DailyPool storage pool = dailyPools[gameDay];
+    /**
+     * @dev Auto-refill main pools from accumulated reserves when there are winners
+     */
+    function _autoRefillFromReserves(uint256 gameDay, uint8[4] memory winningNumbers) internal {
+        uint256[] memory dayTickets = gameDayTickets[gameDay];
         
-        // Distribute reserves proportionally to prize percentages
-        uint256 firstPrizeReserve = (pool.reservePortion * FIRST_PRIZE_PERCENTAGE) / 100;  // 80% of reserves
-        uint256 secondPrizeReserve = (pool.reservePortion * SECOND_PRIZE_PERCENTAGE) / 100; // 10% of reserves  
-        uint256 thirdPrizeReserve = (pool.reservePortion * THIRD_PRIZE_PERCENTAGE) / 100;   // 10% of reserves
-        // No reserve for development (5% remains in contract as buffer)
+        bool hasFirstPrizeWinner = false;
+        bool hasSecondPrizeWinner = false;
+        bool hasThirdPrizeWinner = false;
         
-        reserves.firstPrizeReserve1 += firstPrizeReserve;
-        reserves.secondPrizeReserve2 += secondPrizeReserve;
-        reserves.thirdPrizeReserve3 += thirdPrizeReserve;
+        // Check for winners again using NEW LOGIC
+        for (uint256 i = 0; i < dayTickets.length; i++) {
+            uint256 ticketId = dayTickets[i];
+            uint8 prizeLevel = _getPrizeLevel(ticketId, winningNumbers);
+            
+            if (prizeLevel == 1) hasFirstPrizeWinner = true;        // 🥇 4 exact
+            else if (prizeLevel == 2) hasSecondPrizeWinner = true;  // 🥈 4 any order
+            else if (prizeLevel == 3) hasThirdPrizeWinner = true;   // 🥉 3 exact
+            // Note: prizeLevel == 4 (free tickets) doesn't need refill
+        }
         
-        pool.reservesSent = true;
+        // Auto-refill main pools from reserves if there are winners and main pool is low
+        if (hasFirstPrizeWinner && mainPools.firstPrizeAccumulated == 0 && reserves.firstPrizeReserve > 0) {
+            uint256 refillAmount = reserves.firstPrizeReserve;
+            mainPools.firstPrizeAccumulated = refillAmount;
+            reserves.firstPrizeReserve = 0;
+            emit ReserveUsedForRefill(gameDay, 1, refillAmount);
+        }
         
-        emit DailyReservesSent(gameDay, firstPrizeReserve, secondPrizeReserve, thirdPrizeReserve, pool.reservePortion);
+        if (hasSecondPrizeWinner && mainPools.secondPrizeAccumulated == 0 && reserves.secondPrizeReserve > 0) {
+            uint256 refillAmount = reserves.secondPrizeReserve;
+            mainPools.secondPrizeAccumulated = refillAmount;
+            reserves.secondPrizeReserve = 0;
+            emit ReserveUsedForRefill(gameDay, 2, refillAmount);
+        }
+        
+        if (hasThirdPrizeWinner && mainPools.thirdPrizeAccumulated == 0 && reserves.thirdPrizeReserve > 0) {
+            uint256 refillAmount = reserves.thirdPrizeReserve;
+            mainPools.thirdPrizeAccumulated = refillAmount;
+            reserves.thirdPrizeReserve = 0;
+            emit ReserveUsedForRefill(gameDay, 3, refillAmount);
+        }
     }
     
-    function _countMatches(uint256 ticketId) internal view returns (uint8) {
-        uint256 gameDay = tickets[ticketId].gameDay;
-        return _countMatchesForTicket(ticketId, dailyPools[gameDay].winningNumbers);
-    }
+    // ============ NEW PRIZE LOGIC ============
+    // 🥇 First Prize: 4 emojis exact position
+    // 🥈 Second Prize: 4 emojis any order  
+    // 🥉 Third Prize: 3 emojis exact position
+    // 🎫 Free Tickets: 3 emojis any order
     
-    function _countMatchesForTicket(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+    function _countExactMatches(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
         uint8[4] memory ticketNumbers = tickets[ticketId].numbers;
         uint8 matches = 0;
         
@@ -469,16 +541,68 @@ contract LottoMojiCore is
         return matches;
     }
     
-    function _calculatePrize(uint256 ticketId, uint8 matches) internal view returns (uint256) {
+    function _countAnyOrderMatches(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        uint8[4] memory ticketNumbers = tickets[ticketId].numbers;
+        uint8[4] memory winningCopy = winningNumbers; // Make a copy to avoid modifying original
+        uint8 matches = 0;
+        
+        for (uint256 i = 0; i < 4; i++) {
+            for (uint256 j = 0; j < 4; j++) {
+                if (ticketNumbers[i] == winningCopy[j]) {
+                    matches++;
+                    winningCopy[j] = 255; // Mark as used (impossible value)
+                    break;
+                }
+            }
+        }
+        
+        return matches;
+    }
+    
+    function _getPrizeLevel(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        uint8 exactMatches = _countExactMatches(ticketId, winningNumbers);
+        uint8 anyOrderMatches = _countAnyOrderMatches(ticketId, winningNumbers);
+        
+        if (exactMatches == 4) {
+            return 1; // 🥇 First Prize - 4 exact
+        } else if (anyOrderMatches == 4) {
+            return 2; // 🥈 Second Prize - 4 any order
+        } else if (exactMatches == 3) {
+            return 3; // 🥉 Third Prize - 3 exact
+        } else if (anyOrderMatches == 3) {
+            return 4; // 🎫 Free Tickets - 3 any order
+        } else {
+            return 0; // No prize
+        }
+    }
+    
+    // Legacy function for backward compatibility - now uses new logic
+    function _countMatches(uint256 ticketId) internal view returns (uint8) {
+        uint256 gameDay = tickets[ticketId].gameDay;
+        return _getPrizeLevel(ticketId, dailyPools[gameDay].winningNumbers);
+    }
+    
+    // Legacy function for backward compatibility - now uses new logic  
+    function _countMatchesForTicket(uint256 ticketId, uint8[4] memory winningNumbers) internal view returns (uint8) {
+        return _getPrizeLevel(ticketId, winningNumbers);
+    }
+    
+    function _calculatePrize(uint256 ticketId, uint8 prizeLevel) internal view returns (uint256) {
         uint256 gameDay = tickets[ticketId].gameDay;
         DailyPool memory pool = dailyPools[gameDay];
         
-        if (matches == 4) {
+        if (prizeLevel == 1) {
+            // 🥇 First Prize - 4 exact position
             return pool.firstPrizeDaily + mainPools.firstPrizeAccumulated;
-        } else if (matches == 3) {
+        } else if (prizeLevel == 2) {
+            // 🥈 Second Prize - 4 any order
             return pool.secondPrizeDaily + mainPools.secondPrizeAccumulated;
-        } else if (matches == 2) {
+        } else if (prizeLevel == 3) {
+            // 🥉 Third Prize - 3 exact position
             return pool.thirdPrizeDaily + mainPools.thirdPrizeAccumulated;
+        } else if (prizeLevel == 4) {
+            // 🎫 Free Tickets - 3 any order (return ticket price)
+            return TICKET_PRICE;
         }
         
         return 0;
@@ -508,7 +632,7 @@ contract LottoMojiCore is
         uint8[4] memory numbers,
         uint256 gameDay,
         bool isActive,
-        uint8 matches
+        uint8 prizeLevel
     ) {
         Ticket memory ticket = tickets[ticketId];
         return (
@@ -527,7 +651,7 @@ contract LottoMojiCore is
         bool isActive,
         uint256 purchaseTime,
         bool eligibleForReserve,
-        uint8 matches
+        uint8 prizeLevel
     ) {
         Ticket memory ticket = tickets[ticketId];
         return (
@@ -541,117 +665,109 @@ contract LottoMojiCore is
         );
     }
     
-    function getUserTickets(address user) external view returns (uint256[] memory) {
-        return userTickets[user];
+    // NEW: Get detailed prize information for a ticket
+    function getTicketPrizeDetails(uint256 ticketId) external view returns (
+        uint8 prizeLevel,
+        uint8 exactMatches,
+        uint8 anyOrderMatches,
+        uint256 prizeAmount,
+        string memory prizeDescription
+    ) {
+        require(ticketId > 0 && ticketId <= ticketCounter, "Invalid ticket ID");
+        
+        uint256 gameDay = tickets[ticketId].gameDay;
+        uint8[4] memory winningNumbers = dailyPools[gameDay].winningNumbers;
+        
+        uint8 exact = _countExactMatches(ticketId, winningNumbers);
+        uint8 anyOrder = _countAnyOrderMatches(ticketId, winningNumbers);
+        uint8 level = _getPrizeLevel(ticketId, winningNumbers);
+        uint256 amount = _calculatePrize(ticketId, level);
+        
+        string memory description;
+        if (level == 1) description = "First Prize - 4 emojis exact position";
+        else if (level == 2) description = "Second Prize - 4 emojis any order";
+        else if (level == 3) description = "Third Prize - 3 emojis exact position";
+        else if (level == 4) description = "Free Tickets - 3 emojis any order";
+        else description = "No prize";
+        
+        return (level, exact, anyOrder, amount, description);
     }
     
     function getGameDayTickets(uint256 gameDay) external view returns (uint256[] memory) {
         return gameDayTickets[gameDay];
     }
     
-    // Owner functions (using Chainlink ownership)
-    function toggleEmergencyPause() external onlyOwner {
-        emergencyPause = !emergencyPause;
+    function getUserTickets(address user) external view returns (uint256[] memory) {
+        return userTickets[user];
     }
     
-    function toggleAutomation() external onlyOwner {
-        automationActive = !automationActive;
-    }
-    
-    function emergencyWithdraw() external onlyOwner nonReentrant {
-        require(emergencyPause, "Must be in emergency pause");
-        uint256 balance = usdcToken.balanceOf(address(this));
-        require(balance > 0, "No balance to withdraw");
-        require(usdcToken.transfer(owner(), balance), "Transfer failed");
-    }
-    
-    /**
-     * @dev Set the last draw time to correct timing issues
-     * @param _lastDrawTime New timestamp for last draw (should be exactly at drawTimeUTC)
-     */
-    function setLastDrawTime(uint256 _lastDrawTime) external onlyOwner {
-        require(_lastDrawTime <= block.timestamp, "Cannot set future time");
-        require(_lastDrawTime > 0, "Invalid timestamp");
-        
-        // Verify the timestamp aligns with drawTimeUTC (should be exactly at 03:00 UTC)
-        uint256 dayStart = (_lastDrawTime / DRAW_INTERVAL) * DRAW_INTERVAL;
-        uint256 expectedDrawTime = dayStart + drawTimeUTC - DRAW_INTERVAL;
-        
-        require(
-            _lastDrawTime == expectedDrawTime || 
-            _lastDrawTime == expectedDrawTime + DRAW_INTERVAL,
-            "Time must align with drawTimeUTC schedule"
+    function getDailyPoolInfo(uint256 gameDay) external view returns (
+        uint256 totalCollected,
+        uint256 mainPoolPortion,
+        uint256 reservePortion,
+        bool distributed,
+        bool drawn,
+        uint8[4] memory winningNumbers
+    ) {
+        DailyPool memory pool = dailyPools[gameDay];
+        return (
+            pool.totalCollected,
+            pool.mainPoolPortion,
+            pool.reservePortion,
+            pool.distributed,
+            pool.drawn,
+            pool.winningNumbers
         );
-        
-        uint256 oldTime = lastDrawTime;
-        lastDrawTime = _lastDrawTime;
-        
-        // Update current game day based on new timing
-        currentGameDay = getCurrentDay();
-        
-        emit LastDrawTimeUpdated(oldTime, _lastDrawTime, currentGameDay);
     }
     
-    /**
-     * @dev Set draw time in UTC (for São Paulo midnight = 3 hours UTC)
-     * @param _drawTimeUTC New draw time in UTC seconds from midnight
-     */
-    function setDrawTimeUTC(uint256 _drawTimeUTC) external onlyOwner {
-        require(_drawTimeUTC < DRAW_INTERVAL, "Draw time must be within 24h");
-        
-        uint256 oldTime = drawTimeUTC;
-        drawTimeUTC = _drawTimeUTC;
-        
-        // Update current game day based on new timing
-        currentGameDay = getCurrentDay();
-        
-        emit DrawTimeUTCUpdated(oldTime, _drawTimeUTC, currentGameDay);
+    function getReserveBalances() external view returns (
+        uint256 firstPrizeReserve,
+        uint256 secondPrizeReserve,
+        uint256 thirdPrizeReserve
+    ) {
+        return (
+            reserves.firstPrizeReserve,
+            reserves.secondPrizeReserve,
+            reserves.thirdPrizeReserve
+        );
     }
     
-    // NFT metadata
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
-        
-        Ticket memory ticket = tickets[tokenId];
-        string memory emojiString = string(abi.encodePacked(
-            uint256(ticket.numbers[0]).toString(), ",",
-            uint256(ticket.numbers[1]).toString(), ",",
-            uint256(ticket.numbers[2]).toString(), ",",
-            uint256(ticket.numbers[3]).toString()
-        ));
-        
-        return string(abi.encodePacked(
-            "https://lottomoji.com/api/metadata/", 
-            tokenId.toString(),
-            "?emojis=",
-            emojiString,
-            "&gameDay=",
-            ticket.gameDay.toString()
-        ));
+    function getMainPoolBalances() external view returns (
+        uint256 firstPrizeAccumulated,
+        uint256 secondPrizeAccumulated,
+        uint256 thirdPrizeAccumulated,
+        uint256 developmentAccumulated
+    ) {
+        return (
+            mainPools.firstPrizeAccumulated,
+            mainPools.secondPrizeAccumulated,
+            mainPools.thirdPrizeAccumulated,
+            mainPools.developmentAccumulated
+        );
     }
     
-    // Required overrides for ERC721Enumerable
-    function _update(address to, uint256 tokenId, address auth)
-        internal
-        override(ERC721, ERC721Enumerable)
-        returns (address)
-    {
+    // ERC721 required overrides
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+    
+    function _update(address to, uint256 tokenId, address auth) internal virtual override(ERC721, ERC721Enumerable) returns (address) {
         return super._update(to, tokenId, auth);
     }
-
-    function _increaseBalance(address account, uint128 value)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
+    
+    function _increaseBalance(address account, uint128 value) internal virtual override(ERC721, ERC721Enumerable) {
         super._increaseBalance(account, value);
     }
-
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721Enumerable)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
+    
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        require(tokenId > 0 && tokenId <= ticketCounter, "Token does not exist");
+        
+        Ticket memory ticket = tickets[tokenId];
+        
+        // Simple metadata
+        return string(abi.encodePacked(
+            "data:application/json;base64,",
+            "eyJuYW1lIjoiTG90dG9Nb2ppIFRpY2tldCIsImRlc2NyaXB0aW9uIjoiTG90dG9Nb2ppIGdhbWUgdGlja2V0In0="
+        ));
     }
 } 

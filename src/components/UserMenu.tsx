@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Trophy, Award, Medal, Ticket, Users, Target, Wallet, RefreshCw, Activity, Clock } from 'lucide-react';
+import { X, Trophy, Award, Medal, Ticket, Users, Target, Wallet, RefreshCw, Activity, Clock, DollarSign, Gift } from 'lucide-react';
 import { useUserStatistics } from '../hooks/useUserStatistics';
+import { usePrizeClaims } from '../hooks/usePrizeClaims';
 import { WalletProvider } from '../types';
 
 interface UserMenuProps {
@@ -23,6 +24,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   onDisconnect 
 }) => {
   const { statistics, loading, error, refreshStats, lastUpdated } = useUserStatistics(user.id);
+  const { 
+    claimableTickets, 
+    claimedTickets, 
+    totalPrizeValue, 
+    claimState, 
+    isLoadingWinners,
+    claimPrize,
+    claimMultiplePrizes,
+    resetClaimState 
+  } = usePrizeClaims();
+  
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const handleRefresh = async () => {
@@ -35,6 +47,33 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       setTimeout(() => setIsRefreshing(false), 1000);
     }
   };
+
+  const handleClaimPrize = async (ticketId: string) => {
+    try {
+      const hash = await claimPrize(ticketId);
+      if (hash) {
+        console.log(`Prize claimed successfully! TX: ${hash}`);
+      }
+    } catch (error) {
+      console.error('Error claiming prize:', error);
+    }
+  };
+
+  const handleClaimAllPrizes = async () => {
+    if (claimableTickets.length === 0) return;
+    
+    try {
+      const ticketIds = claimableTickets.map(t => t.tokenId);
+      const hashes = await claimMultiplePrizes(ticketIds);
+      console.log(`Claimed ${hashes.length} prizes successfully!`);
+    } catch (error) {
+      console.error('Error claiming multiple prizes:', error);
+    }
+  };
+
+  // Separar tickets por tipo de premio
+  const usdcPrizes = claimableTickets.filter(t => t.prizeType !== 'free');
+  const freeTicketPrizes = claimableTickets.filter(t => t.prizeType === 'free');
 
   const formatLastUpdated = (timestamp: number) => {
     if (!timestamp) return 'Never';
@@ -236,12 +275,154 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Prize Claims Section - ALWAYS SHOW */}
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                  <Trophy className="mr-2 text-yellow-600" size={20} />
+                  Prize Claims
+                  {isLoadingWinners && (
+                    <div className="ml-2 w-4 h-4 border-2 border-yellow-300 border-t-yellow-600 rounded-full animate-spin"></div>
+                  )}
+                </h3>
+                
+                {/* Claimable Prizes Summary - SHOW WHEN AVAILABLE */}
+                {claimableTickets.length > 0 && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mb-4">
+                    <div className="text-center mb-3">
+                      <div className="text-2xl font-bold text-green-700">{claimableTickets.length}</div>
+                      <div className="text-green-600 font-medium">Available Prizes</div>
+                      {totalPrizeValue > 0 && (
+                        <div className="text-sm text-green-500 mt-1">
+                          💰 {totalPrizeValue.toFixed(3)} USDC + {freeTicketPrizes.length} free tickets
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Prize Breakdown */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      {usdcPrizes.length > 0 && (
+                        <div className="bg-white/50 p-2 rounded text-center">
+                          <div className="text-xs text-green-600 mb-1">💰 USDC Prizes</div>
+                          <div className="font-bold text-green-700">{usdcPrizes.length}</div>
+                          <div className="text-xs text-green-500">
+                            {usdcPrizes.reduce((sum, t) => sum + parseFloat(t.prizeAmount || '0'), 0).toFixed(3)} USDC
+                          </div>
+                        </div>
+                      )}
+                      {freeTicketPrizes.length > 0 && (
+                        <div className="bg-white/50 p-2 rounded text-center">
+                          <div className="text-xs text-blue-600 mb-1">🎫 Free Tickets</div>
+                          <div className="font-bold text-blue-700">{freeTicketPrizes.length}</div>
+                          <div className="text-xs text-blue-500">For future draws</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Claim Buttons - ALWAYS SHOW */}
+                <div className="space-y-2 mb-4">
+                  <button
+                    onClick={handleClaimAllPrizes}
+                    disabled={claimState.isLoading || usdcPrizes.length === 0}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {claimState.isLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                        {claimState.step === 'checking' && 'Checking...'}
+                        {claimState.step === 'claiming' && 'Claiming...'}
+                        {claimState.step === 'confirming' && 'Confirming...'}
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="mr-2" size={18} />
+                        Claim USDC Prizes ({usdcPrizes.length})
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const freeTicketIds = freeTicketPrizes.map(t => t.tokenId);
+                      claimMultiplePrizes(freeTicketIds);
+                    }}
+                    disabled={claimState.isLoading || freeTicketPrizes.length === 0}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Gift className="mr-2" size={18} />
+                    Claim Free Tickets ({freeTicketPrizes.length})
+                  </button>
+                </div>
+
+                {/* Status Messages */}
+                {claimState.error && (
+                  <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded mb-4">
+                    {claimState.error}
+                  </div>
+                )}
+
+                {claimState.step === 'success' && (
+                  <div className="mt-2 text-sm text-green-600 bg-green-50 p-2 rounded mb-4">
+                    ✅ Prize claimed successfully!
+                    {claimState.txHash && (
+                      <div className="mt-1">
+                        <a 
+                          href={`https://sepolia.basescan.org/tx/${claimState.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-700 underline text-xs"
+                        >
+                          View transaction ↗
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Status Info */}
+                {claimedTickets.length > 0 && (
+                  <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                    <div className="text-sm text-gray-600 text-center">
+                      🏆 You have claimed {claimedTickets.length} prizes previously
+                    </div>
+                    <div className="text-xs text-gray-500 text-center mt-1">
+                      Check your transaction history on BaseScan
+                    </div>
+                  </div>
+                )}
+
+                {/* Info Message */}
+                {claimableTickets.length === 0 && claimedTickets.length === 0 && !isLoadingWinners && (
+                  <div className="bg-blue-50 p-3 rounded-lg text-center">
+                    <div className="text-blue-600 text-sm">
+                      🎯 No prizes available currently
+                    </div>
+                    <div className="text-blue-500 text-xs mt-1">
+                      Keep playing to win amazing prizes!
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      Connect to Base Sepolia to view contract prizes
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* Actions */}
         <div className="border-t p-6">
+          {claimState.error && (
+            <button
+              onClick={resetClaimState}
+              className="w-full mb-3 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+            >
+              Retry Claim
+            </button>
+          )}
+          
           <button
             onClick={onDisconnect}
             className="w-full bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center"

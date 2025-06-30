@@ -27,6 +27,7 @@ import { debugPrizePool, distributePrizePool } from './firebase/prizePools';
 import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
 import { EmojiDebugger } from './components/EmojiDebugger';
+import { BlockchainDebugPanel } from './components/BlockchainDebugPanel';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -2831,22 +2832,24 @@ const checkUserTicketsFunction = async () => {
 // Función para diagnosticar el timer híbrido
 (window as any).diagnoseHybridTimer = () => {
   try {
-    console.log('🔍 Diagnóstico del Timer Híbrido:');
-    console.log('===============================');
+    console.log('🔍 Diagnóstico del Timer Híbrido V4:');
+    console.log('====================================');
     
     // Intentar acceder a los datos del timer desde el estado global (si está disponible)
     // Esta función será útil para debugging una vez que el componente esté montado
     
     console.log('📋 Instrucciones de uso:');
     console.log('1. Asegúrate de que el componente esté cargado');
-    console.log('2. El timer híbrido debería mostrar estado de conexión con el contrato');
+    console.log('2. El timer híbrido debería mostrar estado de conexión con el contrato V4');
     console.log('3. Verifica que los logs muestren sincronización cada 60 segundos');
-    console.log('4. El indicador visual debería mostrar "Contract Synced" cuando esté conectado');
+    console.log('4. El indicador visual debería mostrar "Contract V4 Synced" cuando esté conectado');
     
-    console.log('⚙️ Configuración esperada:');
+    console.log('⚙️ Configuración esperada para V4:');
+    console.log('- Contract Address: 0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D');
     console.log('- drawTimeUTC: 3 hours (03:00 UTC = 00:00 São Paulo)');
     console.log('- drawInterval: 24 hours (86400 seconds)');
     console.log('- Timer source: "contract" cuando conectado, "local" como fallback');
+    console.log('- V4 Features: Sin mantenimiento, sorteos solo cada 24h');
     
     console.log('🎯 Logs a observar:');
     console.log('- [useContractTimer] Contract data');
@@ -2854,12 +2857,61 @@ const checkUserTicketsFunction = async () => {
     console.log('- [useContractTimer] Syncing with contract');
     
     return {
-      message: 'Diagnóstico completado. Revisa los logs de la consola.',
+      message: 'Diagnóstico V4 completado. Revisa los logs de la consola.',
+      contractVersion: 'V4',
+      contractAddress: '0x6d05B87dCD1d601770E4c04Db2D91F1cAc288C3D',
       timestamp: new Date().toISOString()
     };
     
   } catch (error) {
     console.error('[diagnoseHybridTimer] Error:', error);
+    return { error: error.message };
+  }
+};
+
+// Función específica para verificar sincronización V4
+(window as any).verifyV4TimerSync = async () => {
+  try {
+    console.log('🔄 Verificando Sincronización Timer V4...');
+    console.log('=========================================');
+    
+    // Verificar contrato V4
+    const contractData = await (window as any).checkContractDrawTime();
+    if (contractData.error) {
+      console.error('❌ Error conectando al contrato V4:', contractData.error);
+      return { error: contractData.error };
+    }
+    
+    // Verificar frontend vs contrato
+    const comparison = await (window as any).compareFrontendVsContract();
+    if (comparison.error) {
+      console.error('❌ Error comparando frontend vs contrato:', comparison.error);
+      return { error: comparison.error };
+    }
+    
+    console.log('✅ Resultados de Sincronización V4:');
+    console.log('===================================');
+    console.log('📊 Contrato V4 conectado:', !contractData.error);
+    console.log('⏰ Diferencia de tiempo:', comparison.difference, 'segundos');
+    console.log('🎯 Sincronizado:', comparison.synced ? '✅ SÍ' : '❌ NO');
+    console.log('🕐 Próximo sorteo (contrato):', new Date(contractData.nextDrawTime * 1000).toLocaleString());
+    
+    if (comparison.synced) {
+      console.log('🎉 ¡Timer V4 perfectamente sincronizado!');
+    } else {
+      console.log('⚠️ Timer V4 necesita ajuste. Diferencia:', comparison.difference, 'segundos');
+    }
+    
+    return {
+      contractV4: !contractData.error,
+      synced: comparison.synced,
+      difference: comparison.difference,
+      nextDrawTime: contractData.nextDrawTime,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[verifyV4TimerSync] Error:', error);
     return { error: error.message };
   }
 };
@@ -2882,7 +2934,7 @@ const checkUserTicketsFunction = async () => {
     console.log('================================================');
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3106,7 +3158,7 @@ const checkUserTicketsFunction = async () => {
     console.log('================================================');
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3329,7 +3381,7 @@ const checkUserTicketsFunction = async () => {
     ];
     
     // Conectar al contrato
-    const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
@@ -3409,6 +3461,301 @@ const checkUserTicketsFunction = async () => {
   }
 };
 
+// Función para verificar sincronización completa del timer V4
+(window as any).verifyV4TimerSync = async () => {
+  try {
+    console.log('🔄 VERIFICANDO SINCRONIZACIÓN TIMER V4');
+    console.log('=====================================');
+    
+    // Obtener datos del contrato directamente
+    const { ethers } = await import('ethers');
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
+    const CONTRACT_ADDRESS = "0x1B0B1A24983E51d809FBfAc424946B314fEFA271";
+    const ABI = [
+      "function getCurrentDay() view returns (uint256)",
+      "function lastDrawTime() view returns (uint256)",
+      "function drawTimeUTC() view returns (uint256)",
+      "function DRAW_INTERVAL() view returns (uint256)"
+    ];
+    
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    
+    const [gameDay, lastDraw, drawTime, interval] = await Promise.all([
+      contract.getCurrentDay(),
+      contract.lastDrawTime(),
+      contract.drawTimeUTC(),
+      contract.DRAW_INTERVAL()
+    ]);
+    
+    const lastDrawNum = Number(lastDraw);
+    const intervalNum = Number(interval);
+    const nextDraw = lastDrawNum + intervalNum;
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = Math.max(0, nextDraw - now);
+    
+    console.log('📊 DATOS DEL CONTRATO V4:');
+    console.log('- Game Day:', Number(gameDay));
+    console.log('- Last Draw:', new Date(lastDrawNum * 1000).toISOString());
+    console.log('- Next Draw:', new Date(nextDraw * 1000).toISOString());
+    console.log('- Draw Time UTC:', Number(drawTime) / 3600 + ' hours');
+    console.log('- Interval:', intervalNum / 3600 + ' hours');
+    console.log('- Time Remaining:', Math.floor(remaining / 3600) + 'h ' + Math.floor((remaining % 3600) / 60) + 'm ' + (remaining % 60) + 's');
+    
+    // Verificar en São Paulo
+    const nextDrawSP = new Date(nextDraw * 1000).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const hourSP = new Date(nextDraw * 1000).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    
+    console.log('🇧🇷 PRÓXIMO SORTEO (SÃO PAULO):');
+    console.log('- Fecha completa:', nextDrawSP);
+    console.log('- Hora:', hourSP);
+    console.log('- ¿Es medianoche?:', hourSP === '00:00' ? '✅ SÍ' : '❌ NO');
+    
+    // Forzar actualización del timer frontend
+    console.log('🔄 Para forzar actualización del frontend, refresca la página');
+    
+    return {
+      gameDay: Number(gameDay),
+      lastDraw: lastDrawNum,
+      nextDraw,
+      remaining,
+      saoPauloTime: nextDrawSP,
+      isMidnight: hourSP === '00:00'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error verificando timer V4:', error);
+  }
+};
+
+// Función para forzar resincronización del timer del frontend
+(window as any).forceTimerResync = () => {
+  console.log('🔄 Forzando resincronización del timer...');
+  console.log('💡 Refresca la página para aplicar los cambios del contrato');
+  
+  // Limpiar localStorage si existe
+  try {
+    localStorage.removeItem('lastTimerSync');
+    localStorage.removeItem('cachedTimerData');
+    console.log('✅ Cache del timer limpiado');
+  } catch (e) {
+    console.log('⚠️ No hay cache para limpiar');
+  }
+};
+
+// Función para diagnosticar problemas de pools para usuarios en Colombia
+(window as any).diagnosePoolResetIssue = async () => {
+  try {
+    console.log('🔍 DIAGNÓSTICO DE PROBLEMA DE POOLS (COLOMBIA)');
+    console.log('='.repeat(50));
+    
+    const { 
+      getUserTimezone, 
+      getCurrentDateColombia,
+      getCurrentDateSaoPaulo,
+      formatTimeColombia,
+      formatTimeSaoPaulo,
+      debugTimezone
+    } = await import('./utils/timezone');
+    
+    const now = new Date();
+    const userTz = getUserTimezone();
+    const colombiaTime = getCurrentDateColombia();
+    const saoPauloTime = getCurrentDateSaoPaulo();
+    
+    console.log('👤 INFORMACIÓN DEL USUARIO:');
+    console.log('- Timezone detectado:', userTz);
+    console.log('- Hora local:', now.toLocaleString());
+    console.log('- Hora Colombia:', formatTimeColombia(now));
+    console.log('- Hora São Paulo:', formatTimeSaoPaulo(now));
+    
+    const colombiaHour = colombiaTime.getHours();
+    const isNear16 = Math.abs(colombiaHour - 16) <= 1;
+    
+    console.log('⏰ ANÁLISIS TEMPORAL:');
+    console.log('- Hora actual Colombia:', colombiaHour + ':00');
+    console.log('- Cerca de las 16:00:', isNear16 ? '⚠️ SÍ' : '✅ NO');
+    
+    // Información completa de timezone
+    console.log('\n🔧 DEBUG COMPLETO:');
+    debugTimezone();
+    
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error);
+  }
+};
+
+// Función para monitorear pools en tiempo real
+(window as any).monitorPools = () => {
+  const startTime = Date.now();
+  let monitorCount = 0;
+  const maxChecks = 120; // 10 minutos máximo
+  
+  console.log('📊 INICIANDO MONITOREO DE POOLS');
+  console.log('- Duración: 10 minutos máximo');
+  console.log('- Frecuencia: cada 5 segundos');
+  console.log('='.repeat(50));
+  
+  const monitorInterval = setInterval(async () => {
+    monitorCount++;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    
+    try {
+      console.log(`\n[${monitorCount}] T+${elapsed}s - Pool Status Check`);
+      
+      // Obtener datos del hook
+      const poolElements = document.querySelectorAll('[data-pool-info]');
+      if (poolElements.length > 0) {
+        poolElements.forEach(el => {
+          const poolType = el.getAttribute('data-pool-type');
+          const poolValue = el.textContent || '0';
+          console.log(`- ${poolType}: ${poolValue}`);
+        });
+      } else {
+        console.log('- No se encontraron elementos de pool en el DOM');
+      }
+      
+      // Verificar si los pools están en cero sospechosamente
+      const mainPoolEl = document.querySelector('[data-pool-type="main-total"]');
+      const reservePoolEl = document.querySelector('[data-pool-type="reserve-total"]');
+      const dailyPoolEl = document.querySelector('[data-pool-type="daily-total"]');
+      
+      const mainValue = parseFloat(mainPoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      const reserveValue = parseFloat(reservePoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      const dailyValue = parseFloat(dailyPoolEl?.textContent?.replace(/[^\d.]/g, '') || '0');
+      
+      if (mainValue === 0 && reserveValue === 0 && dailyValue === 0) {
+        console.warn('⚠️ TODOS LOS POOLS EN CERO - POSIBLE RESET PROBLEMÁTICO');
+        
+        // Obtener hora Colombia actual
+        const { getCurrentDateColombia } = await import('./utils/timezone');
+        const colombiaTime = getCurrentDateColombia();
+        const hour = colombiaTime.getHours();
+        const minute = colombiaTime.getMinutes();
+        
+        console.warn(`- Hora Colombia: ${hour}:${minute.toString().padStart(2, '0')}`);
+        console.warn('- Esto puede indicar el problema de reset a las 16:00');
+      }
+      
+      // Detener después del máximo o si se detecta actividad normal
+      if (monitorCount >= maxChecks) {
+        clearInterval(monitorInterval);
+        console.log('✅ Monitoreo completado (tiempo máximo alcanzado)');
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error en check ${monitorCount}:`, error);
+    }
+  }, 5000); // Cada 5 segundos
+  
+  // Función para detener manualmente
+  (window as any).stopPoolMonitor = () => {
+    clearInterval(monitorInterval);
+    console.log('🛑 Monitoreo detenido manualmente');
+  };
+  
+  console.log('📝 Para detener el monitoreo manualmente, ejecuta: stopPoolMonitor()');
+  
+  return monitorInterval;
+};
+
+// Función para sincronizar manualmente con blockchain
+(window as any).forcePoolSync = async () => {
+  try {
+    console.log('🔄 FORZANDO SINCRONIZACIÓN CON BLOCKCHAIN');
+    console.log('='.repeat(40));
+    
+    // Buscar el hook de pools y llamar refresh
+    const refreshButton = document.querySelector('[data-action="refresh-pools"]');
+    if (refreshButton) {
+      refreshButton.click();
+      console.log('✅ Refresh disparado desde UI');
+    } else {
+      console.log('⚠️ No se encontró botón de refresh en UI');
+      
+      // Intentar acceso directo al hook (si está disponible)
+      if (window.lottoMojiPoolsRef?.current?.refreshPools) {
+        window.lottoMojiPoolsRef.current.refreshPools();
+        console.log('✅ Refresh disparado desde referencia directa');
+      } else {
+        console.log('❌ No se pudo acceder al hook de pools');
+      }
+    }
+    
+    // Mostrar estado del localStorage
+    const cached = localStorage.getItem('lottoMoji_poolsCache');
+    if (cached) {
+      const parsedCache = JSON.parse(cached);
+      const cacheAge = Date.now() - parsedCache.timestamp;
+      console.log('💾 Cache Info:');
+      console.log('- Edad del cache:', Math.floor(cacheAge / 1000), 'segundos');
+      console.log('- Total USDC:', parsedCache.data.totalUSDC);
+      console.log('- Reserve USDC:', parsedCache.data.reserveTotalUSDC);
+    } else {
+      console.log('❌ No hay cache de pools');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error forzando sincronización:', error);
+  }
+};
+
+// Debug helper disponible globalmente
+(window as any).debugPools = () => {
+  console.log('🛠️ POOL DEBUG HELPERS');
+  console.log('='.repeat(30));
+  console.log('diagnosePoolResetIssue() - Diagnosticar problema de reset');
+  console.log('monitorPools() - Monitorear pools por 10 minutos');
+  console.log('forcePoolSync() - Forzar sincronización con blockchain');
+  console.log('stopPoolMonitor() - Detener monitoreo activo');
+  console.log('diagnoseContractIssues() - Diagnóstico completo del contrato');
+  console.log('quickHealthCheck() - Chequeo rápido de salud');
+  console.log('investigateMissingUSDC() - Investigar USDC faltante');
+};
+
+// Comprehensive contract diagnostics
+(window as any).diagnoseContractIssues = async () => {
+  try {
+    const { diagnoseContractIssues } = await import('./utils/contractDiagnostics');
+    return await diagnoseContractIssues();
+  } catch (error) {
+    console.error('❌ Error cargando diagnósticos:', error);
+  }
+};
+
+(window as any).quickHealthCheck = async () => {
+  try {
+    const { quickHealthCheck } = await import('./utils/contractDiagnostics');
+    return await quickHealthCheck();
+  } catch (error) {
+    console.error('❌ Error en chequeo rápido:', error);
+  }
+};
+
+(window as any).investigateMissingUSDC = async () => {
+  try {
+    const { investigateMissingUSDC } = await import('./utils/contractDiagnostics');
+    return await investigateMissingUSDC();
+  } catch (error) {
+    console.error('❌ Error investigando USDC:', error);
+  }
+};
+
 function AppContent() {
   const { gameState, generateTicket, forceGameDraw, queueStatus, rateLimitStatus, timerInfo } = useGameState();
   const { context } = useMiniKit();
@@ -3418,6 +3765,7 @@ function AppContent() {
   const { user: walletUser, isConnected: isWalletConnected } = useWallet();
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [showTicketHistory, setShowTicketHistory] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const hasTriedSignIn = useRef(false);
   
   // Usar wallet user si está disponible, sino usar auth user
@@ -3500,6 +3848,19 @@ function AppContent() {
     handleWin();
   }, [gameState.lastResults, handleWin]);
 
+  // Keyboard shortcut for debug panel (Ctrl+Shift+D)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+        event.preventDefault();
+        setShowDebugPanel(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Pantalla de carga con animación
   if (isLoading && !initialLoadComplete) {
     return (
@@ -3514,28 +3875,24 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-pink-500">
+      {/* Floating buttons */}
+      <GameHistoryButton />
+      <WalletConnector />
+
       <div className="container mx-auto px-4 py-8">
-        {/* Header con botones en esquinas */}
+        {/* Header */}
         <div className="relative mb-8">
-          {/* Botón historial en esquina superior izquierda */}
-          <div className="absolute top-0 left-0">
-            <GameHistoryButton />
-          </div>
-          
-          {/* Botones de billetera y perfil en esquina superior derecha */}
-          <div className="absolute top-0 right-0 flex items-center gap-4">
-            {context?.client?.added && (
+          {/* Profile button for Farcaster users */}
+          {context?.client?.added && (
+            <div className="absolute top-0 right-0">
               <button
                 onClick={() => viewProfile()}
                 className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Ver Perfil
               </button>
-            )}
-            <div className="relative">
-              <WalletConnector />
             </div>
-          </div>
+          )}
           
           {/* Título centrado */}
           <div className="flex justify-center pt-4">
@@ -3564,12 +3921,12 @@ function AppContent() {
           </div>
         </div>
 
+        <ContractWinnerResults />
+
         {/* Pool de Premios - Sistema Mejorado con Reservas */}
         <div className="max-w-4xl mx-auto mb-8">
           <ContractPoolsDisplay />
         </div>
-
-        <ContractWinnerResults />
 
         {import.meta.env.DEV && (
           <div className="flex justify-center gap-4 mb-6">
@@ -3683,6 +4040,12 @@ function AppContent() {
       {showTicketHistory && (
         <TicketHistoryModal onClose={() => setShowTicketHistory(false)} />
       )}
+
+      {/* Blockchain Debug Panel */}
+      <BlockchainDebugPanel 
+        isVisible={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
+      />
     </div>
   );
 }
@@ -3731,8 +4094,9 @@ function App() {
       console.log('- window.forceDistributePrizes() - Forzar distribución de premios específicos');
       console.log('- window.repairZeroFinalPools() - Reparar pools con finalPools en 0');
       console.log('- window.investigateGameResults() - Investigador resultados de sorteo');
-              console.log('- window.diagnoseHybridTimer() - Diagnosticar el timer híbrido');
-        console.log('- window.checkContractDrawTime() - Ver hora exacta del sorteo según contrato');
+              console.log('- window.diagnoseHybridTimer() - Diagnosticar el timer híbrido V4');
+        console.log('- window.verifyV4TimerSync() - Verificar sincronización completa del timer V4');
+        console.log('- window.checkContractDrawTime() - Ver hora exacta del sorteo según contrato V4');
         console.log('- window.verifyContractLogic() - Verificar lógica de cálculo del contrato');
         console.log('- window.compareFrontendVsContract() - Comparar timer frontend vs contrato');
       console.log('- window.checkContractDrawTime() - Verificar hora exacta del sorteo según el contrato');

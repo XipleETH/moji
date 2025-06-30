@@ -36,6 +36,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   rateLimitStatus
 }) => {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [showWalletPrompt, setShowWalletPrompt] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<string[] | null>(null);
   const [isGeneratingRandom, setIsGeneratingRandom] = useState(false);
@@ -46,6 +47,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   useEffect(() => {
     if (ticketCount === 0) {
       setSelectedEmojis([]);
+      setSelectedIndices([]);
     }
   }, [ticketCount]);
 
@@ -61,6 +63,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
         onGenerateTicket(pendingTicket);
         setPendingTicket(null);
         setSelectedEmojis([]);
+        setSelectedIndices([]);
       }
     }
   }, [isConnected, user?.walletAddress, showWalletPrompt, pendingTicket, onGenerateTicket]);
@@ -97,6 +100,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     if (!result || !result.error) {
       if (!fromConfirmButton) {
         setSelectedEmojis([]); // Reset selection after generating ticket
+        setSelectedIndices([]);
       }
       setPendingTicket(null);
       setShowWalletPrompt(false);
@@ -115,11 +119,13 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
     }
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (emoji: string, emojiIndex: number) => {
     if (disabled || userTokens < 1 || isAnyButtonProcessing) return;
     
     const newSelection = [...selectedEmojis, emoji];
+    const newIndices = [...selectedIndices, emojiIndex];
     setSelectedEmojis(newSelection);
+    setSelectedIndices(newIndices);
     
     // Ya no generamos automáticamente cuando llegamos a 4
     // El usuario debe hacer clic en el botón de confirmación
@@ -128,6 +134,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
   const handleEmojiDeselect = (index: number) => {
     if (isAnyButtonProcessing) return;
     setSelectedEmojis(prev => prev.filter((_, i) => i !== index));
+    setSelectedIndices(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleRandomGenerate = async () => {
@@ -158,6 +165,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           setIsConfirmingTicket(false);
           // Limpiar los emojis después de la animación
           setSelectedEmojis([]);
+          setSelectedIndices([]);
         }, 500);
       }
     }
@@ -221,6 +229,7 @@ export const TicketGenerator: React.FC<TicketGeneratorProps> = ({
           onEmojiSelect={handleEmojiSelect}
           onEmojiDeselect={handleEmojiDeselect}
           maxSelections={4}
+          selectedIndices={selectedIndices}
         />
         
         {/* Botón de confirmación para emojis seleccionados */}

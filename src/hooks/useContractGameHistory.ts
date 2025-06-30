@@ -41,7 +41,7 @@ export function useContractGameHistory(): UseContractGameHistoryReturn {
       setError(null);
 
       // Configurar provider para Base Sepolia
-      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, GAME_HISTORY_ABI, provider);
 
       // Obtener datos básicos

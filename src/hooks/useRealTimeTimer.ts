@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { subscribeToGameState } from '../firebase/gameServer';
-import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo } from '../utils/timezone';
+import { getTimeUntilNextDrawSaoPaulo, getCurrentGameDaySaoPaulo, formatTimeSaoPaulo, getUserTimezone } from '../utils/timezone';
 import { distributePrizePool, getDailyPrizePool } from '../firebase/prizePools';
 
 export function useRealTimeTimer(onTimeEnd: () => void) {
@@ -17,10 +17,14 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
   const poolCheckTimerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
+    const userTimezone = getUserTimezone();
     console.log('[useRealTimeTimer] Inicializando temporizador sincronizado con São Paulo');
+    console.log('[useRealTimeTimer] Usuario en timezone:', userTimezone);
     
     // Función para calcular tiempo usando timezone de São Paulo
     const updateSaoPauloTime = () => {
+      // Removed problematic reset window protection - let normal sync happen
+      
       const spTime = getTimeUntilNextDrawSaoPaulo();
       const currentGameDay = getCurrentGameDaySaoPaulo();
       
@@ -59,6 +63,8 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
       
       console.log(`[useRealTimeTimer] [Firebase] nextDrawTime: ${formatTimeSaoPaulo(new Date(nextDrawTime))}`);
       console.log(`[useRealTimeTimer] [Firebase] remaining: ${firebaseRemaining}s vs [SP Calc] ${saoPauloRemaining}s`);
+      
+      // Normal Firebase sync processing
       
       // Usar el tiempo de São Paulo como fuente de verdad, pero sincronizar con Firebase
       // Solo ajustar si hay una diferencia significativa (más de 10 segundos)
@@ -103,6 +109,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
     
     // Temporizador principal - actualizar cada segundo usando cálculo de São Paulo
     timerRef.current = setInterval(() => {
+      
       const currentSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
       
       setTimeRemaining(prev => {
@@ -123,6 +130,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
 
     // Temporizador de respaldo - recalcular cada 30 segundos para mayor precisión
     fallbackTimerRef.current = setInterval(() => {
+      
       const preciseSaoPauloTime = getTimeUntilNextDrawSaoPaulo();
       console.log(`[useRealTimeTimer] [Fallback] Recálculo preciso: ${preciseSaoPauloTime}s`);
       
@@ -145,6 +153,7 @@ export function useRealTimeTimer(onTimeEnd: () => void) {
 
     // Temporizador para distribución automática de pools (cada minuto)
     poolCheckTimerRef.current = setInterval(async () => {
+      
       const timeUntilDraw = getTimeUntilNextDrawSaoPaulo();
       const currentGameDay = getCurrentGameDaySaoPaulo();
       

@@ -38,8 +38,8 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
 
   const fetchContractTime = async () => {
     try {
-      // Configurar provider para Base Sepolia
-      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org');
+      // Configurar provider para Avalanche Fuji
+      const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
 
       // Obtener datos del contrato
@@ -61,7 +61,7 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
       const interval = Number(contractDrawInterval);
 
       // Calcular el próximo sorteo basado en la lógica del contrato
-      // nextDrawTime = lastDrawTime + DRAW_INTERVAL (ahora correcto en V2)
+      // nextDrawTime = lastDrawTime + DRAW_INTERVAL (ahora correcto en V4)
       const nextDraw = lastDraw + interval;
       const now = Math.floor(Date.now() / 1000);
       const remaining = Math.max(0, nextDraw - now);
