@@ -1,4 +1,17 @@
-# 🎰 LottoMoji - Crypto Emoji Lottery on Base Sepolia
+# 🎰 LottoMoji - Crypto Emoji Lottery on Base Sepolia [LEGACY - SPANISH]
+
+> **🚨 AVISO DE DESARROLLO** 
+> 
+> **Rama Main**: Congelada para revisión de **Chainlink Chromion Hackathon**
+> 
+> **Desarrollo Activo**: Continúa en la rama `post-chromion`
+> 
+> ```bash
+> # Cambiar a rama de desarrollo activo
+> git checkout post-chromion
+> ```
+
+⚠️ **NOTA**: Este archivo está archivado. Consulta README.md para la documentación actual en inglés.
 
 Una aplicación completa de lotería de emojis blockchain con sistema automático de reservas en Base Sepolia testnet.
 
