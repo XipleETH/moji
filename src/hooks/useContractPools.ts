@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 import { verifyBlockchainPools, forcePoolSync } from '../utils/blockchainVerification';
+import contractABI from '../utils/contract-abi-v3.json';
 
 // ABI mínimo para las funciones que necesitamos (LottoMojiCoreV3)
 const LOTTO_MOJI_ABI = [
@@ -63,6 +64,69 @@ interface ContractPoolsData {
 // Clave para LocalStorage
 const POOLS_CACHE_KEY = 'lottoMoji_poolsCache';
 const CACHE_DURATION = 30000; // 30 segundos
+
+export interface PoolsData {
+  firstPrize: string;
+  secondPrize: string;
+  thirdPrize: string;
+  devPool: string;
+  firstReserve: string;
+  secondReserve: string;
+  thirdReserve: string;
+  loading: boolean;
+  error: string | null;
+}
+
+export function useContractPools(): PoolsData {
+  const [poolsData, setPoolsData] = useState<PoolsData>({
+    firstPrize: '0',
+    secondPrize: '0',
+    thirdPrize: '0',
+    devPool: '0',
+    firstReserve: '0',
+    secondReserve: '0',
+    thirdReserve: '0',
+    loading: true,
+    error: null
+  });
+
+  useEffect(() => {
+    const fetchPools = async () => {
+      try {
+        const provider = new ethers.JsonRpcProvider("https://api.avax-test.network/ext/bc/C/rpc");
+        const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, contractABI.abi, provider);
+
+        const pools = await contract.pools();
+
+        setPoolsData({
+          firstPrize: ethers.formatUnits(pools.firstPrize, 6),
+          secondPrize: ethers.formatUnits(pools.secondPrize, 6),
+          thirdPrize: ethers.formatUnits(pools.thirdPrize, 6),
+          devPool: ethers.formatUnits(pools.devPool, 6),
+          firstReserve: ethers.formatUnits(pools.firstReserve, 6),
+          secondReserve: ethers.formatUnits(pools.secondReserve, 6),
+          thirdReserve: ethers.formatUnits(pools.thirdReserve, 6),
+          loading: false,
+          error: null
+        });
+      } catch (err) {
+        console.error("Error fetching pools:", err);
+        setPoolsData(prev => ({
+          ...prev,
+          loading: false,
+          error: "Failed to fetch pools data"
+        }));
+      }
+    };
+
+    fetchPools();
+    const interval = setInterval(fetchPools, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return poolsData;
+}
 
 export const useContractPools = () => {
   const [data, setData] = useState<ContractPoolsData>(() => {

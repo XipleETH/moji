@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from './contractAddresses';
+import contractABI from './contract-abi-v3.json';
 
 // Importar ABI del contrato
 let LOTTO_MOJI_CORE_ABI: any[] = [];
@@ -530,4 +531,81 @@ if (typeof window !== 'undefined') {
   (window as any).monitorPools = monitorPools;
   (window as any).diagnosePoolResetIssue = diagnosePoolResetIssue;
   (window as any).debugPools = debugPools;
+}
+
+export async function getContractInfo() {
+  try {
+    const provider = new ethers.JsonRpcProvider("https://api.avax-test.network/ext/bc/C/rpc");
+    const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, contractABI.abi, provider);
+
+    const [currentDay, nextDraw, drawHour, ticketPrice, isActive, isPaused] = await Promise.all([
+      contract.currentGameDay(),
+      contract.nextDrawTs(),
+      contract.dailyDrawHourUTC(),
+      contract.ticketPrice(),
+      contract.automationActive(),
+      contract.emergencyPause()
+    ]);
+
+    const pools = await contract.pools();
+
+    return {
+      currentDay: Number(currentDay),
+      nextDrawTimestamp: Number(nextDraw) * 1000,
+      drawHourUTC: Number(drawHour),
+      ticketPrice: ethers.formatUnits(ticketPrice, 6),
+      automationActive: isActive,
+      emergencyPause: isPaused,
+      pools: {
+        firstPrize: ethers.formatUnits(pools.firstPrize, 6),
+        secondPrize: ethers.formatUnits(pools.secondPrize, 6),
+        thirdPrize: ethers.formatUnits(pools.thirdPrize, 6),
+        devPool: ethers.formatUnits(pools.devPool, 6),
+        firstReserve: ethers.formatUnits(pools.firstReserve, 6),
+        secondReserve: ethers.formatUnits(pools.secondReserve, 6),
+        thirdReserve: ethers.formatUnits(pools.thirdReserve, 6)
+      }
+    };
+  } catch (error) {
+    console.error("Error getting contract info:", error);
+    throw error;
+  }
+}
+
+export async function getDayResults(day: number) {
+  try {
+    const provider = new ethers.JsonRpcProvider("https://api.avax-test.network/ext/bc/C/rpc");
+    const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, contractABI.abi, provider);
+
+    const result = await contract.dayResults(day);
+    
+    return {
+      processingIndex: Number(result.processingIndex),
+      winnersFirst: Number(result.winnersFirst),
+      winnersSecond: Number(result.winnersSecond),
+      winnersThird: Number(result.winnersThird),
+      fullyProcessed: result.fullyProcessed
+    };
+  } catch (error) {
+    console.error("Error getting day results:", error);
+    throw error;
+  }
+}
+
+export async function getTicketInfo(ticketId: number) {
+  try {
+    const provider = new ethers.JsonRpcProvider("https://api.avax-test.network/ext/bc/C/rpc");
+    const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, contractABI.abi, provider);
+
+    const ticket = await contract.tickets(ticketId);
+    
+    return {
+      purchaseTime: Number(ticket.purchaseTime),
+      gameDay: Number(ticket.gameDay),
+      claimed: ticket.claimed
+    };
+  } catch (error) {
+    console.error("Error getting ticket info:", error);
+    throw error;
+  }
 } 

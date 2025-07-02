@@ -89,4 +89,8 @@ export const GAME_CONFIG = {
 } as const;
 
 export type ContractAddresses = typeof CONTRACT_ADDRESSES;
-export type GameConfig = typeof GAME_CONFIG; 
+export type GameConfig = typeof GAME_CONFIG;
+
+export const CONTRACT_ADDRESS = '0x250af59d8E4dd4bf541c7D4c3fBD9C0726C6d822';
+export const USDC_ADDRESS = '0x5425890298aed601595a70AB815c96711a31Bc65';
+export const TICKET_PRICE = 0.2; // USDC 
