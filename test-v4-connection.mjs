@@ -1,10 +1,8 @@
 import { ethers } from 'ethers';
-import { readFile } from 'fs/promises';
+import { CONTRACT_ADDRESSES } from './src/utils/contractAddresses.js';
+import contractABI from './src/utils/contract-abi-v4.json' assert { type: "json" };
 
-const contractABI = JSON.parse(await readFile(new URL('./src/utils/contract-abi-v4.json', import.meta.url)));
-const { CONTRACT_ADDRESSES } = await import('./src/utils/contractAddresses.js');
-
-async function testV4Connection() {
+const testV4Connection = async () => {
   console.log('🧪 PROBANDO CONECTIVIDAD CON LOTTOMOJI V4');
   console.log('=========================================');
   
