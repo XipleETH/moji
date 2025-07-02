@@ -1,5 +1,5 @@
 // ✅ CONFIGURACIÓN PARA AVALANCHE FUJI TESTNET ✅
-export const CONTRACT_ADDRESSES = {
+const CONTRACT_ADDRESSES = {
   // Avalanche Fuji testnet
   CHAIN_ID: 43113,
   RPC_URL: 'https://api.avax-test.network/ext/bc/C/rpc',
@@ -35,10 +35,10 @@ export const CONTRACT_ADDRESSES = {
   // Chainlink en Avalanche Fuji - DIRECCIONES CORRECTAS
   VRF_COORDINATOR: '0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE',
   KEY_HASH: '0xc799bd1e3bd4d1a41cd4968997a4e03dfd2a3c7c04b695881138580163f42887'
-};
+} as const;
 
 // Configuración del juego
-export const GAME_CONFIG = {
+const GAME_CONFIG = {
   TICKET_PRICE: 0.2, // 0.2 USDC (6 decimales)
   USDC_DECIMALS: 6,
   DRAW_TIME_UTC: '2:00 UTC', // 🎯 SORTEOS DIARIOS A LAS 2:00 UTC
@@ -50,7 +50,7 @@ export const GAME_CONFIG = {
     '🚀', '🌙', '⭐', '✨', '🌟', // Space & Stars (10-14)
     '🎭', '🎪', '🎢', '🎡', '🎠', // Entertainment (15-19)
     '🍀', '🌈', '⚡', '🔥', '💫'  // Luck & Magic (20-24)
-  ],
+  ] as const,
   
   // 🏆 NUEVA LÓGICA DE PREMIOS (VERSION FUJI) 🏆
   PRIZE_SYSTEM: {
@@ -58,7 +58,7 @@ export const GAME_CONFIG = {
     SECOND_PRIZE: "4 emojis cualquier orden",   // 🥈 Desordenados
     THIRD_PRIZE: "3 emojis posición exacta",    // 🥉 3 exactos
     FREE_TICKETS: "3 emojis cualquier orden"   // 🎫 Tickets gratis
-  },
+  } as const,
   
   // Distribución de pools (según contrato V3 Fuji)
   DISTRIBUTION: {
@@ -70,23 +70,26 @@ export const GAME_CONFIG = {
     SECOND_PRIZE: 0.10, // 10% del 80% = 8% del total
     THIRD_PRIZE: 0.05,  // 5% del 80% = 4% del total
     DEVELOPMENT: 0.05   // 5% del 80% = 4% del total
-  },
+  } as const,
   
   // Distribución de reservas (20% del total)
   RESERVE_DISTRIBUTION: {
     FIRST_PRIZE_RESERVE: 0.80,  // 80% de reservas = 16% del total
     SECOND_PRIZE_RESERVE: 0.10, // 10% de reservas = 2% del total
     THIRD_PRIZE_RESERVE: 0.10   // 10% de reservas = 2% del total
-  },
+  } as const,
   
   // Sistema de reservas mejorado (integrado en el core)
   RESERVES: {
     FIRST_PRIZE_RESERVE: true,  // Reserve Pool 1 - auto refill
     SECOND_PRIZE_RESERVE: true, // Reserve Pool 2 - auto refill
     THIRD_PRIZE_RESERVE: true   // Reserve Pool 3 - auto refill
-  }
-};
+  } as const
+} as const;
 
 // Type definitions
-export interface ContractAddresses extends typeof CONTRACT_ADDRESSES {}
-export interface GameConfig extends typeof GAME_CONFIG {} 
+export type ContractAddresses = typeof CONTRACT_ADDRESSES;
+export type GameConfig = typeof GAME_CONFIG;
+
+// Default exports
+export { CONTRACT_ADDRESSES, GAME_CONFIG }; 
