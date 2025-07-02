@@ -2,12 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 
-// ABI mínimo para las funciones del timer
+// ABI mínimo para las funciones del timer (LottoMojiCoreV3)
 const TIMER_ABI = [
-  "function getCurrentDay() view returns (uint256)",
-  "function lastDrawTime() view returns (uint256)",
-  "function drawTimeUTC() view returns (uint256)",
-  "function DRAW_INTERVAL() view returns (uint256)"
+  "function currentGameDay() view returns (uint24)",
+  "function nextDrawTs() view returns (uint256)",
+  "function dailyDrawHourUTC() view returns (uint8)"
 ];
 
 interface ContractTimerData {
@@ -42,42 +41,37 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
       const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
 
-      // Obtener datos del contrato
+      // Obtener datos del contrato V3
       const [
         contractGameDay,
-        contractLastDrawTime,
-        contractDrawTimeUTC,
-        contractDrawInterval
+        contractNextDrawTs,
+        contractDrawHourUTC
       ] = await Promise.all([
-        contract.getCurrentDay(),
-        contract.lastDrawTime(),
-        contract.drawTimeUTC(),
-        contract.DRAW_INTERVAL()
+        contract.currentGameDay(),
+        contract.nextDrawTs(),
+        contract.dailyDrawHourUTC()
       ]);
 
       const gameDay = Number(contractGameDay);
-      const lastDraw = Number(contractLastDrawTime);
-      const drawTime = Number(contractDrawTimeUTC);
-      const interval = Number(contractDrawInterval);
-
-      // Calcular el próximo sorteo basado en la lógica del contrato
-      // nextDrawTime = lastDrawTime + DRAW_INTERVAL (ahora correcto en V4)
-      const nextDraw = lastDraw + interval;
+      const nextDraw = Number(contractNextDrawTs);
+      const drawHour = Number(contractDrawHourUTC);
+      const interval = 86400; // 24 horas en segundos (fijo para V3)
+      const lastDraw = nextDraw - interval;
       const now = Math.floor(Date.now() / 1000);
       const remaining = Math.max(0, nextDraw - now);
 
-      console.log(`[useContractTimer] Contract data:`, {
+      console.log(`[useContractTimer] Contract V3 data:`, {
         gameDay,
         lastDraw: new Date(lastDraw * 1000).toISOString(),
         nextDraw: new Date(nextDraw * 1000).toISOString(),
-        drawTime: `${drawTime / 3600}:00 UTC`,
+        drawHour: `${drawHour}:00 UTC`,
         interval: `${interval / 3600}h`,
         remaining: `${Math.floor(remaining / 3600)}h ${Math.floor((remaining % 3600) / 60)}m ${remaining % 60}s`
       });
 
       setCurrentGameDay(gameDay);
       setLastDrawTime(lastDraw);
-      setDrawTimeUTC(drawTime);
+      setDrawTimeUTC(drawHour * 3600); // convertir horas a segundos para compatibilidad
       setDrawInterval(interval);
       setNextDrawTime(nextDraw);
       setTimeRemaining(remaining);
@@ -112,8 +106,8 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
   };
 
   const calculateLocalFallback = () => {
-    // Fallback usando la lógica del contrato localmente
-    // drawTimeUTC = 3 hours (00:00 São Paulo = 03:00 UTC)
+    // Fallback usando la lógica del contrato V3
+    // drawTimeUTC = 2 hours (02:00 UTC)
     // DRAW_INTERVAL = 24 hours
     
     const now = new Date();
@@ -121,15 +115,15 @@ export function useContractTimer(onTimeEnd: () => void): ContractTimerData {
     const utcMinutes = now.getUTCMinutes();
     const utcSeconds = now.getUTCSeconds();
     
-    // Próxima medianoche de São Paulo en UTC (03:00 UTC)
+    // Próximo sorteo a las 02:00 UTC
     const nextDrawUTC = new Date(now);
     
-    if (utcHours >= 3) {
-      // Si ya pasaron las 03:00 UTC, el próximo sorteo es mañana
+    if (utcHours >= 2) {
+      // Si ya pasaron las 02:00 UTC, el próximo sorteo es mañana
       nextDrawUTC.setUTCDate(nextDrawUTC.getUTCDate() + 1);
     }
     
-    nextDrawUTC.setUTCHours(3, 0, 0, 0); // 03:00 UTC = 00:00 São Paulo
+    nextDrawUTC.setUTCHours(2, 0, 0, 0); // 02:00 UTC
     
     const remaining = Math.floor((nextDrawUTC.getTime() - now.getTime()) / 1000);
     

@@ -3,18 +3,17 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 import { verifyBlockchainPools, forcePoolSync } from '../utils/blockchainVerification';
 
-// ABI mínimo para las funciones que necesitamos (basado en el ABI compilado real)
+// ABI mínimo para las funciones que necesitamos (LottoMojiCoreV3)
 const LOTTO_MOJI_ABI = [
-  "function mainPools() view returns (uint256 firstPrizeAccumulated, uint256 secondPrizeAccumulated, uint256 thirdPrizeAccumulated, uint256 developmentAccumulated)",
-  "function reserves() view returns (uint256 firstPrizeReserve1, uint256 secondPrizeReserve2, uint256 thirdPrizeReserve3)",
-  "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)",
-  "function getCurrentDay() view returns (uint256)",
-  "function DRAW_INTERVAL() view returns (uint256)",
-  "function drawTimeUTC() view returns (uint256)",
-  "function lastDrawTime() view returns (uint256)",
-  "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)",
+  "function pools() view returns (uint256 firstPrize, uint256 secondPrize, uint256 thirdPrize, uint256 devPool, uint256 firstReserve, uint256 secondReserve, uint256 thirdReserve)",
+  "function currentGameDay() view returns (uint24)",
+  "function nextDrawTs() view returns (uint256)",
+  "function dailyDrawHourUTC() view returns (uint8)",
+  "function ticketPrice() view returns (uint256)",
   "function automationActive() view returns (bool)",
-  "function gameActive() view returns (bool)"
+  "function emergencyPause() view returns (bool)",
+  "function dayResults(uint24) view returns (uint8[4] winningNumbers, uint32 processingIndex, uint32 winnersFirst, uint32 winnersSecond, uint32 winnersThird, bool fullyProcessed)",
+  "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)"
 ];
 
 interface MainPools {

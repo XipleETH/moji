@@ -4,23 +4,20 @@ import { CONTRACT_ADDRESSES } from './contractAddresses';
 // Importar ABI del contrato
 let LOTTO_MOJI_CORE_ABI: any[] = [];
 try {
-  const abiData = require('./contract-abi-daily-1utc.json');
+  const abiData = require('./contract-abi-v3-2utc.json');
   LOTTO_MOJI_CORE_ABI = abiData.abi || abiData;
 } catch (error) {
   console.warn('[BlockchainVerification] No se pudo cargar ABI específico, usando ABI básico');
   LOTTO_MOJI_CORE_ABI = [
-    "function getMainPoolBalances() view returns (uint256, uint256, uint256, uint256)",
-    "function getReserveBalances() view returns (uint256, uint256, uint256)",
-    "function getCurrentDay() view returns (uint256)",
-    "function DRAW_INTERVAL() view returns (uint256)",
-    "function drawTimeUTC() view returns (uint256)",
-    "function lastDrawTime() view returns (uint256)",
+    "function pools() view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256)",
+    "function currentGameDay() view returns (uint24)",
+    "function nextDrawTs() view returns (uint256)",
+    "function dailyDrawHourUTC() view returns (uint8)",
+    "function ticketPrice() view returns (uint256)",
     "function automationActive() view returns (bool)",
-    "function gameActive() view returns (bool)",
-    "function ticketCounter() view returns (uint256)",
-    "function totalDrawsExecuted() view returns (uint256)",
     "function emergencyPause() view returns (bool)",
-    "function getDailyPoolInfo(uint256) view returns (uint256, uint256, uint256, bool, bool, uint8[4])"
+    "function dayResults(uint24) view returns (uint8[4], uint32, uint32, uint32, uint32, bool)",
+    "function tickets(uint256) view returns (uint40, uint24, uint8[4], bool)"
   ];
 }
 
@@ -147,33 +144,23 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
     console.log('📞 Ejecutando llamadas al contrato...');
     
     const [
-      mainPools,
-      reserves,
+      pools,
       currentGameDay,
+      nextDrawTs,
+      dailyDrawHourUTC,
       ticketPrice,
-      ticketCounter,
-      totalDraws,
-      gameActive,
       automationActive,
       emergencyPause,
-      drawInterval,
-      drawTimeUTC,
-      lastDrawTime,
       blockNumber
     ] = await Promise.race([
       Promise.all([
-        contract.getMainPoolBalances(),
-        contract.getReserveBalances(),
-        contract.getCurrentDay(),
-        contract.TICKET_PRICE(),
-        contract.ticketCounter(),
-        contract.totalDrawsExecuted(),
-        contract.gameActive(),
+        contract.pools(),
+        contract.currentGameDay(),
+        contract.nextDrawTs(),
+        contract.dailyDrawHourUTC(),
+        contract.ticketPrice(),
         contract.automationActive(),
         contract.emergencyPause(),
-        contract.DRAW_INTERVAL(),
-        contract.drawTimeUTC(),
-        contract.lastDrawTime(),
         provider.getBlockNumber()
       ]),
       timeoutPromise
@@ -181,21 +168,35 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
     
     console.log('📊 Datos básicos obtenidos exitosamente');
     
-    // Obtener daily pool del día actual
+    // Procesar pools structure (firstPrize, secondPrize, thirdPrize, devPool, firstReserve, secondReserve, thirdReserve)
+    const mainPools = {
+      firstPrizeAccumulated: pools[0],
+      secondPrizeAccumulated: pools[1], 
+      thirdPrizeAccumulated: pools[2],
+      developmentAccumulated: pools[3]
+    };
+    
+    const reserves = {
+      firstPrizeReserve: pools[4],
+      secondPrizeReserve: pools[5],
+      thirdPrizeReserve: pools[6]
+    };
+    
+    // Obtener day results del día actual
     let dailyPool: DailyPoolInfo | null = null;
     try {
-      const dailyPoolData = await contract.getDailyPoolInfo(currentGameDay);
+      const dayResultData = await contract.dayResults(currentGameDay);
       dailyPool = {
-        totalCollected: dailyPoolData[0],
-        mainPoolPortion: dailyPoolData[1],
-        reservePortion: dailyPoolData[2],
-        distributed: dailyPoolData[3],
-        drawn: dailyPoolData[4],
-        winningNumbers: Array.from(dailyPoolData[5])
+        totalCollected: 0n, // V3 no tiene esta info directamente
+        mainPoolPortion: 0n,
+        reservePortion: 0n,
+        distributed: dayResultData[5], // fullyProcessed
+        drawn: dayResultData[0][0] !== 0, // si hay números ganadores
+        winningNumbers: Array.from(dayResultData[0])
       };
-      console.log('📅 Información del pool diario obtenida');
-    } catch (dailyError) {
-      console.warn('⚠️ No se pudo obtener información del pool diario:', dailyError);
+      console.log('📅 Información del resultado diario obtenida');
+    } catch (dayError) {
+      console.warn('⚠️ No se pudo obtener información del resultado diario:', dayError);
       dailyPool = {
         totalCollected: 0n,
         mainPoolPortion: 0n,
@@ -208,30 +209,21 @@ export async function verifyBlockchainPools(): Promise<BlockchainPoolData> {
 
     // Estructurar datos
     const blockchainData: BlockchainPoolData = {
-      mainPools: {
-        firstPrizeAccumulated: mainPools[0],
-        secondPrizeAccumulated: mainPools[1],
-        thirdPrizeAccumulated: mainPools[2],
-        developmentAccumulated: mainPools[3]
-      },
-      reserves: {
-        firstPrizeReserve: reserves[0],
-        secondPrizeReserve: reserves[1],
-        thirdPrizeReserve: reserves[2]
-      },
+      mainPools,
+      reserves,
       currentGameDay,
-      drawInterval,
-      drawTimeUTC,
-      lastDrawTime,
+      drawInterval: 86400n, // 1 día en segundos (valor fijo para V3)
+      drawTimeUTC: BigInt(dailyDrawHourUTC),
+      lastDrawTime: nextDrawTs - 86400n, // aproximación basada en nextDrawTs
       automationActive,
-      gameActive,
+      gameActive: true, // V3 no tiene gameActive, asumimos true si no está en pausa
       emergencyPause,
-      ticketCounter,
-      totalDraws,
+      ticketCounter: 0n, // V3 no expone ticketCounter directamente
+      totalDraws: currentGameDay - 1n, // aproximación
       dailyPool,
       totals: {
-        mainTotal: mainPools[0] + mainPools[1] + mainPools[2] + mainPools[3],
-        reserveTotal: reserves[0] + reserves[1] + reserves[2],
+        mainTotal: mainPools.firstPrizeAccumulated + mainPools.secondPrizeAccumulated + mainPools.thirdPrizeAccumulated + mainPools.developmentAccumulated,
+        reserveTotal: reserves.firstPrizeReserve + reserves.secondPrizeReserve + reserves.thirdPrizeReserve,
         dailyTotal: dailyPool?.totalCollected || 0n
       },
       rpcProvider: providerName,
