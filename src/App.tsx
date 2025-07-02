@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { Timer } from './components/Timer';
 import { Ticket as TicketComponent } from './components/Ticket';
 
@@ -29,6 +29,12 @@ import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrize
 import { EmojiDebugger } from './components/EmojiDebugger';
 import { BlockchainDebugPanel } from './components/BlockchainDebugPanel';
 import { CONTRACT_ADDRESSES } from './utils/contractAddresses';
+import { ethers } from 'ethers';
+import { db } from './firebase/config';
+import { auth } from './firebase/auth';
+import { getGameState } from './firebase/game';
+import { getPrizePool } from './firebase/prizePools';
+import { getCurrentGameDaySaoPaulo } from './utils/timezone';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -2920,21 +2926,9 @@ const checkUserTicketsFunction = async () => {
 // Función para verificar la hora exacta del sorteo según el contrato
 (window as any).checkContractDrawTime = async () => {
   try {
-    const { ethers } = await import('ethers');
-    
-    const TIMER_ABI = [
-      "function getCurrentDay() view returns (uint256)",
-      "function lastDrawTime() view returns (uint256)",
-      "function drawTimeUTC() view returns (uint256)",
-      "function DRAW_INTERVAL() view returns (uint256)",
-      "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)"
-    ];
-    
-    console.log('🕐 Verificando hora del sorteo desde el contrato...');
-    console.log('================================================');
-    
-    // Conectar al contrato
     const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
+    const contractAddress = CONTRACT_ADDRESSES.LOTTO_MOJI_CORE;
+    
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato
