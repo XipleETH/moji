@@ -6,7 +6,7 @@ const CONTRACT_ADDRESSES = {
   EXPLORER_URL: 'https://testnet.snowtrace.io',
   
   // Token USDC en Avalanche Fuji
-  USDC: '0x8c5aE7c3dC2a8B4d56B0442152Ff079c0F7a70C1', // Fuji: USDC.e (Bridged USDC)
+  USDC: '0x5425890298aed601595a70AB815c96711a31Bc65', // Fuji: USDC.e (Bridged USDC)
   
   // 🎯 CONTRATO AVALANCHE FUJI - SORTEOS DIARIOS 2:00 UTC 🎯
   LOTTO_MOJI_CORE: "0xb0565a978766e7E3d4D5264f5480Ca50E93c51bc", // Fuji: SORTEOS DIARIOS 2:00 UTC + VRF V4 + ERC721Enumerable
