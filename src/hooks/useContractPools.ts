@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 import { verifyBlockchainPools, forcePoolSync } from '../utils/blockchainVerification';
-import contractABI from '../utils/contract-abi-v3.json';
 
-// ABI mínimo para las funciones que necesitamos (LottoMojiCoreV3)
+// ABI correcto para LottoMojiCoreV3
 const LOTTO_MOJI_ABI = [
   "function pools() view returns (uint256 firstPrize, uint256 secondPrize, uint256 thirdPrize, uint256 devPool, uint256 firstReserve, uint256 secondReserve, uint256 thirdReserve)",
   "function currentGameDay() view returns (uint24)",
@@ -64,69 +63,6 @@ interface ContractPoolsData {
 // Clave para LocalStorage
 const POOLS_CACHE_KEY = 'lottoMoji_poolsCache';
 const CACHE_DURATION = 30000; // 30 segundos
-
-export interface PoolsData {
-  firstPrize: string;
-  secondPrize: string;
-  thirdPrize: string;
-  devPool: string;
-  firstReserve: string;
-  secondReserve: string;
-  thirdReserve: string;
-  loading: boolean;
-  error: string | null;
-}
-
-export function useContractPools(): PoolsData {
-  const [poolsData, setPoolsData] = useState<PoolsData>({
-    firstPrize: '0',
-    secondPrize: '0',
-    thirdPrize: '0',
-    devPool: '0',
-    firstReserve: '0',
-    secondReserve: '0',
-    thirdReserve: '0',
-    loading: true,
-    error: null
-  });
-
-  useEffect(() => {
-    const fetchPools = async () => {
-      try {
-        const provider = new ethers.JsonRpcProvider("https://api.avax-test.network/ext/bc/C/rpc");
-        const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, contractABI.abi, provider);
-
-        const pools = await contract.pools();
-
-        setPoolsData({
-          firstPrize: ethers.formatUnits(pools.firstPrize, 6),
-          secondPrize: ethers.formatUnits(pools.secondPrize, 6),
-          thirdPrize: ethers.formatUnits(pools.thirdPrize, 6),
-          devPool: ethers.formatUnits(pools.devPool, 6),
-          firstReserve: ethers.formatUnits(pools.firstReserve, 6),
-          secondReserve: ethers.formatUnits(pools.secondReserve, 6),
-          thirdReserve: ethers.formatUnits(pools.thirdReserve, 6),
-          loading: false,
-          error: null
-        });
-      } catch (err) {
-        console.error("Error fetching pools:", err);
-        setPoolsData(prev => ({
-          ...prev,
-          loading: false,
-          error: "Failed to fetch pools data"
-        }));
-      }
-    };
-
-    fetchPools();
-    const interval = setInterval(fetchPools, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return poolsData;
-}
 
 export const useContractPools = () => {
   const [data, setData] = useState<ContractPoolsData>(() => {
@@ -380,7 +316,7 @@ export const useContractPools = () => {
         contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, LOTTO_MOJI_ABI, provider);
         
         // Test de conexión rápido
-        await contract.gameActive();
+        await contract.currentGameDay();
         console.log(`[useContractPools] Conectado exitosamente a: ${providerUrl}`);
         break;
       } catch (providerError) {
@@ -394,16 +330,15 @@ export const useContractPools = () => {
       throw new Error('No se pudo conectar a ningún provider RPC');
     }
 
-    // Obtener datos básicos con timeout
+    // Obtener datos básicos con timeout - usando funciones correctas de V3
     const contractPromises = [
-      contract.mainPools(),
-      contract.reserves(),
-      contract.getCurrentDay(),
-      contract.DRAW_INTERVAL(),
-      contract.drawTimeUTC(),
-      contract.lastDrawTime(),
+      contract.pools(), // retorna todos los pools juntos
+      contract.currentGameDay(),
+      contract.nextDrawTs(),
+      contract.dailyDrawHourUTC(),
+      contract.ticketPrice(),
       contract.automationActive(),
-      contract.gameActive()
+      contract.emergencyPause()
     ];
 
     // Aplicar timeout a las promesas
@@ -412,14 +347,13 @@ export const useContractPools = () => {
     });
 
     const [
-      mainPools,
-      reserves,
+      pools,
       currentGameDay,
-      drawInterval,
-      drawTimeUTC,
-      lastDrawTime,
+      nextDrawTs,
+      dailyDrawHourUTC,
+      ticketPrice,
       automationActive,
-      gameActive
+      emergencyPause
     ] = await Promise.race([
       Promise.all(contractPromises),
       timeoutPromise
@@ -427,21 +361,51 @@ export const useContractPools = () => {
 
     console.log('[useContractPools] Datos básicos obtenidos:', {
       currentGameDay: Number(currentGameDay),
-      gameActive,
-      automationActive
+      automationActive,
+      emergencyPause: !emergencyPause // invertir lógica
     });
 
-    // Obtener pool diario con manejo robusto de errores
+    // Extraer pools de la estructura unificada (V3)
+    // pools = [firstPrize, secondPrize, thirdPrize, devPool, firstReserve, secondReserve, thirdReserve]
+    const mainPools = {
+      firstPrizeAccumulated: pools[0],
+      secondPrizeAccumulated: pools[1],
+      thirdPrizeAccumulated: pools[2],
+      developmentAccumulated: pools[3]
+    };
+
+    const reserves = {
+      firstPrizeReserve1: pools[4],
+      secondPrizeReserve2: pools[5],
+      thirdPrizeReserve3: pools[6]
+    };
+
+    // Obtener resultado del día actual
+    let dayResult;
     let dailyPool;
     try {
-      dailyPool = await contract.dailyPools(currentGameDay);
-      console.log('[useContractPools] Pool diaria obtenida:', {
-        totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
+      dayResult = await contract.dayResults(currentGameDay);
+      const hasWinningNumbers = dayResult[0][0] !== 0 || dayResult[0][1] !== 0 || dayResult[0][2] !== 0 || dayResult[0][3] !== 0;
+      dailyPool = {
+        totalCollected: 0, // V3 no tracking directo, calcular desde tickets vendidos
+        mainPoolPortion: 0,
+        reservePortion: 0,
+        firstPrizeDaily: 0,
+        secondPrizeDaily: 0,
+        thirdPrizeDaily: 0,
+        developmentDaily: 0,
+        distributed: dayResult[5], // fullyProcessed
+        distributionTime: 0,
+        drawn: hasWinningNumbers,
+        reservesSent: false
+      };
+      console.log('[useContractPools] Resultado del día obtenido:', {
         drawn: dailyPool.drawn,
-        distributed: dailyPool.distributed
+        distributed: dailyPool.distributed,
+        winningNumbers: Array.from(dayResult[0])
       });
-    } catch (poolError) {
-      console.warn('[useContractPools] Error obteniendo pool diaria, usando defaults:', poolError);
+    } catch (dayError) {
+      console.warn('[useContractPools] Error obteniendo resultado del día, usando defaults:', dayError);
       dailyPool = {
         totalCollected: 0,
         mainPoolPortion: 0,
@@ -470,11 +434,9 @@ export const useContractPools = () => {
       throw new Error('Datos del contrato inválidos o corruptos');
     }
 
-    // Calcular tiempo hasta próximo sorteo
+    // Calcular tiempo hasta próximo sorteo (V3 usa nextDrawTs directamente)
     const now = Math.floor(Date.now() / 1000);
-    const currentDayStart = Number(currentGameDay) * Number(drawInterval) - Number(drawTimeUTC);
-    const nextDrawTime = currentDayStart + Number(drawInterval);
-    const timeToNextDraw = Math.max(0, nextDrawTime - now);
+    const timeToNextDraw = Math.max(0, Number(nextDrawTs) - now);
 
     // Procesar y formatear datos
     const processedMainPools = {
@@ -524,7 +486,7 @@ export const useContractPools = () => {
       currentGameDay: currentGameDay.toString(),
       timeToNextDraw,
       automationActive,
-      gameActive,
+      gameActive: !emergencyPause, // gameActive es lo contrario de emergencyPause
       upkeepNeeded: checkUpkeepResult[0],
       totalUSDC: totalMainPools.toFixed(1),
       reserveTotalUSDC: totalReserves.toFixed(1),
