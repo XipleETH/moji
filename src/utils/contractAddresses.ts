@@ -35,7 +35,7 @@ export const CONTRACT_ADDRESSES = {
   // Chainlink en Avalanche Fuji - DIRECCIONES CORRECTAS
   VRF_COORDINATOR: '0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE',
   KEY_HASH: '0xc799bd1e3bd4d1a41cd4968997a4e03dfd2a3c7c04b695881138580163f42887'
-} as const;
+};
 
 // Configuración del juego
 export const GAME_CONFIG = {
@@ -50,7 +50,7 @@ export const GAME_CONFIG = {
     '🚀', '🌙', '⭐', '✨', '🌟', // Space & Stars (10-14)
     '🎭', '🎪', '🎢', '🎡', '🎠', // Entertainment (15-19)
     '🍀', '🌈', '⚡', '🔥', '💫'  // Luck & Magic (20-24)
-  ] as const,
+  ],
   
   // 🏆 NUEVA LÓGICA DE PREMIOS (VERSION FUJI) 🏆
   PRIZE_SYSTEM: {
@@ -85,7 +85,8 @@ export const GAME_CONFIG = {
     SECOND_PRIZE_RESERVE: true, // Reserve Pool 2 - auto refill
     THIRD_PRIZE_RESERVE: true   // Reserve Pool 3 - auto refill
   }
-} as const;
+};
 
-export type ContractAddresses = typeof CONTRACT_ADDRESSES;
-export type GameConfig = typeof GAME_CONFIG; 
+// Type definitions
+export interface ContractAddresses extends typeof CONTRACT_ADDRESSES {}
+export interface GameConfig extends typeof GAME_CONFIG {} 
