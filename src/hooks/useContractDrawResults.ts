@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
+import { 
+  getLatestDrawResult, 
+  saveDrawResult, 
+  createFirestoreResult,
+  drawResultExists,
+  type FirestoreDrawResult 
+} from '../firebase/blockchainResults';
 
 interface ContractDrawResult {
   gameDay: string;
@@ -32,6 +39,95 @@ const DRAW_NUMBERS_EVENT_ABI = [
   "event DrawNumbers(uint24 indexed day, uint8[4] numbers)"
 ];
 
+// Convertir FirestoreDrawResult a ContractDrawResult
+function convertFirestoreToContract(firestoreResult: FirestoreDrawResult): ContractDrawResult {
+  return {
+    gameDay: firestoreResult.gameDay,
+    winningNumbers: firestoreResult.winningNumbers,
+    winningEmojis: firestoreResult.winningEmojis,
+    drawn: firestoreResult.processed,
+    distributed: firestoreResult.processed,
+    lastDrawTime: firestoreResult.drawTime,
+    totalDrawsExecuted: 1 // Esto se puede mejorar contando documentos
+  };
+}
+
+// Función para buscar nuevos resultados en blockchain y guardarlos en Firestore
+async function checkForNewDraws(currentGameDay: number): Promise<FirestoreDrawResult | null> {
+  try {
+    console.log('🔍 Checking blockchain for new draws...');
+    
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
+    const contractWithEvents = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, DRAW_NUMBERS_EVENT_ABI, provider);
+
+    // Buscar eventos DrawNumbers recientes
+    const latestBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, latestBlock - 2000); // Últimos 2000 bloques
+    
+    const drawEvents = await contractWithEvents.queryFilter(
+      contractWithEvents.filters.DrawNumbers(),
+      fromBlock,
+      'latest'
+    );
+    
+    console.log(`🎯 Found ${drawEvents.length} DrawNumbers events in recent blocks`);
+    
+    if (drawEvents.length === 0) {
+      return null;
+    }
+    
+    // Procesar el evento más reciente
+    const latestEvent = drawEvents[drawEvents.length - 1];
+    const eventGameDay = latestEvent.args.day.toString();
+    
+    // Verificar si ya tenemos este resultado en Firestore
+    const exists = await drawResultExists(eventGameDay);
+    if (exists) {
+      console.log('📋 Draw result already exists in Firestore:', eventGameDay);
+      return null;
+    }
+    
+    // Obtener datos del evento
+    const winningNumbers = latestEvent.args.numbers.map((num: bigint) => Number(num));
+    const winningEmojis = winningNumbers.map(index => GAME_CONFIG.EMOJI_MAP[index] || '❓');
+    
+    // Obtener timestamp del bloque
+    const block = await provider.getBlock(latestEvent.blockNumber);
+    const drawTime = block ? block.timestamp : Math.floor(Date.now() / 1000);
+    
+    console.log('🆕 New draw found:');
+    console.log('   Game Day:', eventGameDay);
+    console.log('   Numbers:', winningNumbers);
+    console.log('   Emojis:', winningEmojis);
+    console.log('   Block:', latestEvent.blockNumber);
+    
+    // Crear resultado para Firestore
+    const firestoreResult = createFirestoreResult(
+      eventGameDay,
+      winningNumbers,
+      winningEmojis,
+      latestEvent.blockNumber,
+      latestEvent.transactionHash,
+      drawTime,
+      'avalanche-fuji',
+      CONTRACT_ADDRESSES.LOTTO_MOJI_CORE,
+      true
+    );
+    
+    // Guardar en Firestore
+    const saved = await saveDrawResult(firestoreResult);
+    if (saved) {
+      console.log('✅ New draw result saved to Firestore');
+      return firestoreResult;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Error checking for new draws:', error);
+    return null;
+  }
+}
+
 export function useContractDrawResults(): UseContractDrawResultsReturn {
   const [latestResult, setLatestResult] = useState<ContractDrawResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,90 +138,127 @@ export function useContractDrawResults(): UseContractDrawResultsReturn {
       setLoading(true);
       setError(null);
 
-      // Configurar provider para Avalanche Fuji
+      console.log('🏪 Fetching draw results - Firestore first, blockchain as fallback');
+
+      // 1. Intentar obtener desde Firestore primero
+      const firestoreResult = await getLatestDrawResult('avalanche-fuji');
+      
+      if (firestoreResult) {
+        console.log('📥 Using result from Firestore:', firestoreResult.gameDay);
+        const contractResult = convertFirestoreToContract(firestoreResult);
+        setLatestResult(contractResult);
+        
+        // En background, verificar si hay nuevos sorteos
+        checkForNewDraws(parseInt(firestoreResult.gameDay))
+          .then((newResult) => {
+            if (newResult) {
+              console.log('🔄 Found newer result, updating display');
+              const updatedResult = convertFirestoreToContract(newResult);
+              setLatestResult(updatedResult);
+            }
+          })
+          .catch((error) => {
+            console.warn('⚠️ Background check failed:', error);
+          });
+        
+        return;
+      }
+
+      // 2. Si no hay datos en Firestore, buscar en blockchain
+      console.log('📡 No Firestore data found, checking blockchain...');
+      
       const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, DRAW_RESULTS_ABI, provider);
       const contractWithEvents = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, DRAW_NUMBERS_EVENT_ABI, provider);
 
-      // Obtener datos básicos
-      const [
-        currentGameDay,
-        nextDrawTs,
-        automationActive,
-        emergencyPause
-      ] = await Promise.all([
+      // Obtener datos básicos del contrato
+      const [currentGameDay, nextDrawTs] = await Promise.all([
         contract.currentGameDay(),
-        contract.nextDrawTs(),
-        contract.automationActive(),
-        contract.emergencyPause()
+        contract.nextDrawTs()
       ]);
 
       console.log('🔍 Contract V4 Status:');
       console.log('   Current Game Day:', currentGameDay.toString());
       console.log('   Next Draw Timestamp:', nextDrawTs.toString());
-      console.log('   Automation Active:', automationActive);
-      console.log('   Emergency Pause:', emergencyPause);
 
-      // Buscar eventos DrawNumbers para obtener los números ganadores
+      // Buscar eventos DrawNumbers
       const latestBlock = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, latestBlock - 2000); // Últimos 2000 bloques
+      const fromBlock = Math.max(0, latestBlock - 2000);
       
-      let winningNumbersArray: number[] = [];
-      let drawn = false;
-      let eventDay = 0n;
-      let drawEvents: any[] = [];
+      const drawEvents = await contractWithEvents.queryFilter(
+        contractWithEvents.filters.DrawNumbers(),
+        fromBlock,
+        'latest'
+      );
       
-      try {
-        drawEvents = await contractWithEvents.queryFilter(
-          contractWithEvents.filters.DrawNumbers(),
-          fromBlock,
-          'latest'
-        );
+      console.log('   Found DrawNumbers events:', drawEvents.length);
+      
+      if (drawEvents.length === 0) {
+        // No hay sorteos aún
+        const result: ContractDrawResult = {
+          gameDay: currentGameDay.toString(),
+          winningNumbers: [],
+          winningEmojis: [],
+          drawn: false,
+          distributed: false,
+          lastDrawTime: Number(nextDrawTs) - 24 * 60 * 60,
+          totalDrawsExecuted: 0
+        };
         
-        console.log('   Found DrawNumbers events:', drawEvents.length);
-        
-        if (drawEvents.length > 0) {
-          // Obtener el evento más reciente
-          const latestEvent = drawEvents[drawEvents.length - 1];
-          eventDay = latestEvent.args.day;
-          winningNumbersArray = latestEvent.args.numbers.map((num: bigint) => Number(num));
-          
-          console.log('   Latest Draw Event:');
-          console.log('     Day:', eventDay.toString());
-          console.log('     Numbers:', winningNumbersArray);
-          console.log('     Block:', latestEvent.blockNumber);
-          
-          // Verificar si el procesamiento está completo
-          try {
-            const dayResult = await contract.dayResults(eventDay);
-            drawn = dayResult.fullyProcessed;
-            console.log('     Fully Processed:', drawn);
-          } catch (resultError) {
-            console.warn('Error fetching processing status:', resultError);
-            drawn = false;
-          }
-        }
-      } catch (eventError) {
-        console.warn('Error searching for DrawNumbers events:', eventError);
+        setLatestResult(result);
+        return;
       }
 
-      // Convertir números ganadores a emojis
-      const winningEmojis = winningNumbersArray.map(index => GAME_CONFIG.EMOJI_MAP[index] || '❓');
+      // Procesar el evento más reciente
+      const latestEvent = drawEvents[drawEvents.length - 1];
+      const eventDay = latestEvent.args.day;
+      const winningNumbers = latestEvent.args.numbers.map((num: bigint) => Number(num));
+      const winningEmojis = winningNumbers.map(index => GAME_CONFIG.EMOJI_MAP[index] || '❓');
+      
+      // Verificar procesamiento
+      let processed = false;
+      try {
+        const dayResult = await contract.dayResults(eventDay);
+        processed = dayResult.fullyProcessed;
+      } catch (resultError) {
+        console.warn('Error checking processing status:', resultError);
+      }
 
       const result: ContractDrawResult = {
         gameDay: eventDay.toString(),
-        winningNumbers: winningNumbersArray,
+        winningNumbers,
         winningEmojis,
-        drawn: drawn,
-        distributed: drawn, // En V4, si está fullyProcessed, está distribuido
-        lastDrawTime: Number(nextDrawTs) - 24 * 60 * 60, // Aproximación: nextDrawTs - 1 día
-        totalDrawsExecuted: drawEvents?.length || 0
+        drawn: processed,
+        distributed: processed,
+        lastDrawTime: Number(nextDrawTs) - 24 * 60 * 60,
+        totalDrawsExecuted: drawEvents.length
       };
 
       setLatestResult(result);
 
+      // Guardar este resultado en Firestore para el futuro
+      const block = await provider.getBlock(latestEvent.blockNumber);
+      const drawTime = block ? block.timestamp : Math.floor(Date.now() / 1000);
+      
+      const firestoreResultToSave = createFirestoreResult(
+        eventDay.toString(),
+        winningNumbers,
+        winningEmojis,
+        latestEvent.blockNumber,
+        latestEvent.transactionHash,
+        drawTime,
+        'avalanche-fuji',
+        CONTRACT_ADDRESSES.LOTTO_MOJI_CORE,
+        processed
+      );
+      
+      // Guardar en background
+      saveDrawResult(firestoreResultToSave)
+        .then(() => console.log('💾 Result saved to Firestore for future use'))
+        .catch((error) => console.warn('⚠️ Failed to save to Firestore:', error));
+
     } catch (err) {
-      console.error('Error fetching draw results:', err);
+      console.error('❌ Error fetching draw results:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
+import { 
+  getDrawHistory, 
+  type FirestoreDrawResult 
+} from '../firebase/blockchainResults';
 
 interface ContractGameHistory {
   gameDay: string;
@@ -34,6 +38,20 @@ const DRAW_NUMBERS_EVENT_ABI = [
   "event DrawNumbers(uint24 indexed day, uint8[4] numbers)"
 ];
 
+// Convertir FirestoreDrawResult a ContractGameHistory
+function convertFirestoreToGameHistory(firestoreResult: FirestoreDrawResult): ContractGameHistory {
+  return {
+    gameDay: firestoreResult.gameDay,
+    winningNumbers: firestoreResult.winningNumbers,
+    winningEmojis: firestoreResult.winningEmojis,
+    drawn: firestoreResult.processed,
+    distributed: firestoreResult.processed,
+    totalCollected: '0', // TODO: Agregar esta información a Firestore en el futuro
+    lastDrawTime: firestoreResult.drawTime * 1000, // Convertir a milisegundos
+    hasWinners: true // Asumir que hay ganadores si hay un sorteo completado
+  };
+}
+
 export function useContractGameHistory(): UseContractGameHistoryReturn {
   const [history, setHistory] = useState<ContractGameHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +61,21 @@ export function useContractGameHistory(): UseContractGameHistoryReturn {
     try {
       setLoading(true);
       setError(null);
+
+      console.log('🏪 Fetching game history - Firestore first, blockchain as fallback');
+
+      // 1. Intentar obtener desde Firestore primero
+      const firestoreHistory = await getDrawHistory('avalanche-fuji', 10);
+      
+      if (firestoreHistory.length > 0) {
+        console.log(`📥 Using ${firestoreHistory.length} history entries from Firestore`);
+        const contractHistory = firestoreHistory.map(convertFirestoreToGameHistory);
+        setHistory(contractHistory);
+        return;
+      }
+
+      // 2. Si no hay datos en Firestore, buscar en blockchain
+      console.log('📡 No Firestore history found, checking blockchain...');
 
       // Configurar provider para Avalanche Fuji
       const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
@@ -178,7 +211,7 @@ export function useContractGameHistory(): UseContractGameHistoryReturn {
       setHistory(historyData);
 
     } catch (err) {
-      console.error('Error fetching game history:', err);
+      console.error('❌ Error fetching game history:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);

@@ -28,6 +28,7 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
 import { EmojiDebugger } from './components/EmojiDebugger';
 import { BlockchainDebugPanel } from './components/BlockchainDebugPanel';
+import { AddHistoricalResultUtil } from './components/AddHistoricalResultUtil';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -4034,6 +4035,9 @@ function AppContent() {
         
         {/* Emoji Debugger - Solo en desarrollo */}
         {import.meta.env.DEV && <EmojiDebugger />}
+        
+        {/* Utilidad para agregar resultado histórico - Solo en desarrollo */}
+        {import.meta.env.DEV && <AddHistoricalResultUtil />}
       </div>
 
               {/* Ticket History Modal */}

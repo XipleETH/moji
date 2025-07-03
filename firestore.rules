@@ -13,6 +13,18 @@ service cloud.firestore {
       allow write: if true; // Permitir escritura para facilitar pruebas
     }
     
+    // Draw results - Resultados históricos del blockchain
+    match /drawResults/{resultId} {
+      allow read: if true;  // Permitir lectura total para mostrar resultados
+      allow write: if true; // Permitir escritura para facilitar pruebas y guardado de resultados
+    }
+    
+    // Test collection - Para pruebas de conexión
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if true; // Permitir escritura para pruebas de conexión
+    }
+    
     // Player Tickets - Reglas temporalmente permisivas para debugging
     match /player_tickets/{ticketId} {
       allow read: if true;  // Temporalmente permitir lectura total para debugging
