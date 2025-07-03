@@ -9,7 +9,7 @@ async function main() {
     console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
 
     // Contract parameters with user specifications
-    const DAILY_DRAW_HOUR_UTC = 4; // 04:00 UTC (user specified)
+    const DAILY_DRAW_HOUR_UTC = 5; // 05:00 UTC (user specified)
     const PAYMENT_TOKEN = "0x5425890298aed601595a70AB815c96711a31Bc65"; // USDC on Avalanche Fuji
     const TICKET_PRICE = ethers.parseUnits("0.2", 6); // 0.2 USDC (6 decimals)
     const VRF_COORDINATOR = "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE"; // Avalanche Fuji VRF Coordinator
@@ -107,7 +107,7 @@ async function main() {
             gasLimit: GAS_LIMIT
         },
         features: {
-            vrfVersion: "VRF V2 (stable)",
+            vrfVersion: "VRF V2Plus (latest)",
             gasOptimized: "Standard arrays (uint8[4])",
             vrfCallback: "Uses requestIdToDay mapping",
             automation: "Chainlink Automation compatible",

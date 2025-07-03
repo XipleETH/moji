@@ -26,8 +26,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
-import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
+import "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 
 /**
@@ -37,9 +38,8 @@ import "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatible
 contract LottoMojiCoreV4 is
     ERC721,
     ERC721Enumerable,
-    Ownable,
     ReentrancyGuard,
-    VRFConsumerBaseV2,
+    VRFConsumerBaseV2Plus,
     AutomationCompatibleInterface
 {
     using SafeERC20 for IERC20;
@@ -53,7 +53,7 @@ contract LottoMojiCoreV4 is
     IERC20  public immutable paymentToken;      // e.g. USDC‑e on Fuji (6 dec)
 
     // Chainlink VRF
-    VRFCoordinatorV2Interface private immutable COORDINATOR;
+    IVRFCoordinatorV2Plus private immutable COORDINATOR;
     bytes32 public immutable vrfKeyHash;
     uint256 public immutable vrfSubId;
     uint32  public constant VRF_CALLBACK_GAS_LIMIT = 300_000; // keep callback cheap
@@ -157,15 +157,14 @@ contract LottoMojiCoreV4 is
         uint256 _subId
     )
         ERC721("LottoMoji Ticket V4", "LMJV4")
-        Ownable(msg.sender)
-        VRFConsumerBaseV2(_vrfCoordinator)
+        VRFConsumerBaseV2Plus(_vrfCoordinator)
     {
         require(_drawHourUTC < 24, "hour<24");
         dailyDrawHourUTC = _drawHourUTC;
         paymentToken     = IERC20(_paymentToken);
         ticketPrice      = _ticketPrice;
 
-        COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
+        COORDINATOR = IVRFCoordinatorV2Plus(_vrfCoordinator);
         vrfKeyHash  = _keyHash;
         vrfSubId    = _subId;
 
@@ -284,17 +283,22 @@ contract LottoMojiCoreV4 is
 
     function _requestRandom(uint24 day) internal {
         uint256 requestId = COORDINATOR.requestRandomWords(
-            vrfKeyHash,
-            uint64(vrfSubId),
-            VRF_CONFIRMATIONS,
-            VRF_CALLBACK_GAS_LIMIT,
-            VRF_NUM_WORDS
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: vrfKeyHash,
+                subId: vrfSubId,
+                requestConfirmations: VRF_CONFIRMATIONS,
+                callbackGasLimit: VRF_CALLBACK_GAS_LIMIT,
+                numWords: VRF_NUM_WORDS,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
+            })
         );
         requestIdToDay[requestId] = day;
         emit VRFRequested(requestId, day);
     }
 
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
+    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
         uint24 day = requestIdToDay[requestId];
         DayResult storage dr = dayResults[day];
 

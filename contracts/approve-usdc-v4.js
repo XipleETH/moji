@@ -4,7 +4,7 @@ async function main() {
     console.log("💰 Approving USDC for LottoMoji V4...");
     
     // Direcciones
-    const CONTRACT_V4 = "0x19d6c7dc1301860C4E14c72E4338B62113059471";
+    const CONTRACT_V4 = "0xe1eF53748D9a30Dd89DF5f1E6df6C3Fc2c339008";
     const USDC_ADDRESS = "0x5425890298aed601595a70AB815c96711a31Bc65"; // Avalanche Fuji
     const APPROVAL_AMOUNT = "16"; // 16 USDC (available balance)
 
