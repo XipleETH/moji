@@ -6,7 +6,7 @@ async function main() {
     // Direcciones
     const CONTRACT_V4 = "0xe1eF53748D9a30Dd89DF5f1E6df6C3Fc2c339008";
     const USDC_ADDRESS = "0x5425890298aed601595a70AB815c96711a31Bc65"; // Avalanche Fuji
-    const APPROVAL_AMOUNT = "16"; // 16 USDC (available balance)
+    const APPROVAL_AMOUNT = "5"; // 5 USDC para comprar tickets
 
     console.log(`📍 Contract V4: ${CONTRACT_V4}`);
     console.log(`💲 USDC Address: ${USDC_ADDRESS}`);
