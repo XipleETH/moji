@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from './contractAddresses';
 
-// Importar ABI del contrato
+// Importar ABI del contrato V4 con ERC721Enumerable
 let LOTTO_MOJI_CORE_ABI: any[] = [];
 try {
-  const abiData = require('./contract-abi-v3-2utc.json');
-  LOTTO_MOJI_CORE_ABI = abiData.abi || abiData;
+  const abiData = require('./contract-abi-v4.json');
+  LOTTO_MOJI_CORE_ABI = abiData;
 } catch (error) {
   console.warn('[BlockchainVerification] No se pudo cargar ABI específico, usando ABI básico');
   LOTTO_MOJI_CORE_ABI = [
@@ -17,7 +17,10 @@ try {
     "function automationActive() view returns (bool)",
     "function emergencyPause() view returns (bool)",
     "function dayResults(uint24) view returns (uint8[4], uint32, uint32, uint32, uint32, bool)",
-    "function tickets(uint256) view returns (uint40, uint24, uint8[4], bool)"
+    "function tickets(uint256) view returns (uint40, uint24, uint8[4], bool)",
+    "function totalSupply() view returns (uint256)",
+    "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
+    "function balanceOf(address owner) view returns (uint256)"
   ];
 }
 

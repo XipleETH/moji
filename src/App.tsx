@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Timer } from './components/Timer';
 import { Ticket as TicketComponent } from './components/Ticket';
 
@@ -28,13 +28,6 @@ import { initializeDailyPool, checkPoolsHealth } from './utils/initializePools';
 import { distributeHistoricalPrizes } from './firebase/distributeHistoricalPrizes';
 import { EmojiDebugger } from './components/EmojiDebugger';
 import { BlockchainDebugPanel } from './components/BlockchainDebugPanel';
-import { CONTRACT_ADDRESSES } from './utils/contractAddresses';
-import { ethers } from 'ethers';
-import { db } from './firebase/config';
-import { auth } from './firebase/auth';
-import { getGameState } from './firebase/game';
-import { getPrizePool } from './firebase/prizePools';
-import { getCurrentGameDaySaoPaulo } from './utils/timezone';
 
 // Función global para debuggear tokens
 (window as any).debugTokens = async () => {
@@ -2926,9 +2919,246 @@ const checkUserTicketsFunction = async () => {
 // Función para verificar la hora exacta del sorteo según el contrato
 (window as any).checkContractDrawTime = async () => {
   try {
-    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
-    const contractAddress = CONTRACT_ADDRESSES.LOTTO_MOJI_CORE;
+    const { ethers } = await import('ethers');
+    const { CONTRACT_ADDRESSES } = await import('./utils/contractAddresses');
     
+    const TIMER_ABI = [
+      "function getCurrentDay() view returns (uint256)",
+      "function lastDrawTime() view returns (uint256)",
+      "function drawTimeUTC() view returns (uint256)",
+      "function DRAW_INTERVAL() view returns (uint256)",
+      "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)"
+    ];
+    
+    console.log('🕐 Verificando hora del sorteo desde el contrato...');
+    console.log('================================================');
+    
+    // Conectar al contrato
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
+    const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
+    
+    // Obtener datos del contrato
+    const [
+      currentGameDay,
+      lastDrawTime,
+      drawTimeUTC,
+      drawInterval,
+      currentTimestamp
+    ] = await Promise.all([
+      contract.getCurrentDay(),
+      contract.lastDrawTime(),
+      contract.drawTimeUTC(),
+      contract.DRAW_INTERVAL(),
+      provider.getBlock('latest').then(block => block.timestamp)
+    ]);
+    
+    const gameDay = Number(currentGameDay);
+    const lastDraw = Number(lastDrawTime);
+    const drawTime = Number(drawTimeUTC);
+    const interval = Number(drawInterval);
+    const now = Number(currentTimestamp);
+    
+    // Calcular próximo sorteo según la lógica del contrato
+    const nextDrawTime = lastDraw + interval;
+    const timeToNextDraw = nextDrawTime - now;
+    
+    console.log('📊 Datos del contrato:');
+    console.log('- Current Game Day:', gameDay);
+    console.log('- Draw Time UTC:', drawTime, 'segundos =', (drawTime / 3600).toFixed(1), 'horas');
+    console.log('- Draw Interval:', interval, 'segundos =', (interval / 3600), 'horas');
+    console.log('- Last Draw Time:', lastDraw, '=', new Date(lastDraw * 1000).toISOString());
+    console.log('- Current Block Time:', now, '=', new Date(now * 1000).toISOString());
+    
+    console.log('\n⏰ Cálculos del próximo sorteo:');
+    console.log('- Next Draw Time:', nextDrawTime, '=', new Date(nextDrawTime * 1000).toISOString());
+    console.log('- Time to Next Draw:', timeToNextDraw, 'segundos');
+    console.log('- Time to Next Draw:', Math.floor(timeToNextDraw / 3600) + 'h', Math.floor((timeToNextDraw % 3600) / 60) + 'm', (timeToNextDraw % 60) + 's');
+    
+    // Verificar upkeep
+    try {
+      const [upkeepNeeded, performData] = await contract.checkUpkeep('0x');
+      console.log('\n🔧 Estado de Upkeep:');
+      console.log('- Upkeep Needed:', upkeepNeeded);
+      console.log('- Perform Data:', performData);
+    } catch (upkeepError) {
+      console.log('\n⚠️ Error verificando upkeep:', upkeepError.message);
+    }
+    
+    // Comparar con hora de São Paulo
+    const nextDrawSP = new Date(nextDrawTime * 1000);
+    const options = { 
+      timeZone: 'America/Sao_Paulo', 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    };
+    
+    console.log('\n🇧🇷 Próximo sorteo en São Paulo:');
+    console.log('- Fecha/Hora SP:', nextDrawSP.toLocaleString('es-BR', options));
+    console.log('- ¿Es medianoche SP?:', nextDrawSP.toLocaleString('es-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }));
+    
+    return {
+      currentGameDay: gameDay,
+      lastDrawTime: lastDraw,
+      drawTimeUTC: drawTime,
+      drawInterval: interval,
+      nextDrawTime: nextDrawTime,
+      timeToNextDraw: timeToNextDraw,
+      nextDrawSP: nextDrawSP.toLocaleString('es-BR', options),
+      upkeepNeeded: false // se completará si la llamada tiene éxito
+    };
+    
+  } catch (error) {
+    console.error('[checkContractDrawTime] Error:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para verificar si la lógica de cálculo del contrato es correcta
+(window as any).verifyContractLogic = async () => {
+  try {
+    console.log('🔍 Verificando lógica de cálculo del contrato...');
+    console.log('==============================================');
+    
+    const contractData = await (window as any).checkContractDrawTime();
+    if (contractData.error) {
+      console.error('Error obteniendo datos del contrato:', contractData.error);
+      return;
+    }
+    
+    console.log('\n📋 Análisis de la lógica:');
+    
+    // Verificar si drawTimeUTC corresponde a medianoche São Paulo
+    const drawTimeUTCHours = contractData.drawTimeUTC / 3600;
+    console.log('- drawTimeUTC en horas:', drawTimeUTCHours);
+    
+    if (drawTimeUTCHours === 3) {
+      console.log('✅ drawTimeUTC = 3 horas = 03:00 UTC = 00:00 São Paulo (correcto)');
+    } else {
+      console.log('⚠️ drawTimeUTC no corresponde a medianoche São Paulo');
+      console.log('   Expected: 3 horas (03:00 UTC)');
+      console.log('   Actual:', drawTimeUTCHours, 'horas');
+    }
+    
+    // Verificar intervalo
+    const intervalHours = contractData.drawInterval / 3600;
+    console.log('- Intervalo en horas:', intervalHours);
+    
+    if (intervalHours === 24) {
+      console.log('✅ Intervalo = 24 horas (correcto para sorteos diarios)');
+    } else {
+      console.log('⚠️ Intervalo no es de 24 horas');
+      console.log('   Expected: 24 horas');
+      console.log('   Actual:', intervalHours, 'horas');
+    }
+    
+    // Verificar si el próximo sorteo cae en medianoche SP
+    const nextDraw = new Date(contractData.nextDrawTime * 1000);
+    const spTime = nextDraw.toLocaleString('es-BR', { 
+      timeZone: 'America/Sao_Paulo', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    
+    console.log('- Próximo sorteo en SP:', spTime);
+    
+    if (spTime === '00:00') {
+      console.log('✅ Próximo sorteo es a medianoche São Paulo (correcto)');
+    } else {
+      console.log('⚠️ Próximo sorteo NO es a medianoche São Paulo');
+      console.log('   Expected: 00:00');
+      console.log('   Actual:', spTime);
+    }
+    
+    return contractData;
+    
+  } catch (error) {
+    console.error('[verifyContractLogic] Error:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para comparar timer del frontend vs contrato
+(window as any).compareFrontendVsContract = async () => {
+  try {
+    console.log('⚖️ Comparando timer frontend vs contrato...');
+    console.log('============================================');
+    
+    // Obtener datos del contrato
+    const contractData = await (window as any).checkContractDrawTime();
+    if (contractData.error) {
+      console.error('Error obteniendo datos del contrato:', contractData.error);
+      return;
+    }
+    
+    // Obtener tiempo del frontend (São Paulo)
+    const { getTimeUntilNextDrawSaoPaulo } = await import('./utils/timezone');
+    const frontendTime = getTimeUntilNextDrawSaoPaulo();
+    
+    console.log('📊 Comparación:');
+    console.log('- Contrato - Tiempo restante:', contractData.timeToNextDraw, 'segundos');
+    console.log('- Frontend - Tiempo restante:', frontendTime, 'segundos');
+    console.log('- Diferencia:', Math.abs(contractData.timeToNextDraw - frontendTime), 'segundos');
+    
+    const difference = Math.abs(contractData.timeToNextDraw - frontendTime);
+    
+    if (difference <= 60) {
+      console.log('✅ Frontend y contrato están sincronizados (diferencia ≤ 60s)');
+    } else if (difference <= 300) {
+      console.log('⚠️ Frontend y contrato tienen diferencia moderada (≤ 5min)');
+    } else {
+      console.log('❌ Frontend y contrato están desincronizados (> 5min)');
+    }
+    
+    // Convertir tiempos a formato legible
+    const formatTime = (seconds) => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return `${h}h ${m}m ${s}s`;
+    };
+    
+    console.log('\n⏰ Tiempos formateados:');
+    console.log('- Contrato:', formatTime(contractData.timeToNextDraw));
+    console.log('- Frontend:', formatTime(frontendTime));
+    
+    return {
+      contractTime: contractData.timeToNextDraw,
+      frontendTime: frontendTime,
+      difference: difference,
+      synced: difference <= 60
+    };
+    
+  } catch (error) {
+    console.error('[compareFrontendVsContract] Error:', error);
+    return { error: error.message };
+  }
+};
+
+// Función para verificar la hora exacta del sorteo según el contrato
+(window as any).checkContractDrawTime = async () => {
+  try {
+    const { ethers } = await import('ethers');
+    const { CONTRACT_ADDRESSES } = await import('./utils/contractAddresses');
+    
+    const TIMER_ABI = [
+      "function getCurrentDay() view returns (uint256)",
+      "function lastDrawTime() view returns (uint256)",
+      "function drawTimeUTC() view returns (uint256)",
+      "function DRAW_INTERVAL() view returns (uint256)",
+      "function checkUpkeep(bytes) view returns (bool upkeepNeeded, bytes performData)"
+    ];
+    
+    console.log('🕐 Verificando hora del sorteo desde el contrato...');
+    console.log('================================================');
+    
+    // Conectar al contrato
+    const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
     const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, TIMER_ABI, provider);
     
     // Obtener datos del contrato

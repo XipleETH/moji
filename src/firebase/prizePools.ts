@@ -18,8 +18,6 @@ import {
 } from 'firebase/firestore';
 import { PrizePool, PrizeDistribution, TicketPurchase, PoolTransaction } from '../types';
 import { getCurrentGameDaySaoPaulo } from '../utils/timezone';
-import { ethers } from 'ethers';
-import { CONTRACT_ADDRESSES } from '../utils/contractAddresses';
 
 // Colecciones
 const PRIZE_POOLS_COLLECTION = 'prize_pools';
@@ -737,6 +735,10 @@ export const syncWithBlockchainV3 = async (gameDay?: string): Promise<boolean> =
   
   try {
     console.log(`[syncWithBlockchainV3] Sincronizando pools para el día ${currentDay}`);
+    
+    // Importar direcciones y configuración
+    const { CONTRACT_ADDRESSES } = await import('../utils/contractAddresses');
+    const { ethers } = await import('ethers');
     
     // Configurar proveedor
     const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
