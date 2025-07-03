@@ -56,6 +56,13 @@ const LOTTO_MOJI_CORE_V4_ABI = [
     type: 'function'
   },
   {
+    inputs: [],
+    name: 'currentGameDay',
+    outputs: [{ name: '', type: 'uint24' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
     inputs: [{ name: 'owner', type: 'address' }],
     name: 'balanceOf',
     outputs: [{ name: '', type: 'uint256' }],
@@ -80,9 +87,8 @@ const LOTTO_MOJI_CORE_V4_ABI = [
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     name: 'tickets',
     outputs: [
-      { name: 'owner', type: 'address' },
+      { name: 'purchaseTime', type: 'uint40' },
       { name: 'gameDay', type: 'uint24' },
-      { name: 'numbers', type: 'uint8[4]' },
       { name: 'claimed', type: 'bool' }
     ],
     stateMutability: 'view',
@@ -180,7 +186,7 @@ export const useBlockchainTicketsV4 = () => {
 
     try {
       // Cargar datos básicos del contrato V4
-      const [balance, allowance, ticketPrice, nextDrawTs, ticketsOwned] = await Promise.all([
+      const [balance, allowance, ticketPrice, nextDrawTs, ticketsOwned, currentGameDay] = await Promise.all([
         publicClient.readContract({
           address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
           abi: USDC_ABI,
@@ -208,6 +214,11 @@ export const useBlockchainTicketsV4 = () => {
           abi: LOTTO_MOJI_CORE_V4_ABI,
           functionName: 'balanceOf',
           args: [user.walletAddress as `0x${string}`]
+        }),
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+          abi: LOTTO_MOJI_CORE_V4_ABI,
+          functionName: 'currentGameDay'
         })
       ]);
 
@@ -215,7 +226,8 @@ export const useBlockchainTicketsV4 = () => {
         ticketsOwned: ticketsOwned.toString(),
         balance: balance.toString(),
         allowance: allowance.toString(),
-        ticketPrice: ticketPrice.toString()
+        ticketPrice: ticketPrice.toString(),
+        currentGameDay: currentGameDay.toString()
       });
 
       // Calcular tiempo hasta próximo sorteo
@@ -253,17 +265,23 @@ export const useBlockchainTicketsV4 = () => {
                   args: [tokenId]
                 });
 
-                // V4 estructura: [owner, gameDay, numbers, claimed]
-                const numbers = Array.from(ticketInfo[2] as number[]);
+                // V4 estructura: [purchaseTime, gameDay, claimed]
+                const purchaseTime = Number(ticketInfo[0]);
+                const gameDay = Number(ticketInfo[1]);
+                const claimed = ticketInfo[2] as boolean;
+
+                // Como no tenemos acceso directo a los números, usar números placeholder
+                // TODO: Implementar función getter en el contrato o usar eventos
+                const numbers = [0, 1, 2, 3]; // Placeholder
                 const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
 
                 const ticket: UserTicket = {
                   tokenId: tokenId.toString(),
                   numbers: numbers,
                   emojis: emojis,
-                  gameDay: ticketInfo[1].toString(),
-                  isActive: !ticketInfo[3], // V4 usa 'claimed', invertimos para 'isActive'
-                  purchaseTime: Date.now() - (Number(ticketsOwned) - i) * 60000, // Estimación basada en orden
+                  gameDay: gameDay.toString(),
+                  isActive: !claimed,
+                  purchaseTime: purchaseTime * 1000, // Convertir de segundos a milisegundos
                   matches: 0
                 };
 
@@ -293,6 +311,13 @@ export const useBlockchainTicketsV4 = () => {
         });
 
         console.log('[useBlockchainTicketsV4] Loaded tickets:', userTickets.length);
+        console.log('[useBlockchainTicketsV4] Tickets details:', userTickets.map(t => ({
+          tokenId: t.tokenId,
+          gameDay: t.gameDay,
+          numbers: t.numbers,
+          emojis: t.emojis,
+          isActive: t.isActive
+        })));
       }
 
       // Verificar si puede comprar tickets

@@ -135,7 +135,7 @@ const TicketModal: React.FC<TicketModalProps> = ({
           <div className="flex items-center gap-3">
             <TicketIcon className="text-purple-400" size={24} />
             <h2 className="text-xl font-bold text-white">
-              Today's Tickets ({tickets.length})
+              Active Tickets ({tickets.length})
             </h2>
           </div>
           <button
@@ -339,12 +339,19 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
   };
 
   const getTodayTickets = () => {
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    // Usar todos los tickets activos en lugar de filtrar por día
+    // ya que el usuario quiere ver los tickets que compró hoy
+    const activeTickets = userData.userTickets.filter(ticket => ticket.isActive);
     
-    return userData.userTickets.filter(ticket => 
-      ticket.purchaseTime >= todayStart
-    );
+    console.log('[BlockchainTicketsDisplay] Active tickets:', activeTickets.length);
+    console.log('[BlockchainTicketsDisplay] User tickets:', userData.userTickets.map(t => ({
+      tokenId: t.tokenId,
+      gameDay: t.gameDay,
+      purchaseTime: t.purchaseTime,
+      isActive: t.isActive
+    })));
+    
+    return activeTickets;
   };
 
   const todayTickets = getTodayTickets();
@@ -422,12 +429,12 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
         {todayTickets.length === 0 ? (
           <div className="text-center py-8 bg-white/10 rounded-lg">
             <TicketIcon className="mx-auto text-white/40 mb-4" size={48} />
-            <p className="text-white/70">Your blockchain tickets will appear here</p>
+            <p className="text-white/70">Your active tickets will appear here</p>
             <p className="text-white/50 text-sm mt-2">
               {userData.ticketsOwned > 0n 
                 ? (loadingTimeout 
-                    ? `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days or having loading issues. Try refreshing!`
-                    : `You have ${userData.ticketsOwned.toString()} tickets total - they may be from previous days. Try refreshing!`
+                    ? `You have ${userData.ticketsOwned.toString()} tickets total - they may be claimed or having loading issues. Try refreshing!`
+                    : `You have ${userData.ticketsOwned.toString()} tickets total - they may be claimed. Try refreshing!`
                   )
                 : 'Buy your first USDC ticket above!'
               }
@@ -498,7 +505,7 @@ export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> =
                   <span className="text-purple-400 group-hover:text-purple-300 text-sm flex items-center justify-center gap-1">
                     <Eye size={14} />
                     {todayTickets.length > 1 
-                      ? `Tap to view all ${todayTickets.length} tickets today`
+                      ? `Tap to view all ${todayTickets.length} active tickets`
                       : 'Latest ticket'
                     }
                   </span>
