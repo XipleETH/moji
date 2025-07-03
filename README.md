@@ -14,6 +14,8 @@
 > # Switch to continued development branch
 > git checkout post-chromion
 > ```
+>
+> **🔄 Latest Update**: Vercel deployment refreshed - July 3, 2025
 
 A complete blockchain-based emoji lottery application with automatic reserve system running on Avalanche Fuji and Base Sepolia testnets.
 
