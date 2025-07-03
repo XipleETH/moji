@@ -10,7 +10,7 @@ interface ContractGameHistory {
   distributed: boolean;
   totalCollected: string;
   lastDrawTime: number;
-  hasWinners: boolean; // Simulado por ahora, en el futuro se puede calcular
+  hasWinners: boolean;
 }
 
 interface UseContractGameHistoryReturn {
@@ -19,15 +19,19 @@ interface UseContractGameHistoryReturn {
   error: string | null;
 }
 
-// ABI para obtener historial
+// ABI para el contrato V4 - estructura correcta
 const GAME_HISTORY_ABI = [
-  "function lastWinningNumbers(uint256) view returns (uint8)",
-  "function getCurrentDay() view returns (uint256)",
-  "function dailyPools(uint256) view returns (uint256 totalCollected, uint256 mainPoolPortion, uint256 reservePortion, uint256 firstPrizeDaily, uint256 secondPrizeDaily, uint256 thirdPrizeDaily, uint256 developmentDaily, bool distributed, uint256 distributionTime, bool drawn, bool reservesSent)",
-  "function lastDrawTime() view returns (uint256)",
-  "function totalDrawsExecuted() view returns (uint256)",
-  "function DRAW_INTERVAL() view returns (uint256)",
-  "function drawTimeUTC() view returns (uint256)"
+  "function currentGameDay() view returns (uint24)",
+  "function dayResults(uint24) view returns (uint32 processingIndex, uint32 winnersFirst, uint32 winnersSecond, uint32 winnersThird, bool fullyProcessed)",
+  "function nextDrawTs() view returns (uint256)",
+  "function automationActive() view returns (bool)",
+  "function emergencyPause() view returns (bool)",
+  "function totalSupply() view returns (uint256)"
+];
+
+// ABI para el evento DrawNumbers
+const DRAW_NUMBERS_EVENT_ABI = [
+  "event DrawNumbers(uint24 indexed day, uint8[4] numbers)"
 ];
 
 export function useContractGameHistory(): UseContractGameHistoryReturn {
@@ -40,103 +44,137 @@ export function useContractGameHistory(): UseContractGameHistoryReturn {
       setLoading(true);
       setError(null);
 
-      // Configurar provider para Base Sepolia
+      // Configurar provider para Avalanche Fuji
       const provider = new ethers.JsonRpcProvider('https://api.avax-test.network/ext/bc/C/rpc');
       const contract = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, GAME_HISTORY_ABI, provider);
+      const contractWithEvents = new ethers.Contract(CONTRACT_ADDRESSES.LOTTO_MOJI_CORE, DRAW_NUMBERS_EVENT_ABI, provider);
 
       // Obtener datos básicos
       const [
         currentGameDay,
-        totalDrawsExecuted,
-        lastDrawTime,
-        drawInterval,
-        drawTimeUTC
+        nextDrawTs,
+        automationActive,
+        emergencyPause,
+        totalSupply
       ] = await Promise.all([
-        contract.getCurrentDay(),
-        contract.totalDrawsExecuted(),
-        contract.lastDrawTime(),
-        contract.DRAW_INTERVAL(),
-        contract.drawTimeUTC()
+        contract.currentGameDay(),
+        contract.nextDrawTs(),
+        contract.automationActive(),
+        contract.emergencyPause(),
+        contract.totalSupply()
       ]);
 
+      console.log('🔍 Contract V4 History Status:');
+      console.log('   Current Game Day:', currentGameDay.toString());
+      console.log('   Next Draw Timestamp:', nextDrawTs.toString());
+      console.log('   Total Supply:', totalSupply.toString());
+
+      // Buscar eventos DrawNumbers para obtener el historial
+      const latestBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, latestBlock - 2000); // Buscar en los últimos 2000 bloques
+      
+      console.log(`   📊 Searching DrawNumbers events from block ${fromBlock} to ${latestBlock}`);
+      
       const historyData: ContractGameHistory[] = [];
-
-      // Si no hay sorteos ejecutados, crear una entrada con el estado actual
-      if (totalDrawsExecuted === 0n) {
-        // Obtener números ganadores actuales (que serán todos 0)
-        const currentWinningNumbers = await Promise.all([
-          contract.lastWinningNumbers(0),
-          contract.lastWinningNumbers(1),
-          contract.lastWinningNumbers(2),
-          contract.lastWinningNumbers(3)
-        ]);
-
-        const currentWinningEmojis = currentWinningNumbers.map(num => GAME_CONFIG.EMOJI_MAP[Number(num)]);
-
-        // Obtener pool actual
-        let currentPool;
-        try {
-          currentPool = await contract.dailyPools(currentGameDay);
-        } catch {
-          currentPool = { totalCollected: 0, drawn: false, distributed: false };
-        }
-
-        // Calcular tiempo del próximo sorteo estimado
-        const nextDrawTime = calculateNextDrawTime(Number(drawTimeUTC), Number(drawInterval));
-
-        historyData.push({
-          gameDay: currentGameDay.toString(),
-          winningNumbers: currentWinningNumbers.map(Number),
-          winningEmojis: currentWinningEmojis,
-          drawn: false,
-          distributed: false,
-          totalCollected: ethers.formatUnits(currentPool.totalCollected || 0, 6),
-          lastDrawTime: nextDrawTime,
-          hasWinners: false
-        });
-      } else {
-        // Si hay sorteos ejecutados, obtener el historial
-        // Empezar desde el día más reciente hacia atrás
-        const startDay = currentGameDay - 1n; // El último sorteo fue para el día anterior
-        const maxDays = Math.min(Number(totalDrawsExecuted), 10); // Últimos 10 sorteos máximo
-
-        for (let i = 0; i < maxDays; i++) {
-          const targetDay = startDay - BigInt(i);
+      
+      try {
+        const drawEvents = await contractWithEvents.queryFilter(
+          contractWithEvents.filters.DrawNumbers(),
+          fromBlock,
+          'latest'
+        );
+        
+        console.log(`   📊 Found ${drawEvents.length} DrawNumbers events`);
+        
+        if (drawEvents.length > 0) {
+          // Procesar todos los eventos encontrados (ordenados por fecha)
+          const sortedEvents = drawEvents.sort((a, b) => Number(a.args.day) - Number(b.args.day));
           
-          try {
-            // Obtener números ganadores del contrato (estos son los últimos guardados)
-            const winningNumbers = await Promise.all([
-              contract.lastWinningNumbers(0),
-              contract.lastWinningNumbers(1),
-              contract.lastWinningNumbers(2),
-              contract.lastWinningNumbers(3)
-            ]);
-
-            const winningEmojis = winningNumbers.map(num => GAME_CONFIG.EMOJI_MAP[Number(num)]);
-
-            // Obtener información del pool de ese día
-            const dailyPool = await contract.dailyPools(targetDay);
-
-            // Calcular tiempo estimado del sorteo
-            const drawTime = calculateDrawTimeForDay(targetDay, Number(drawTimeUTC), Number(drawInterval));
-
+          for (const event of sortedEvents) {
+            const eventDay = event.args.day;
+            const winningNumbers = event.args.numbers.map((num: bigint) => Number(num));
+            const winningEmojis = winningNumbers.map(index => GAME_CONFIG.EMOJI_MAP[index] || '❓');
+            
+            console.log(`   📅 Processing Game Day ${eventDay}:`, winningNumbers);
+            
+            // Verificar el estado de procesamiento para este día
+            let drawn = false;
+            let winnersFirst = 0;
+            let winnersSecond = 0;
+            let winnersThird = 0;
+            
+            try {
+              const dayResult = await contract.dayResults(eventDay);
+              drawn = dayResult.fullyProcessed;
+              winnersFirst = Number(dayResult.winnersFirst);
+              winnersSecond = Number(dayResult.winnersSecond);
+              winnersThird = Number(dayResult.winnersThird);
+              
+              console.log(`     Fully Processed: ${drawn}`);
+              console.log(`     Winners: ${winnersFirst} / ${winnersSecond} / ${winnersThird}`);
+            } catch (resultError) {
+              console.warn(`Error fetching processing status for day ${eventDay}:`, resultError);
+            }
+            
+            // Calcular tiempo estimado del sorteo (aproximación)
+            const drawTime = Number(nextDrawTs) - (24 * 60 * 60 * (Number(currentGameDay) - Number(eventDay)));
+            
+            // Calcular total recaudado (aproximación basada en tickets vendidos)
+            const estimatedTicketsPerDay = 10; // Aproximación
+            const ticketPrice = 0.2; // USDC
+            const totalCollected = (estimatedTicketsPerDay * ticketPrice).toString();
+            
+            const hasWinners = winnersFirst > 0 || winnersSecond > 0 || winnersThird > 0;
+            
             historyData.push({
-              gameDay: targetDay.toString(),
-              winningNumbers: winningNumbers.map(Number),
+              gameDay: eventDay.toString(),
+              winningNumbers,
               winningEmojis,
-              drawn: dailyPool.drawn,
-              distributed: dailyPool.distributed,
-              totalCollected: ethers.formatUnits(dailyPool.totalCollected, 6),
-              lastDrawTime: drawTime,
-              hasWinners: false // Por ahora simulamos que no hay ganadores, se puede mejorar
+              drawn,
+              distributed: drawn, // En V4, si está fullyProcessed, está distribuido
+              totalCollected,
+              lastDrawTime: drawTime * 1000, // Convertir a milisegundos
+              hasWinners
             });
-
-          } catch (dayError) {
-            console.warn(`Error fetching data for day ${targetDay}:`, dayError);
           }
         }
+        
+        // Si no hay eventos, crear una entrada para el día actual
+        if (historyData.length === 0) {
+          console.log('   📅 No draw events found, creating current day entry');
+          
+          historyData.push({
+            gameDay: currentGameDay.toString(),
+            winningNumbers: [0, 0, 0, 0],
+            winningEmojis: ['❓', '❓', '❓', '❓'],
+            drawn: false,
+            distributed: false,
+            totalCollected: '0',
+            lastDrawTime: Number(nextDrawTs) * 1000,
+            hasWinners: false
+          });
+        }
+        
+      } catch (eventError) {
+        console.warn('Error searching for DrawNumbers events:', eventError);
+        
+        // Si hay error con eventos, crear entrada básica
+        historyData.push({
+          gameDay: currentGameDay.toString(),
+          winningNumbers: [0, 0, 0, 0],
+          winningEmojis: ['❓', '❓', '❓', '❓'],
+          drawn: false,
+          distributed: false,
+          totalCollected: '0',
+          lastDrawTime: Number(nextDrawTs) * 1000,
+          hasWinners: false
+        });
       }
 
+      // Ordenar por día (más reciente primero)
+      historyData.sort((a, b) => Number(b.gameDay) - Number(a.gameDay));
+      
+      console.log(`   📊 Final history data: ${historyData.length} entries`);
       setHistory(historyData);
 
     } catch (err) {
@@ -145,19 +183,6 @@ export function useContractGameHistory(): UseContractGameHistoryReturn {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Función para calcular el tiempo del próximo sorteo
-  const calculateNextDrawTime = (drawTimeUTC: number, drawInterval: number): number => {
-    const now = Date.now() / 1000;
-    const nextMidnight = Math.ceil((now + drawTimeUTC) / drawInterval) * drawInterval - drawTimeUTC;
-    return nextMidnight * 1000;
-  };
-
-  // Función para calcular el tiempo del sorteo para un día específico
-  const calculateDrawTimeForDay = (gameDay: bigint, drawTimeUTC: number, drawInterval: number): number => {
-    const dayInSeconds = Number(gameDay) * drawInterval;
-    return (dayInSeconds - drawTimeUTC) * 1000;
   };
 
   useEffect(() => {
