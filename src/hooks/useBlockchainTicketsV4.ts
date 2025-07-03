@@ -4,7 +4,7 @@ import { avalancheFuji } from 'viem/chains';
 import { CONTRACT_ADDRESSES, GAME_CONFIG } from '../utils/contractAddresses';
 import { useWallet } from '../contexts/WalletContext';
 
-// Interfaces simplificadas
+// Interfaces
 export interface UserTicket {
   tokenId: string;
   numbers: number[];
@@ -32,8 +32,8 @@ export interface TicketPurchaseState {
   step: 'idle' | 'checking-balance' | 'approving' | 'buying' | 'confirming' | 'success';
 }
 
-// ABIs para V4 - ERC721Enumerable compatible
-const LOTTO_MOJI_CORE_ABI = [
+// V4 ABIs optimizadas
+const LOTTO_MOJI_CORE_V4_ABI = [
   {
     inputs: [{ name: '_numbers', type: 'uint8[4]' }],
     name: 'buyTicket',
@@ -114,7 +114,7 @@ const USDC_ABI = [
   }
 ] as const;
 
-export const useBlockchainTickets = () => {
+export const useBlockchainTicketsV4 = () => {
   const { user, isConnected } = useWallet();
   
   const [userData, setUserData] = useState<UserTicketData>({
@@ -144,17 +144,19 @@ export const useBlockchainTickets = () => {
   // Cargar datos cuando cambia la conexión o dirección
   useEffect(() => {
     if (isConnected && user?.walletAddress) {
-      console.log('[useBlockchainTickets] Loading initial data for:', user.walletAddress);
+      console.log('[useBlockchainTicketsV4] Loading data for:', user.walletAddress);
       loadUserData();
+      
       // Actualizar datos cada 30 segundos
       const interval = setInterval(() => {
-        console.log('[useBlockchainTickets] Periodic refresh');
+        console.log('[useBlockchainTicketsV4] Periodic refresh');
         loadUserData();
       }, 30000);
+      
       return () => clearInterval(interval);
     } else {
       // Reset data when disconnected
-      console.log('[useBlockchainTickets] Resetting data - user disconnected');
+      console.log('[useBlockchainTicketsV4] Resetting data - user disconnected');
       setUserData({
         usdcBalance: 0n,
         usdcAllowance: 0n,
@@ -169,14 +171,15 @@ export const useBlockchainTickets = () => {
 
   const loadUserData = async () => {
     if (!user?.walletAddress || !isConnected) {
-      console.log('[useBlockchainTickets] No user or not connected:', { user: !!user, isConnected });
+      console.log('[useBlockchainTicketsV4] No user or not connected');
       return;
     }
 
-    console.log('[useBlockchainTickets] Loading data for:', user.walletAddress);
+    console.log('[useBlockchainTicketsV4] Loading data for V4 contract:', user.walletAddress);
     setIsLoadingTickets(true);
 
     try {
+      // Cargar datos básicos del contrato V4
       const [balance, allowance, ticketPrice, nextDrawTs, ticketsOwned] = await Promise.all([
         publicClient.readContract({
           address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
@@ -192,145 +195,131 @@ export const useBlockchainTickets = () => {
         }),
         publicClient.readContract({
           address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
+          abi: LOTTO_MOJI_CORE_V4_ABI,
           functionName: 'ticketPrice'
         }),
         publicClient.readContract({
           address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
+          abi: LOTTO_MOJI_CORE_V4_ABI,
           functionName: 'nextDrawTs'
         }),
         publicClient.readContract({
           address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-          abi: LOTTO_MOJI_CORE_ABI,
+          abi: LOTTO_MOJI_CORE_V4_ABI,
           functionName: 'balanceOf',
           args: [user.walletAddress as `0x${string}`]
         })
       ]);
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useBlockchainTickets] Contract data loaded:', {
-          ticketsOwned: ticketsOwned.toString(),
-          userTicketIds: userTicketIds,
-          userTicketIdsLength: userTicketIds.length,
-          balance: balance.toString(),
-          allowance: allowance.toString()
-        });
-      }
-
-      // Calcular tiempo hasta próximo sorteo
-      const currentTime = BigInt(Math.floor(Date.now() / 1000));
-      const nextDrawTime = lastDrawTime + drawInterval;
-      const timeUntilDraw = nextDrawTime > currentTime ? nextDrawTime - currentTime : 0n;
-
-      // Obtener información detallada de los tickets
-      const userTickets: UserTicket[] = [];
-      
-      // Cargar más tickets pero con límite razonable - últimos 25 tickets
-      const ticketIdsToLoad = userTicketIds.slice(-25);
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useBlockchainTickets] Loading ticket details for IDs:', ticketIdsToLoad);
-      }
-
-      // Intentar cargar desde localStorage primero para tickets recientes
-      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
-      let cachedTickets: UserTicket[] = [];
-      
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          cachedTickets = JSON.parse(cached);
-          // Solo usar cache si es reciente (últimas 2 horas)
-          const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
-          cachedTickets = cachedTickets.filter(ticket => ticket.purchaseTime > twoHoursAgo);
-        }
-      } catch (error) {
-        console.warn('Error loading cached tickets:', error);
-      }
-
-      // Cargar tickets en paralelo pero con mejor manejo de errores
-      const ticketPromises = ticketIdsToLoad.map(async (ticketId, index) => {
-        try {
-          // Verificar si ya tenemos este ticket en cache
-          const cachedTicket = cachedTickets.find(t => t.tokenId === ticketId.toString());
-          if (cachedTicket) {
-            return cachedTicket;
-          }
-
-          // Usar getFullTicketInfo para obtener toda la información incluyendo purchaseTime
-          const ticketInfo = await publicClient.readContract({
-            address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-            abi: LOTTO_MOJI_CORE_ABI,
-            functionName: 'getFullTicketInfo',
-            args: [ticketId]
-          });
-
-          const numbers = Array.from(ticketInfo[1]);
-          const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
-          
-          const ticket = {
-            tokenId: ticketId.toString(),
-            numbers: numbers,
-            emojis: emojis,
-            gameDay: ticketInfo[2].toString(),
-            isActive: ticketInfo[3],
-            purchaseTime: Number(ticketInfo[4]) * 1000, // Convert from seconds to milliseconds
-            matches: ticketInfo[6]
-          };
-
-          return ticket;
-        } catch (error) {
-          console.warn(`Error loading ticket ${ticketId}:`, error);
-          return null;
-        }
+      console.log('[useBlockchainTicketsV4] Basic data loaded:', {
+        ticketsOwned: ticketsOwned.toString(),
+        balance: balance.toString(),
+        allowance: allowance.toString(),
+        ticketPrice: ticketPrice.toString()
       });
 
-      // Usar Promise.allSettled sin timeout tan estricto
-      const results = await Promise.allSettled(ticketPromises);
+      // Calcular tiempo hasta próximo sorteo
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timeUntilDraw = Math.max(0, Number(nextDrawTs) - currentTime);
 
-          results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value) {
-              userTickets.push(result.value);
-            }
-          });
+      console.log('[useBlockchainTicketsV4] Time calculation:', {
+        currentTime,
+        nextDrawTs: Number(nextDrawTs),
+        timeUntilDraw
+      });
 
-      // Ordenar tickets por tiempo de compra (más recientes primero)
-      userTickets.sort((a, b) => b.purchaseTime - a.purchaseTime);
+      // Cargar tickets usando ERC721Enumerable (V4 feature!)
+      const userTickets: UserTicket[] = [];
 
-      // Guardar en localStorage para próximas cargas
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(userTickets));
-      } catch (error) {
-        console.warn('Error caching tickets:', error);
+      if (Number(ticketsOwned) > 0) {
+        console.log('[useBlockchainTicketsV4] Loading tickets via ERC721Enumerable:', Number(ticketsOwned));
+
+        // Usar ERC721Enumerable para obtener IDs de tickets directamente
+        const ticketPromises = [];
+        for (let i = 0; i < Number(ticketsOwned); i++) {
+          ticketPromises.push(
+            publicClient.readContract({
+              address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+              abi: LOTTO_MOJI_CORE_V4_ABI,
+              functionName: 'tokenOfOwnerByIndex',
+              args: [user.walletAddress as `0x${string}`, BigInt(i)]
+            }).then(async (tokenId) => {
+              try {
+                // Obtener información del ticket
+                const ticketInfo = await publicClient.readContract({
+                  address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
+                  abi: LOTTO_MOJI_CORE_V4_ABI,
+                  functionName: 'tickets',
+                  args: [tokenId]
+                });
+
+                // V4 estructura: [owner, gameDay, numbers, claimed]
+                const numbers = Array.from(ticketInfo[2] as number[]);
+                const emojis = numbers.map(num => GAME_CONFIG.EMOJI_MAP[num] || '🎵');
+
+                const ticket: UserTicket = {
+                  tokenId: tokenId.toString(),
+                  numbers: numbers,
+                  emojis: emojis,
+                  gameDay: ticketInfo[1].toString(),
+                  isActive: !ticketInfo[3], // V4 usa 'claimed', invertimos para 'isActive'
+                  purchaseTime: Date.now() - (Number(ticketsOwned) - i) * 60000, // Estimación basada en orden
+                  matches: 0
+                };
+
+                return ticket;
+              } catch (error) {
+                console.warn(`[useBlockchainTicketsV4] Error loading ticket ${tokenId}:`, error);
+                return null;
+              }
+            })
+          );
+        }
+
+        // Resolver todas las promesas
+        const results = await Promise.allSettled(ticketPromises);
+
+        results.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            userTickets.push(result.value);
+          }
+        });
+
+        // Ordenar tickets por gameDay y tokenId (más recientes primero)
+        userTickets.sort((a, b) => {
+          const gameDayDiff = Number(b.gameDay) - Number(a.gameDay);
+          if (gameDayDiff !== 0) return gameDayDiff;
+          return Number(b.tokenId) - Number(a.tokenId);
+        });
+
+        console.log('[useBlockchainTicketsV4] Loaded tickets:', userTickets.length);
       }
 
-      // Permitir comprar si tiene suficiente balance (el allowance se maneja en buyTicket)
-      const canBuy = balance >= ticketPrice;
+      // Verificar si puede comprar tickets
+      const canBuy = balance >= ticketPrice && allowance >= ticketPrice;
 
-      const finalData = {
+      const finalData: UserTicketData = {
         usdcBalance: balance,
         usdcAllowance: allowance,
         ticketPrice: ticketPrice,
         canBuyTicket: canBuy,
-        timeUntilNextDraw: timeUntilDraw,
+        timeUntilNextDraw: BigInt(timeUntilDraw),
         ticketsOwned: ticketsOwned,
         userTickets: userTickets
       };
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useBlockchainTickets] Final user data:', {
-          ...finalData,
-          ticketsOwned: finalData.ticketsOwned.toString(),
-          userTicketsCount: finalData.userTickets.length,
-          usdcBalance: finalData.usdcBalance.toString()
-        });
-      }
+      console.log('[useBlockchainTicketsV4] Final data:', {
+        canBuyTicket: canBuy,
+        ticketsCount: userTickets.length,
+        usdcBalance: balance.toString(),
+        allowance: allowance.toString(),
+        ticketPrice: ticketPrice.toString()
+      });
 
       setUserData(finalData);
 
     } catch (error) {
-      console.error('[useBlockchainTickets] Error loading user data:', error);
+      console.error('[useBlockchainTicketsV4] Error loading user data:', error);
     } finally {
       setIsLoadingTickets(false);
     }
@@ -341,14 +330,14 @@ export const useBlockchainTickets = () => {
       throw new Error('Wallet not connected');
     }
 
-    // Convertir emojis a números (usando EMOJI_MAP)
+    // Convertir emojis a números
     const numberArray = emojiNumbers.map(emoji => {
       const index = GAME_CONFIG.EMOJI_MAP.indexOf(emoji);
       return index >= 0 ? index : 0;
     });
 
     const walletClient = createWalletClient({
-              chain: avalancheFuji,
+      chain: avalancheFuji,
       transport: custom(window.ethereum)
     });
 
@@ -363,7 +352,7 @@ export const useBlockchainTickets = () => {
           address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
           abi: USDC_ABI,
           functionName: 'approve',
-          args: [CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`, parseUnits('10', 6)], // Approve 10 USDC
+          args: [CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`, parseUnits('10', 6)],
           account: user.walletAddress as `0x${string}`
         });
 
@@ -372,10 +361,10 @@ export const useBlockchainTickets = () => {
 
       setPurchaseState(prev => ({ ...prev, step: 'buying' }));
       
-      // Comprar ticket
+      // Comprar ticket con V4 ABI
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESSES.LOTTO_MOJI_CORE as `0x${string}`,
-        abi: LOTTO_MOJI_CORE_ABI,
+        abi: LOTTO_MOJI_CORE_V4_ABI,
         functionName: 'buyTicket',
         args: [numberArray as [number, number, number, number]],
         account: user.walletAddress as `0x${string}`
@@ -384,41 +373,18 @@ export const useBlockchainTickets = () => {
       setPurchaseState(prev => ({ ...prev, step: 'confirming', txHash: hash }));
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[buyTicket] Transaction confirmed:', receipt);
-      }
+      console.log('[buyTicket] V4 transaction confirmed:', receipt);
 
-      // Limpiar cache para forzar recarga completa
-      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
-      try {
-        localStorage.removeItem(cacheKey);
-      } catch (error) {
-        console.warn('Error clearing cache:', error);
-      }
-
-      // Actualización inmediata después de confirmación con retry
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Esperar 1s, 2s, 3s
-      await loadUserData();
-          break;
-        } catch (error) {
-          retryCount++;
-          console.warn(`Retry ${retryCount} loading data after purchase:`, error);
-          if (retryCount >= maxRetries) {
-            console.error('Failed to reload data after purchase, but transaction was successful');
-          }
-        }
-      }
+      // Actualizar datos después de la compra
+      setTimeout(() => {
+        loadUserData();
+      }, 2000);
 
       setPurchaseState(prev => ({ ...prev, isLoading: false, step: 'success' }));
       return hash;
 
     } catch (error) {
-      console.error('Error buying ticket:', error);
+      console.error('[buyTicket] V4 error:', error);
       setPurchaseState({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -438,20 +404,7 @@ export const useBlockchainTickets = () => {
     });
   };
 
-  const clearCache = () => {
-    if (user?.walletAddress) {
-      const cacheKey = `blockchain-tickets-${user.walletAddress}`;
-      try {
-        localStorage.removeItem(cacheKey);
-        console.log('[useBlockchainTickets] Cache cleared for:', user.walletAddress);
-      } catch (error) {
-        console.warn('Error clearing cache:', error);
-      }
-    }
-  };
-
-  const refreshDataWithClearCache = async () => {
-    clearCache();
+  const refreshData = async () => {
     await loadUserData();
   };
 
@@ -462,8 +415,7 @@ export const useBlockchainTickets = () => {
     purchaseState,
     buyTicket,
     resetPurchaseState,
-    refreshData: refreshDataWithClearCache,
-    isLoadingTickets,
-    clearCache
+    refreshData,
+    isLoadingTickets
   };
 }; 

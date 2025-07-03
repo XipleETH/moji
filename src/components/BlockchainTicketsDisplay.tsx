@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TicketIcon, History, Clock, CheckCircle, X, RefreshCw, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
+import { useBlockchainTicketsV4 } from '../hooks/useBlockchainTicketsV4';
 import { formatUnits } from 'viem';
 
 interface BlockchainTicketsDisplayProps {
@@ -256,7 +256,7 @@ const TicketModal: React.FC<TicketModalProps> = ({
 export const BlockchainTicketsDisplay: React.FC<BlockchainTicketsDisplayProps> = ({ 
   onViewHistory 
 }) => {
-  const { userData, isConnected, userAddress, refreshData, isLoadingTickets } = useBlockchainTickets();
+  const { userData, isConnected, userAddress, refreshData, isLoadingTickets } = useBlockchainTicketsV4();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [showModal, setShowModal] = useState(false);

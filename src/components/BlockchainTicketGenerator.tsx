@@ -4,7 +4,7 @@ import { GAME_CONFIG } from '../utils/contractAddresses';
 import { formatUnits } from 'viem';
 import { CheckCircle, Coins, X, Dice1, Package, Zap } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
-import { useBlockchainTickets } from '../hooks/useBlockchainTickets';
+import { useBlockchainTicketsV4 } from '../hooks/useBlockchainTicketsV4';
 
 // Debug system ultra-simplificado
 if (typeof window !== 'undefined') {
@@ -41,7 +41,7 @@ export const BlockchainTicketGenerator: React.FC<BlockchainTicketGeneratorProps>
     buyTicket,
     resetPurchaseState,
     refreshData
-  } = useBlockchainTickets();
+  } = useBlockchainTicketsV4();
   
   const [emojis, setEmojis] = useState<string[]>(getEmojis());
   const [emojisLoading, setEmojisLoading] = useState(false);
